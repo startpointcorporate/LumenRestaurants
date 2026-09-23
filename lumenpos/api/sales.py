@@ -361,6 +361,7 @@ def submit_sale(payload):
         "redeem_loyalty_points", "coupon_codes", "sales_person",
         "app_type", "order_id", "is_exchange",
         "discount_passcode", "discount_request", "note",
+        "order",  # a POS Restaurant Order being paid, closed when this posts
     }
     """
     if isinstance(payload, str):
@@ -490,6 +491,14 @@ def submit_sale(payload):
         from lumenpos.api import approval_requests
 
         approval_requests.consume(payload["discount_request"], invoice.name)
+
+    # A table order that has just been paid: link the invoice to it and close
+    # it here, on the sale itself, so the table is free the moment the money is
+    # in and not when someone remembers to press something.
+    if payload.get("order"):
+        from lumenpos.api import restaurant
+
+        restaurant.close_order(payload["order"], invoice.name, flt(invoice.grand_total))
 
     receipt = get_receipt(invoice.name)
     receipt["stock_after"] = _stock_after(invoice)

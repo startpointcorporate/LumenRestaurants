@@ -124,12 +124,12 @@
       <ProductGrid v-else @select="addToCart" />
     </section>
 
-    <CartPanel @pay="onPay" @park="parkOpen = true" @hold="holdOpen = true" @receipt="receipt = $event" />
+    <CartPanel @pay="onPay" @park="parkOpen = true" @hold="holdOpen = true" @receipt="receipt = $event" @leave-order="leaveOrder" />
 
     <PaymentOverlay v-if="paymentOpen" @close="paymentOpen = false" @done="onSaleDone" />
     <HoldModal v-if="holdOpen" @close="holdOpen = false" @done="onHeld" />
     <ParkedSalesModal v-if="parkedOpen" @close="parkedOpen = false" />
-    <ReceiptModal v-if="receipt" :receipt="receipt" @close="receipt = null" />
+    <ReceiptModal v-if="receipt" :receipt="receipt" @close="closeReceipt" />
     <SerialModal
       v-if="serialItem"
       :item="serialItem"
@@ -221,6 +221,21 @@ function onHeld() {
 }
 
 onMounted(() => searchInput.value?.focus())
+
+// While a table order is open, every change to the basket is saved back to it,
+// debounced, so the next device to open that table sees what was rung in. The
+// subscription dies with this screen, which is where the basket is edited.
+cart.$subscribe(() => cart.touchOrder())
+
+// Put the order down and go back to the floor.
+async function leaveOrder() {
+  try {
+    await cart.leaveOrder()
+    router.push('/tables')
+  } catch (e) {
+    session.notify(e.message, true)
+  }
+}
 
 // Ask the server what this basket costs while the cashier is still working it,
 // so pressing Pay opens a screen that already knows the payable instead of
@@ -363,9 +378,22 @@ function onSaleDone(saleReceipt) {
   receipt.value = saleReceipt
 }
 
+// A table that has just been paid is free, so the till goes back to the floor
+// once the cashier is done with the receipt. The order itself was closed by the
+// sale, server-side.
+function closeReceipt() {
+  receipt.value = null
+  if (wasTableOrder.value) {
+    wasTableOrder.value = false
+    router.push('/tables')
+  }
+}
+
 const passcodeOpen = ref(false)
+const wasTableOrder = ref(false)
 
 function onPay() {
+  wasTableOrder.value = Boolean(cart.order)
   if (cart.appType && cart.activeApp?.require_order_id && !cart.orderId.trim()) {
     session.notify(t('Enter the {channel} order ID first', { channel: cart.appType }), true)
     return

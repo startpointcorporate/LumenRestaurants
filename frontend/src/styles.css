@@ -178,6 +178,21 @@ h1, h2, h3, h4 { font-weight: 800; letter-spacing: -0.02em; line-height: 1.14; }
   font-weight: 700;
 }
 .modal-body { padding: 22px; overflow-y: auto; }
+/* A modal body marked .form is a stacked column of label + field. Several
+   modals used to define this in their own scoped styles, and the ones that did
+   not ran their labels and inputs together on one line. Deliberately low in
+   specificity, so a component that styles its own labels still wins. */
+.form > .field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 14px 0 6px;
+}
+.form > .field-label:first-child { margin-top: 0; }
+.form > input,
+.form > select,
+.form > textarea { width: 100%; box-sizing: border-box; }
 .modal-footer {
   padding: 16px 22px;
   border-top: 1px solid var(--border);

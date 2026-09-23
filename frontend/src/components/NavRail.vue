@@ -19,6 +19,10 @@
       <svg viewBox="0 0 24 24"><path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm10 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM3 2h2.5l3.1 11.6A2 2 0 0 0 10.5 15h8.2a2 2 0 0 0 1.9-1.4L23 6H6.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>{{ t('Sell') }}</span>
     </router-link>
+    <router-link v-if="session.restaurantMode" to="/tables" class="rail-item" active-class="active">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="10.5" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 15.7V21M8 21h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>{{ t('Tables') }}</span>
+    </router-link>
     <router-link v-if="session.permissions.view_history !== false" to="/history" class="rail-item" active-class="active">
       <svg viewBox="0 0 24 24"><path d="M12 8v5l3.5 2M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>{{ t('History') }}</span>

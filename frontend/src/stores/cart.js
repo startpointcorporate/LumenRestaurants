@@ -32,6 +32,11 @@ export const useCartStore = defineStore('cart', {
     // at payment. {invoice, items, serials, reason, request, value, customer}
     exchange: null,
     submitting: false,
+    // The table order this basket belongs to, at an outlet that serves tables:
+    // {name, table_label, order_type, guests, ...}. Null on a shop till.
+    order: null,
+    _orderTimer: null,
+    _orderSig: null,
     _quoteCache: null, // {signature, at, promise} see quote()
     _quoteTimer: null,
   }),
@@ -464,6 +469,8 @@ export const useCartStore = defineStore('cart', {
       this.discountRequest = null
       this.activePriceList = null
       this.note = ''
+      this.order = null
+      this._orderSig = null
       // salesPerson intentionally kept, it's the staff member on shift
     },
 
@@ -630,6 +637,7 @@ export const useCartStore = defineStore('cart', {
         redeem_loyalty_points: redeemLoyaltyPoints || 0,
         discount_passcode: this.discountPasscode,
         discount_request: this.discountRequest,
+        order: this.order?.name || null,
       }
       this.submitting = true
       try {
@@ -724,6 +732,91 @@ export const useCartStore = defineStore('cart', {
       }
       this.clear()
       return receipt
+    },
+
+    // How the guest wants this line. Travels with the order so the kitchen and
+    // the next device see it, and never touches the price.
+    setLineNote(index, note) {
+      const line = this.lines[index]
+      if (line) line.note = (note || '').trim()
+    },
+
+    // --- table orders -------------------------------------------------------
+    // Everything the till knows about a basket travels in the order's own cart
+    // snapshot, so a waiter can start it on a tablet and a cashier can finish
+    // it at the counter with the discounts, bundles and serials intact.
+    async openOrder(order) {
+      this.clear()
+      const cart = order.cart || {}
+      this.lines = cart.lines || []
+      this.note = cart.note || ''
+      this.appType = cart.app_type || order.app_type || null
+      this.orderId = cart.order_id || order.order_id || ''
+      this.couponCodes = cart.coupon_codes || []
+      this.orderDiscountPercent = cart.order_discount_percent || 0
+      this.order = { ...order }
+      this._orderSig = JSON.stringify(this.orderSnapshot())
+      if (order.customer) {
+        try {
+          const matches = await call('lumenpos.api.catalog.search_customers', {
+            search: order.customer,
+          })
+          await this.setCustomer(matches.find((c) => c.name === order.customer) || null)
+        } catch {
+          // offline or gone: the order still opens, the customer can be re-picked
+        }
+      }
+    },
+
+    orderSnapshot() {
+      return {
+        lines: this.lines,
+        note: this.note,
+        app_type: this.appType,
+        order_id: this.orderId,
+        coupon_codes: this.couponCodes,
+        order_discount_percent: this.orderDiscountPercent,
+      }
+    },
+
+    // Called on every cart mutation while an order is open. Debounced, and it
+    // compares the snapshot first, so saving the order (which changes the order
+    // object, not the basket) cannot set off another save.
+    touchOrder() {
+      if (!this.order) return
+      const sig = JSON.stringify(this.orderSnapshot())
+      if (sig === this._orderSig) return
+      clearTimeout(this._orderTimer)
+      this._orderTimer = setTimeout(() => {
+        this._orderSig = sig
+        this.saveOrder().catch(() => {})
+      }, 700)
+    },
+
+    async saveOrder() {
+      if (!this.order) return null
+      const data = await call('lumenpos.api.restaurant.save_order', {
+        name: this.order.name,
+        cart: this.orderSnapshot(),
+        customer: this.customer?.name || null,
+      })
+      this.order = { ...this.order, ...data }
+      return data
+    },
+
+    // Put the order down and go back to the floor. Saves first: a waiter who
+    // walks away mid-order has not lost it.
+    async leaveOrder() {
+      clearTimeout(this._orderTimer)
+      if (this.order) {
+        try {
+          await this.saveOrder()
+        } catch {
+          // keep the basket on screen if it could not be saved
+          throw new Error('The order could not be saved. Check the connection.')
+        }
+      }
+      this.clear()
     },
 
     async park(note) {

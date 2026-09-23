@@ -577,12 +577,22 @@ def make_custom_fields():
                     collapsible=1,
                 ),
                 dict(
+                    fieldname="lumenpos_restaurant_mode",
+                    label="Run this outlet as a restaurant",
+                    fieldtype="Check",
+                    default="0",
+                    insert_after="lumenpos_options_section",
+                    description="Tables and open orders: the till serves a table, keeps "
+                    "the order open while the guests eat, and turns it into a sale at the "
+                    "end. A shop outlet is unaffected, this is per outlet.",
+                ),
+                dict(
                     fieldname="lumenpos_invoice_mode",
                     label="Sale posts as",
                     fieldtype="Select",
                     options="POS Invoice\nSales Invoice",
                     default="POS Invoice",
-                    insert_after="lumenpos_options_section",
+                    insert_after="lumenpos_restaurant_mode",
                     description="POS Invoice (default): sales are POS Invoices that "
                     "ERPNext consolidates into Sales Invoices at register close. "
                     "Sales Invoice: each sale posts a Sales Invoice directly (GL posts "

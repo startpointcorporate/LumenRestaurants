@@ -563,6 +563,100 @@ const settings = {
     "الضريبة",
   "{n} holds are still open. The screen stays until they are handed over or cancelled, because that money and those goods belong to someone.":
     "ما زال هناك {n} حجز مفتوح. تبقى الشاشة ظاهرة حتى تسلم أو تلغى، لأن تلك الفلوس وتلك البضاعة ملك لأحد.",
+  "Tables":
+    "الطاولات",
+  "Restaurant":
+    "المطعم",
+  "Floor":
+    "الصالة",
+  "Dine in":
+    "محلي",
+  "Takeaway":
+    "سفري",
+  "Delivery":
+    "توصيل",
+  "guests":
+    "ضيوف",
+  "Guests":
+    "عدد الضيوف",
+  "Table":
+    "طاولة",
+  "Area":
+    "المنطقة",
+  "Seats":
+    "الكراسي",
+  "Out of service":
+    "خارج الخدمة",
+  "Add a table":
+    "إضافة طاولة",
+  "Save tables":
+    "حفظ الطاولات",
+  "Tables saved":
+    "حفظت الطاولات",
+  "No tables yet.":
+    "لا توجد طاولات بعد.",
+  "Remove this table?":
+    "حذف هذه الطاولة؟",
+  "Tables at {outlet}":
+    "طاولات {outlet}",
+  "Table {no}":
+    "طاولة {no}",
+  "Not at a table":
+    "بدون طاولة",
+  "More":
+    "المزيد",
+  "Save and go back to the tables":
+    "احفظ وارجع للطاولات",
+  "Start the order":
+    "ابدأ الطلب",
+  "Move the order":
+    "نقل الطلب",
+  "Merge orders":
+    "دمج الطلبات",
+  "Move to another table":
+    "نقل إلى طاولة أخرى",
+  "Merge into another order":
+    "دمج مع طلب آخر",
+  "Cancel the order":
+    "إلغاء الطلب",
+  "Pick an order":
+    "اختر طلبا",
+  "Off the floor (takeaway counter)":
+    "خارج الصالة (كاونتر السفري)",
+  "{n} min":
+    "{n} دقيقة",
+  "{h}h {m}m":
+    "{h} س {m} د",
+  "No onions, well done, on the side…":
+    "بدون بصل، ويل دن، على الجنب…",
+  "Anything the kitchen or the next cashier should know":
+    "أي شيء يحتاج المطبخ أو الكاشير التالي معرفته",
+  "You are not allowed to open a table order":
+    "غير مصرح لك بفتح طلب طاولة",
+  "Tables need a connection: the order is shared between every device in the place.":
+    "الطاولات تحتاج اتصالا، فالطلب مشترك بين كل أجهزة المحل.",
+  "No tables yet. Add them under Settings, General, Restaurant.":
+    "لا توجد طاولات بعد. أضفها من الإعدادات، عام، المطعم.",
+  "Tables and orders that stay open while the guests eat, then become one ordinary sale at the end.":
+    "طاولات وطلبات تبقى مفتوحة والضيوف يأكلون، ثم تصير في النهاية عملية بيع عادية واحدة.",
+  "This outlet serves tables.":
+    "هذا الفرع يخدم طاولات.",
+  "This outlet does not serve tables yet. Switch it on per outlet: ERP, POS Profile, LumenPOS Options, Run this outlet as a restaurant.":
+    "هذا الفرع لا يخدم طاولات بعد. فعله لكل فرع من ERP ثم POS Profile ثم LumenPOS Options ثم تشغيل الفرع كمطعم.",
+  "A table that is out of service keeps its history and disappears from the floor screen.":
+    "الطاولة خارج الخدمة تحتفظ بسجلها وتختفي من شاشة الصالة.",
+  "Pick where it goes. Only free tables are listed.":
+    "اختر وجهته. تظهر الطاولات الفارغة فقط.",
+  "Everything on this order moves onto the one you pick, and this one is marked merged.":
+    "كل ما في هذا الطلب ينتقل إلى الطلب الذي تختاره، ويسجل هذا الطلب كمدموج.",
+  "Nothing was paid, so nothing is refunded. Say why, it is the only record there is.":
+    "لم يدفع شيء، فلا يرد شيء. اذكر السبب، فهو السجل الوحيد.",
+  "Open a table order":
+    "فتح طلب طاولة",
+  "Move or merge tables":
+    "نقل الطاولات أو دمجها",
+  "Cancel a table order":
+    "إلغاء طلب طاولة",
 }
 
 // Register page + open-register overlay.

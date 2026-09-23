@@ -3,6 +3,17 @@
      "LumenPOS" is a trademark of Lumen Solutions. See TRADEMARKS.md. -->
 <template>
   <aside class="cart card">
+    <!-- Which table this basket belongs to, and the way back to the floor. -->
+    <div v-if="cart.order" class="order-strip">
+      <div class="order-where">
+        <Icon name="table" />
+        <strong>{{ cart.order.table_label || t(cart.order.order_type) }}</strong>
+        <span v-if="cart.order.guests" class="muted small">&nbsp;· {{ cart.order.guests }} {{ t('guests') }}</span>
+      </div>
+      <button class="btn-ghost" :title="t('Save and go back to the tables')" @click="$emit('leave-order')">
+        <Icon name="check" /> {{ t('Save') }}
+      </button>
+    </div>
     <div class="customer-row" role="button" tabindex="0" @click="customerOpen = true" @keydown.enter="customerOpen = true">
       <div class="avatar">{{ customerInitials }}</div>
       <div class="customer-meta">
@@ -224,7 +235,7 @@ import CartLine from './CartLine.vue'
 import CustomerModal from './CustomerModal.vue'
 import SellGiftCardModal from './SellGiftCardModal.vue'
 
-const emit = defineEmits(['pay', 'park', 'hold', 'receipt'])
+const emit = defineEmits(['pay', 'park', 'hold', 'receipt', 'leave-order'])
 
 const cart = useCartStore()
 const session = useSessionStore()
@@ -299,6 +310,17 @@ function discard() {
 </script>
 
 <style scoped>
+.order-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  background: rgba(20, 99, 255, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+.order-where { display: flex; align-items: center; gap: 7px; font-size: 13.5px; }
+
 .cart {
   width: 380px;
   margin: 16px 16px 16px 0;

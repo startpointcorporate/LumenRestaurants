@@ -1078,6 +1078,36 @@
           </label>
         </div>
       </div>
+      <!-- Restaurant: tables and open orders -->
+      <div class="sec-card" v-show="generalSection === 'restaurant'">
+        <div class="sec-title"><Icon name="table" /> {{ t('Restaurant') }}</div>
+        <p class="sec-note">{{ t('Tables and orders that stay open while the guests eat, then become one ordinary sale at the end.') }}</p>
+        <p class="muted hint-row">
+          <template v-if="session.restaurantMode">{{ t('This outlet serves tables.') }}</template>
+          <template v-else>{{ t('This outlet does not serve tables yet. Switch it on per outlet: ERP, POS Profile, LumenPOS Options, Run this outlet as a restaurant.') }}</template>
+        </p>
+        <div class="sub-label">{{ t('Tables at {outlet}', { outlet: session.posProfile }) }}</div>
+        <div v-if="!tables.length" class="muted small" style="padding-bottom: 8px">{{ t('No tables yet.') }}</div>
+        <div v-for="(row, i) in tables" :key="row.name || 'new' + i" class="table-row">
+          <input v-model="row.table_no" :placeholder="t('Table')" />
+          <input v-model="row.area" :placeholder="t('Area')" />
+          <input type="number" min="0" v-model.number="row.seats" :placeholder="t('Seats')" />
+          <label class="table-off">
+            <input type="checkbox" v-model="row.disabled" :true-value="1" :false-value="0" />
+            <span class="muted small">{{ t('Out of service') }}</span>
+          </label>
+          <button class="btn-ghost" :title="t('Remove')" @click="removeTable(i)"><Icon name="close" /></button>
+        </div>
+        <div class="add-row">
+          <button class="btn btn-outline" @click="addTable">+ {{ t('Add a table') }}</button>
+          <button class="btn btn-primary" :disabled="savingTables" @click="saveTables">
+            {{ savingTables ? t('Saving…') : t('Save tables') }}
+          </button>
+        </div>
+        <p class="muted hint-row" style="margin-top: 10px">
+          {{ t('A table that is out of service keeps its history and disappears from the floor screen.') }}
+        </p>
+      </div>
       <!-- Delivery apps -->
       <div class="sec-card" v-show="generalSection === 'payments'">
         <div class="sec-title"><Icon name="bike" /> {{ t('Delivery apps') }}</div>
@@ -2114,6 +2144,63 @@ const generalForm = ref({
 })
 const logoError = ref(false)
 
+// ---- restaurant tables ----
+const tables = ref([])
+const savingTables = ref(false)
+
+async function loadTables() {
+  if (!session.posProfile) return
+  try {
+    tables.value = await call('lumenpos.api.restaurant.list_tables', {
+      pos_profile: session.posProfile,
+    })
+  } catch {
+    tables.value = [] // the doctype is not there yet on a site pulled without a migrate
+  }
+}
+
+function addTable() {
+  tables.value.push({ name: null, table_no: '', area: '', seats: 4, disabled: 0 })
+}
+
+async function removeTable(i) {
+  const row = tables.value[i]
+  if (!row.name) {
+    tables.value.splice(i, 1)
+    return
+  }
+  if (!confirm(t('Remove this table?'))) return
+  try {
+    await call('lumenpos.api.restaurant.delete_table', { name: row.name })
+    tables.value.splice(i, 1)
+  } catch (e) {
+    session.notify(e.message, true)
+  }
+}
+
+async function saveTables() {
+  savingTables.value = true
+  try {
+    for (const row of tables.value) {
+      if (!String(row.table_no || '').trim()) continue
+      await call('lumenpos.api.restaurant.save_table', {
+        pos_profile: session.posProfile,
+        name: row.name || null,
+        table_no: row.table_no,
+        area: row.area || null,
+        seats: row.seats || 0,
+        disabled: row.disabled ? 1 : 0,
+      })
+    }
+    await loadTables()
+    session.notify(t('Tables saved'))
+  } catch (e) {
+    session.notify(e.message, true)
+  } finally {
+    savingTables.value = false
+  }
+}
+
 // ---- General is split into groups, like the tabs on the left ----
 const generalSections = [
   { key: 'features', label: 'Features', icon: 'bulb' },
@@ -2121,6 +2208,7 @@ const generalSections = [
   { key: 'payments', label: 'Payments and delivery', icon: 'card' },
   { key: 'returns', label: 'Returns and refunds', icon: 'refresh' },
   { key: 'holds', label: 'Holds and deposits', icon: 'bookmark' },
+  { key: 'restaurant', label: 'Restaurant', icon: 'table' },
   { key: 'receipt', label: 'Receipt', icon: 'image' },
   { key: 'money', label: 'Accounts and gift cards', icon: 'bank' },
   { key: 'approvals', label: 'Approvals and access', icon: 'shield' },
@@ -2457,6 +2545,7 @@ async function load() {
   shellReady.value = Boolean(navigator.serviceWorker && navigator.serviceWorker.controller)
   loadIndexHealth()
   if (session.offline) return
+  loadTables()
   const info = await call('lumenpos.api.settings.get_settings')
   settingsInfo.value = info
   profileReceiptOverrides.value = info.profile_receipt_overrides || []
@@ -3739,7 +3828,22 @@ button.sec-title.collapsible + * { margin-top: 14px; }
 .price-input { width: 110px; text-align: right; padding: 6px 9px; }
 .price-input.dirty { border-color: var(--amber); }
 .item-row input { flex: 1; min-width: 160px; }
-.add-row { margin-top: 2px; }
+.add-row { margin-top: 2px; display: flex; gap: 8px; align-items: center; }
+.table-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 80px auto 32px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.table-row input[type='text'], .table-row input:not([type]), .table-row input[type='number'] {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+}
+.table-off { display: flex; align-items: center; gap: 6px; }
 
 /* iOS-style settings list */
 .setting-list { display: flex; flex-direction: column; }

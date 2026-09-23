@@ -34,6 +34,9 @@ REPRINT = "Reprint a receipt"
 OPEN_REGISTER = "Open the register"
 CLOSE_REGISTER = "Close the register"
 HOLD_GOODS = "Hold goods for a customer"
+OPEN_TABLE = "Open a table order"
+MOVE_TABLE = "Move or merge tables"
+CANCEL_ORDER = "Cancel a table order"
 
 LEGACY_FIELD = {
     PRICE_EDIT: "price_edit_role",
@@ -128,6 +131,22 @@ def can_hold_goods(user=None):
     """Put goods aside for a customer who pays over time, take an instalment,
     hand the goods over or cancel the hold."""
     return allowed(HOLD_GOODS, user)
+
+
+def can_open_table(user=None):
+    """Start serving a table, a takeaway or a delivery."""
+    return allowed(OPEN_TABLE, user)
+
+
+def can_move_tables(user=None):
+    """Move an order to another table, or pour two together."""
+    return allowed(MOVE_TABLE, user)
+
+
+def can_cancel_order(user=None):
+    """Throw away an order nobody paid for. The classic way to make a table's
+    food walk out of a restaurant, which is why a shop can name who may."""
+    return allowed(CANCEL_ORDER, user)
 
 
 def can_move_cash(user=None):

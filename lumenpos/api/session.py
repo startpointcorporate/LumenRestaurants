@@ -106,6 +106,7 @@ def get_bootstrap(pos_profile=None):
         "pending_closing": _pending_closing(profile_name),
         "permissions": get_user_permissions(),
         "available_profiles": _user_profiles(),
+        "restaurant_mode": 1 if profile.get("lumenpos_restaurant_mode") else 0,
         "printer_configured": bool(profile.get("lumenpos_printer_ip")),
         "print_format": profile.print_format,
         "store_credit_mode": "Store Credit",
@@ -173,6 +174,9 @@ def get_user_permissions():
         "can_move_cash": caps_mod.can_move_cash(),
         "can_hold_goods": caps_mod.can_hold_goods(),
         "can_reprint": caps_mod.can_reprint(),
+        "can_open_table": caps_mod.can_open_table(),
+        "can_move_tables": caps_mod.can_move_tables(),
+        "can_cancel_order": caps_mod.can_cancel_order(),
         # ERPNext's document permission AND the shop's own rule, both must pass.
         "open_register": bool(has("POS Opening Entry", "create")) and caps_mod.can_open_register(),
         "close_register": bool(has("POS Closing Entry", "create")) and caps_mod.can_close_register(),

@@ -20,7 +20,7 @@ const STROKE = new Set([
   'close', 'shield', 'bulb', 'ticket', 'store', 'person', 'company', 'bank',
   'card', 'cash', 'hourglass', 'exchange', 'refresh', 'download', 'upload',
   'ban', 'barcode', 'gift', 'bike', 'plus', 'check', 'warning',
-  'search', 'tag', 'report', 'image', 'clock',
+  'search', 'tag', 'report', 'image', 'clock', 'table', 'bag',
 ])
 
 const PATHS = {
@@ -80,6 +80,11 @@ const PATHS = {
   star:
     '<path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.15 1 5.85L12 17.05 6.75 19.6l1-5.85L3.5 9.7l5.9-.9z"/>',
   play: '<path d="M7 5l12 7-12 7z"/>',
+  table:
+    '<circle cx="12" cy="12" r="5.2"/><path d="M12 17.2V21M3.2 12h2.2M18.6 12h2.2M12 3v2.2"/>',
+  bag:
+    '<path d="M6 8h12l-1 12H7z"/><path d="M9.2 8V6.4a2.8 2.8 0 0 1 5.6 0V8"/>',
+  more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
 }
 
 const px = computed(() => (typeof props.size === 'number' ? `${props.size}px` : props.size))

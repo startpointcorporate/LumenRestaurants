@@ -12,6 +12,7 @@ import SellView from './views/SellView.vue'
 import HistoryView from './views/HistoryView.vue'
 import CustomersView from './views/CustomersView.vue'
 import HoldsView from './views/HoldsView.vue'
+import TablesView from './views/TablesView.vue'
 import RegisterView from './views/RegisterView.vue'
 import InsightsView from './views/InsightsView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -25,6 +26,7 @@ const router = createRouter({
     { path: '/history', component: HistoryView },
     { path: '/customers', component: CustomersView },
     { path: '/holds', component: HoldsView },
+    { path: '/tables', component: TablesView },
     { path: '/register', component: RegisterView },
     { path: '/insights', component: InsightsView },
     { path: '/settings', component: SettingsView },

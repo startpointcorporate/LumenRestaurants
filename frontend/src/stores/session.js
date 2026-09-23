@@ -40,6 +40,9 @@ export const useSessionStore = defineStore('session', {
     promotions: [],
     registerSession: null,
     printerConfigured: false,
+    // This outlet serves tables (POS Profile, per outlet). A shop outlet on the
+    // same install is unaffected.
+    restaurantMode: false,
     printFormat: null,
     storeCreditMode: 'Store Credit',
     cashbackMode: 'Cashback',
@@ -210,6 +213,7 @@ export const useSessionStore = defineStore('session', {
       this.registerSession = data.register_session
       this.otherOpenRegisters = data.other_open_registers || []
       this.printerConfigured = data.printer_configured || false
+      this.restaurantMode = Boolean(data.restaurant_mode)
       this.printFormat = data.print_format || null
       this.storeCreditMode = data.store_credit_mode || 'Store Credit'
       this.cashbackMode = data.cashback_mode || 'Cashback'

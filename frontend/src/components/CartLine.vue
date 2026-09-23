@@ -22,6 +22,7 @@
         <div v-if="promoTitles.length" class="line-promos">
           <span v-for="title in promoTitles" :key="title" class="promo-badge"><Icon name="star" /> {{ title }}</span>
         </div>
+        <div v-if="line.note" class="line-note"><Icon name="bulb" /> {{ line.note }}</div>
         <div v-if="line.manual_discount_percent" class="muted small">
           {{ t('{percent}% manual discount', { percent: line.manual_discount_percent }) }}
         </div>
@@ -88,6 +89,15 @@
       </div>
       <button class="btn btn-ghost remove" @click="cart.removeLine(index)">{{ t('Remove') }}</button>
     </div>
+    <!-- How the guest wants it. Restaurant outlets only: a shop till has no use
+         for it and the line is busy enough. -->
+    <div v-if="expanded && session.restaurantMode && !line.bundle_key" class="line-note-edit">
+      <input
+        :value="line.note || ''"
+        :placeholder="t('No onions, well done, on the side…')"
+        @change="cart.setLineNote(index, $event.target.value)"
+      />
+    </div>
 
     <SerialModal
       v-if="serialOpen"
@@ -141,6 +151,10 @@ function setDiscount(value) {
 </script>
 
 <style scoped>
+.line-note { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+.line-note-edit { padding: 0 12px 10px; }
+.line-note-edit input { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 13px; }
+
 .line { border-bottom: 1px solid var(--border); }
 .line-main {
   display: flex;
