@@ -801,6 +801,248 @@ const settings = {
     "الرابط لا يفتح إلا لفرع مفعل فيه خيار \"صفحة الحجز العامة\" من ERP ثم POS Profile ثم LumenPOS Options.",
   "Link copied: {url}":
     "نسخ الرابط: {url}",
+  "Booking page":
+    "صفحة الحجز",
+  "Published":
+    "منشورة",
+  "Hidden":
+    "مخفية",
+  "Open the page":
+    "فتح الصفحة",
+  "Save the design":
+    "حفظ التصميم",
+  "Saved":
+    "محفوظ",
+  "Look":
+    "الشكل",
+  "Content":
+    "المحتوى",
+  "Booking":
+    "الحجز",
+  "Questions":
+    "الخانات",
+  "Packages":
+    "العروض",
+  "Contact":
+    "التواصل",
+  "Ready-made styles":
+    "تصاميم جاهزة",
+  "Classic":
+    "كلاسيكي",
+  "Night":
+    "ليلي",
+  "Gold":
+    "ذهبي",
+  "Olive":
+    "زيتوني",
+  "Coffee":
+    "قهوة",
+  "Rose":
+    "وردي",
+  "Sea":
+    "بحري",
+  "Mono":
+    "أبيض وأسود",
+  "Colours":
+    "الألوان",
+  "Main colour":
+    "اللون الأساسي",
+  "Buttons and highlights":
+    "الأزرار والتمييز",
+  "Form background":
+    "خلفية النموذج",
+  "The card the form sits on":
+    "البطاقة التي يظهر عليها النموذج",
+  "Page background":
+    "خلفية الصفحة",
+  "One colour":
+    "لون واحد",
+  "Two colours":
+    "لونان متدرجان",
+  "A picture":
+    "صورة",
+  "Colour":
+    "اللون",
+  "Background image":
+    "صورة الخلفية",
+  "Font":
+    "الخط",
+  "Corners":
+    "الزوايا",
+  "Round":
+    "دائرية",
+  "Soft":
+    "ناعمة",
+  "Square":
+    "حادة",
+  "Title (Arabic)":
+    "العنوان (عربي)",
+  "Title (English)":
+    "العنوان (إنجليزي)",
+  "Welcome line (Arabic)":
+    "سطر الترحيب (عربي)",
+  "Welcome line (English)":
+    "سطر الترحيب (إنجليزي)",
+  "Logo":
+    "الشعار",
+  "Cover image (top of the form)":
+    "صورة الغلاف (أعلى النموذج)",
+  "Terms above the button (Arabic)":
+    "شروط فوق زر الإرسال (عربي)",
+  "Example: the table is held for 15 minutes":
+    "مثال: تحجز الطاولة لمدة 15 دقيقة فقط",
+  "Terms (English)":
+    "الشروط (إنجليزي)",
+  "Message after booking (Arabic)":
+    "رسالة بعد الحجز (عربي)",
+  "Empty = the standard message":
+    "فارغ = الرسالة الافتراضية",
+  "Message after booking (English)":
+    "رسالة بعد الحجز (إنجليزي)",
+  "Confirm bookings automatically":
+    "تأكيد الحجوزات تلقائيا",
+  "On: a booking is confirmed the moment it arrives while the time still has room. Off: staff confirm each one on the Bookings screen.":
+    "تفعيل: يتأكد الحجز لحظة وصوله ما دام الوقت فيه مكان. إيقاف: الموظف يؤكد كل حجز من شاشة الحجوزات.",
+  "A booking every":
+    "موعد كل",
+  "Smallest party":
+    "أقل عدد أشخاص",
+  "Largest party online":
+    "أكبر عدد أشخاص من الصفحة",
+  "Most guests in one time slot":
+    "أقصى عدد ضيوف في الموعد الواحد",
+  "0 = no limit. A full time is greyed out for the next customer.":
+    "صفر يعني بلا حد. الموعد الممتلئ يظهر معطلا للعميل التالي.",
+  "Closed days":
+    "أيام الإغلاق",
+  "Sat":
+    "السبت",
+  "Sun":
+    "الأحد",
+  "Mon":
+    "الاثنين",
+  "Tue":
+    "الثلاثاء",
+  "Wed":
+    "الأربعاء",
+  "Thu":
+    "الخميس",
+  "Fri":
+    "الجمعة",
+  "Name and mobile are always asked. Add any question you want below.":
+    "الاسم والجوال يطلبان دائما. أضف تحت أي سؤال تريده.",
+  "A free note box":
+    "خانة ملاحظة حرة",
+  "Its label (Arabic)":
+    "عنوانها (عربي)",
+  "Note (optional)":
+    "ملاحظة (اختياري)",
+  "Its label (English)":
+    "عنوانها (إنجليزي)",
+  "New question":
+    "سؤال جديد",
+  "Question (Arabic)":
+    "السؤال (عربي)",
+  "Question (English)":
+    "السؤال (إنجليزي)",
+  "Answer type":
+    "نوع الإجابة",
+  "Short text":
+    "نص قصير",
+  "Long text":
+    "نص طويل",
+  "Number":
+    "رقم",
+  "A list to pick from":
+    "قائمة اختيار",
+  "Yes / no tick":
+    "علامة نعم أو لا",
+  "Choices, one per line: Arabic | English":
+    "الخيارات، كل خيار في سطر: عربي | إنجليزي",
+  "Hint inside the box":
+    "تلميح داخل الخانة",
+  "Add a question":
+    "إضافة سؤال",
+  "Occasion":
+    "المناسبة",
+  "Seating":
+    "مكان الجلوس",
+  "High chair":
+    "كرسي أطفال",
+  "Empty question":
+    "سؤال فارغ",
+  "Things the customer can pick with the booking: a buffet, a set menu, a cake. The price comes from the outlet price list, so the page and the till always agree.":
+    "أشياء يختارها العميل مع الحجز: بوفيه، قائمة ثابتة، كيكة. السعر من قائمة أسعار الفرع، فيتطابق دائما مع الصندوق.",
+  "Name (Arabic)":
+    "الاسم (عربي)",
+  "Name (English)":
+    "الاسم (إنجليزي)",
+  "Description (Arabic)":
+    "الوصف (عربي)",
+  "Description (English)":
+    "الوصف (إنجليزي)",
+  "How it is priced":
+    "طريقة التسعير",
+  "Per guest (like a buffet)":
+    "للشخص (مثل البوفيه)",
+  "The customer picks how many":
+    "العميل يختار الكمية",
+  "Most per booking":
+    "الحد الأقصى في الحجز",
+  "Always included (the customer cannot remove it)":
+    "مشمول دائما (لا يقدر العميل يشيله)",
+  "Picture (empty = the item picture)":
+    "الصورة (فارغ = صورة الصنف)",
+  "Add a package":
+    "إضافة عرض",
+  "Search the items…":
+    "ابحث في الأصناف…",
+  "No price on the price list":
+    "لا سعر في قائمة الأسعار",
+  "per guest":
+    "للشخص",
+  "That item is already on the page":
+    "هذا الصنف موجود في الصفحة",
+  "Shown as buttons under the form. Leave empty what you do not use.":
+    "تظهر كأزرار تحت النموذج. اترك فارغا ما لا تستخدمه.",
+  "Location link (Google Maps)":
+    "رابط الموقع (خرائط جوجل)",
+  "Website":
+    "الموقع الإلكتروني",
+  "Use the same design at another branch":
+    "استخدم نفس التصميم لفرع آخر",
+  "Copy the design from…":
+    "انسخ التصميم من…",
+  "Copy":
+    "نسخ",
+  "Computer":
+    "كمبيوتر",
+  "Live preview: what customers will see after you save":
+    "معاينة حية: هذا ما سيراه العميل بعد الحفظ",
+  "The picture could not be uploaded":
+    "تعذر رفع الصورة",
+  "No picture":
+    "لا صورة",
+  "Upload":
+    "رفع",
+  "Saved. The page is live.":
+    "تم الحفظ. الصفحة منشورة.",
+  "Saved. The page is hidden until you publish it.":
+    "تم الحفظ. الصفحة مخفية حتى تنشرها.",
+  "Replace this design with the one from {o}?":
+    "استبدال هذا التصميم بتصميم {o}؟",
+  "Design copied":
+    "نسخ التصميم",
+  "A page customers book from, designed to look like the restaurant: colours, background, font, your own questions and packages like a buffet. Share its link on social media or the website.":
+    "صفحة يحجز منها العميل بنفسه بشكل مطعمك: الألوان والخلفية والخط، وأسئلتك الخاصة، وعروض مثل البوفيه. انشر رابطها في السوشيال ميديا أو الموقع.",
+  "Design the booking page":
+    "تصميم صفحة الحجز",
+  "Change picture":
+    "تغيير الصورة",
+  "On a phone":
+    "على الجوال",
+  "On a computer":
+    "على الكمبيوتر",
 }
 
 // Register page + open-register overlay.

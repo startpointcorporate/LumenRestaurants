@@ -15,6 +15,7 @@ import HoldsView from './views/HoldsView.vue'
 import TablesView from './views/TablesView.vue'
 import KitchenView from './views/KitchenView.vue'
 import ReservationsView from './views/ReservationsView.vue'
+import BookingDesignerView from './views/BookingDesignerView.vue'
 import RegisterView from './views/RegisterView.vue'
 import InsightsView from './views/InsightsView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -31,6 +32,7 @@ const router = createRouter({
     { path: '/tables', component: TablesView },
     { path: '/kitchen', component: KitchenView },
     { path: '/reservations', component: ReservationsView },
+    { path: '/booking-designer', component: BookingDesignerView },
     { path: '/register', component: RegisterView },
     { path: '/insights', component: InsightsView },
     { path: '/settings', component: SettingsView },

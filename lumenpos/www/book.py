@@ -4,55 +4,47 @@
 """The public booking page, /book/<outlet>.
 
 The link a restaurant puts on its social media, so it has to look like the
-restaurant, not like us: the settings give it the name, the logo, the colour
-and the welcome line. It is open to guests, but only for an outlet whose POS
-Profile has switched public booking ON, and everything it submits lands as a
-Requested reservation that a person confirms from the till. It promises the
-customer a call, never a table.
+restaurant, not like us: every word, colour, font, background, question and
+package on it comes from the outlet's POS Booking Page, designed in the till.
+This file only hands that design to the page, which draws itself from it.
+
+Guests see a page only while it is published. ?preview=1 shows the saved (or
+the designer's live) design to a signed-in user who may read booking pages,
+published or not, and a preview never submits anything.
 """
 
 import json
 
 import frappe
-from frappe.utils import add_days, cint, nowdate
 
 no_cache = 1
 
 
 def get_context(context):
-    from lumenpos.api.reservations import _outlet_bookable, _settings
+    from lumenpos.api import booking_page, reservations
 
     outlet = frappe.form_dict.get("outlet") or ""
+    preview = (
+        frappe.form_dict.get("preview") in ("1", "true")
+        and frappe.session.user != "Guest"
+        and frappe.has_permission("POS Booking Page", "read")
+    )
+    page = None
+    if outlet and frappe.db.exists("POS Profile", outlet):
+        page = booking_page.load(outlet) if preview else reservations._page(outlet)
+
+    data = booking_page.serialize(page) if page else {}
+    context.available = bool(page)
+    context.preview = 1 if preview else 0
     context.outlet = outlet
-    context.available = _outlet_bookable(outlet)
-    cfg = _settings()
-
-    company = frappe.db.get_value("POS Profile", outlet, "company") if context.available else None
-    context.title = cfg.title or company or "Booking"
-    context.subtitle = cfg.subtitle
-    context.logo = cfg.logo
-    context.color = cfg.color if cfg.color.startswith("#") and len(cfg.color) in (4, 7) else "#1463ff"
-    context.max_guests = cfg.max_guests
-    context.csrf_token = frappe.sessions.get_csrf_token()
-
-    # The days and the time slots are laid out server side, so the page is one
-    # file of plain HTML and the browser has nothing to compute.
-    days = []
-    for offset in range(cfg.days):
-        date = add_days(nowdate(), offset)
-        days.append({"value": str(date), "label": frappe.utils.formatdate(date, "EEE d MMM")})
-    context.days = days
-
-    slots = []
-    start_h, start_m = cint(cfg.open[:2]), cint(cfg.open[3:5])
-    end_h, end_m = cint(cfg.close[:2]), cint(cfg.close[3:5])
-    minute = start_h * 60 + start_m
-    end = end_h * 60 + end_m
-    while minute <= end:
-        hh, mm = divmod(minute, 60)
-        slots.append(f"{hh:02d}:{mm:02d}")
-        minute += cfg.slot or 30
-    context.slots = slots
-    context.days_json = json.dumps(days)
-    context.slots_json = json.dumps(slots)
+    context.title = (data.get("title") or data.get("company") or "Booking") if page else "Booking"
+    # Embedded in a <script>: a "</" in any text the owner typed must not be
+    # able to close the tag.
+    context.page_json = json.dumps(data, default=str, ensure_ascii=False).replace("</", "<\\/")
+    try:
+        context.csrf_token = frappe.sessions.get_csrf_token()
+    except Exception:
+        # Rendered outside a request (a test, a pre-render): no session object
+        # to take a token from, and nothing will be posted from this render.
+        context.csrf_token = ""
     return context

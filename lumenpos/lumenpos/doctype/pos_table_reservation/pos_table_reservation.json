@@ -20,6 +20,10 @@
   "column_break_when",
   "table",
   "note",
+  "section_extras",
+  "answers",
+  "items",
+  "estimated_total",
   "section_trail",
   "seated_order",
   "created_ip"
@@ -117,6 +121,31 @@
    "fieldname": "note",
    "fieldtype": "Small Text",
    "label": "Note"
+  },
+  {
+   "fieldname": "section_extras",
+   "fieldtype": "Section Break",
+   "label": "From the booking page"
+  },
+  {
+   "fieldname": "answers",
+   "fieldtype": "Long Text",
+   "label": "Answers",
+   "read_only": 1,
+   "description": "What the customer filled in on the page, as it was labelled that day."
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Packages",
+   "options": "POS Table Reservation Item",
+   "read_only": 1
+  },
+  {
+   "fieldname": "estimated_total",
+   "fieldtype": "Currency",
+   "label": "Estimated total",
+   "read_only": 1
   },
   {
    "fieldname": "section_trail",

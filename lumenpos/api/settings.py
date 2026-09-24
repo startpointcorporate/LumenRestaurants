@@ -165,15 +165,6 @@ def get_settings():
         "return_exceed_role": doc.get("return_exceed_role") or "",
         "exchange_role": doc.get("exchange_role") or "",
         "enable_layaway": 1 if doc.get("enable_layaway") else 0,
-        "booking_title": doc.get("booking_title") or "",
-        "booking_subtitle": doc.get("booking_subtitle") or "",
-        "booking_logo": doc.get("booking_logo") or "",
-        "booking_color": doc.get("booking_color") or "#1463ff",
-        "booking_open": str(doc.get("booking_open") or "12:00:00")[:5],
-        "booking_close": str(doc.get("booking_close") or "23:30:00")[:5],
-        "booking_slot_minutes": cint(doc.get("booking_slot_minutes")) or 30,
-        "booking_days_ahead": cint(doc.get("booking_days_ahead")) or 14,
-        "booking_max_guests": cint(doc.get("booking_max_guests")) or 12,
         "layaway_reserve_stock": 1 if doc.get("layaway_reserve_stock") else 0,
         "deposit_with_tax": 1 if doc.get("deposit_with_tax") else 0,
         "layaway_days": cint(doc.get("layaway_days")) or 0,
@@ -335,15 +326,6 @@ def save_settings(payload):
     doc.exchange_role = payload.get("exchange_role") or None
     if "enable_layaway" in payload:
         doc.enable_layaway = 1 if payload.get("enable_layaway") else 0
-    for field in ("booking_title", "booking_subtitle", "booking_logo", "booking_color"):
-        if field in payload:
-            doc.set(field, (payload.get(field) or "").strip() or None)
-    for field in ("booking_open", "booking_close"):
-        if field in payload and payload.get(field):
-            doc.set(field, str(payload.get(field)))
-    for field in ("booking_slot_minutes", "booking_days_ahead", "booking_max_guests"):
-        if field in payload:
-            doc.set(field, cint(payload.get(field)) or None)
     if "layaway_reserve_stock" in payload:
         doc.layaway_reserve_stock = 1 if payload.get("layaway_reserve_stock") else 0
     if "deposit_with_tax" in payload:

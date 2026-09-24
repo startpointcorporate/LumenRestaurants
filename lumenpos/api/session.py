@@ -183,6 +183,7 @@ def get_user_permissions():
         "promotions": caps("POS Promotion"),
         "cashback": caps("POS Cashback Rule"),
         "bundles": caps("POS Bundle"),
+        "booking_page": caps("POS Booking Page"),
         "price_books": caps("POS Price Book"),
         "edit_item_prices": bool(has("Item Price", "write")),
         "create_price_list": bool(has("Price List", "create")),

@@ -1110,55 +1110,9 @@
 
         <div class="sub-label">{{ t('Public booking page') }}</div>
         <p class="muted hint-row">
-          {{ t('A page customers book from, made to look like the restaurant: share its link on social media or the website. Requests land on the Bookings screen until staff confirm them.') }}
+          {{ t('A page customers book from, designed to look like the restaurant: colours, background, font, your own questions and packages like a buffet. Share its link on social media or the website.') }}
         </p>
-        <div class="field-grid">
-          <label class="field">
-            <span>{{ t('Page title') }}</span>
-            <input v-model="generalForm.booking_title" :placeholder="t('The restaurant name') " />
-          </label>
-          <label class="field">
-            <span>{{ t('Brand colour (hex)') }}</span>
-            <input v-model="generalForm.booking_color" placeholder="#1463ff" />
-          </label>
-          <label class="field span-2">
-            <span>{{ t('Welcome line') }}</span>
-            <input v-model="generalForm.booking_subtitle" :placeholder="t('Book your table and we will call to confirm')" />
-          </label>
-          <label class="field span-2">
-            <span>{{ t('Logo URL') }}</span>
-            <input v-model="generalForm.booking_logo" placeholder="https://..." dir="ltr" />
-          </label>
-          <label class="field">
-            <span>{{ t('Bookings from') }}</span>
-            <input type="time" v-model="generalForm.booking_open" />
-          </label>
-          <label class="field">
-            <span>{{ t('Bookings until') }}</span>
-            <input type="time" v-model="generalForm.booking_close" />
-          </label>
-          <label class="field">
-            <span>{{ t('Time slot (minutes)') }}</span>
-            <input type="number" min="10" v-model.number="generalForm.booking_slot_minutes" />
-          </label>
-          <label class="field">
-            <span>{{ t('Days ahead') }}</span>
-            <input type="number" min="1" max="60" v-model.number="generalForm.booking_days_ahead" />
-          </label>
-          <label class="field">
-            <span>{{ t('Largest group online') }}</span>
-            <input type="number" min="1" v-model.number="generalForm.booking_max_guests" />
-          </label>
-        </div>
-        <div class="sub-label">{{ t('Each outlet gets its own link') }}</div>
-        <div v-for="outlet in session.availableProfiles" :key="outlet" class="booking-link">
-          <span class="bl-outlet">{{ outlet }}</span>
-          <code class="bl-url" dir="ltr">/book/{{ outlet }}</code>
-          <button class="btn btn-outline" @click="copyBookingLink(outlet)">{{ t('Copy the link') }}</button>
-        </div>
-        <p class="muted hint-row">
-          {{ t('The link answers only for an outlet whose POS Profile has "Public booking page" switched on (ERP, POS Profile, LumenPOS Options).') }}
-        </p>
+        <button class="btn btn-primary" @click="$router.push('/booking-designer')">{{ t('Design the booking page') }}</button>
       </div>
       <!-- Delivery apps -->
       <div class="sec-card" v-show="generalSection === 'payments'">
@@ -2133,15 +2087,6 @@ const generalForm = ref({
   return_exceed_role: '',
   exchange_role: '',
   enable_layaway: 0,
-  booking_title: '',
-  booking_subtitle: '',
-  booking_logo: '',
-  booking_color: '#1463ff',
-  booking_open: '12:00',
-  booking_close: '23:30',
-  booking_slot_minutes: 30,
-  booking_days_ahead: 14,
-  booking_max_guests: 12,
   layaway_reserve_stock: 1,
   deposit_with_tax: 0,
   layaway_days: 30,
@@ -2218,14 +2163,6 @@ async function loadTables() {
   } catch {
     tables.value = [] // the doctype is not there yet on a site pulled without a migrate
   }
-}
-
-function copyBookingLink(outlet) {
-  const url = location.origin + '/book/' + encodeURIComponent(outlet)
-  navigator.clipboard.writeText(url).then(
-    () => session.notify(t('Link copied: {url}', { url })),
-    () => session.notify(url)
-  )
 }
 
 function addTable() {
@@ -2632,15 +2569,6 @@ async function load() {
     return_exceed_role: info.return_exceed_role || '',
     exchange_role: info.exchange_role || '',
     enable_layaway: info.enable_layaway ? 1 : 0,
-    booking_title: info.booking_title || '',
-    booking_subtitle: info.booking_subtitle || '',
-    booking_logo: info.booking_logo || '',
-    booking_color: info.booking_color || '#1463ff',
-    booking_open: info.booking_open || '12:00',
-    booking_close: info.booking_close || '23:30',
-    booking_slot_minutes: info.booking_slot_minutes || 30,
-    booking_days_ahead: info.booking_days_ahead || 14,
-    booking_max_guests: info.booking_max_guests || 12,
     layaway_reserve_stock: info.layaway_reserve_stock ? 1 : 0,
     deposit_with_tax: info.deposit_with_tax ? 1 : 0,
     layaway_days: info.layaway_days || 0,
@@ -3922,10 +3850,6 @@ button.sec-title.collapsible + * { margin-top: 14px; }
   font-size: 13px;
 }
 .table-off { display: flex; align-items: center; gap: 6px; }
-.booking-link { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); flex-wrap: wrap; }
-.bl-outlet { font-weight: 600; font-size: 13px; }
-.bl-url { background: var(--surface-2); border-radius: 8px; padding: 3px 10px; font-size: 12px; }
-.booking-link .btn { margin-inline-start: auto; padding: 7px 14px; font-size: 12.5px; }
 
 /* iOS-style settings list */
 .setting-list { display: flex; flex-direction: column; }

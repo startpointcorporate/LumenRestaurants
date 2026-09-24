@@ -665,18 +665,6 @@ def make_custom_fields():
                     insert_after="lumenpos_kitchen_printer_ip",
                     default="9100",
                 ),
-                dict(
-                    # Server side gate for the PUBLIC booking page: the page and
-                    # its endpoint both refuse an outlet that has not opted in.
-                    fieldname="lumenpos_online_booking",
-                    label="Public booking page (/book)",
-                    fieldtype="Check",
-                    default="0",
-                    insert_after="lumenpos_restaurant_mode",
-                    depends_on="eval:doc.lumenpos_restaurant_mode",
-                    description="Customers reserve a table themselves at /book/<outlet name>. "
-                    "Requests wait on the Reservations screen until staff confirm them.",
-                ),
             ],
             "POS Invoice": invoice_fields,
             "Sales Invoice": invoice_fields,  # legacy v0.1-0.3 sales keep working

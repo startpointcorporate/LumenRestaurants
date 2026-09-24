@@ -11,6 +11,9 @@
           <button class="day-btn" :class="{ active: offset === 1 }" @click="setOffset(1)">{{ t('Tomorrow') }}</button>
           <input type="date" :value="date" @change="setDate($event.target.value)" />
         </div>
+        <button v-if="session.permissions.booking_page?.write" class="btn btn-outline" @click="$router.push('/booking-designer')">
+          <Icon name="image" /> {{ t('Booking page') }}
+        </button>
         <button class="btn btn-primary" @click="startNew">+ {{ t('New reservation') }}</button>
       </div>
 
@@ -29,6 +32,11 @@
               <b>{{ row.customer_name }}</b>
               <span class="muted small ltr">{{ row.phone }}</span>
               <span v-if="row.note" class="muted small">{{ row.note }}</span>
+              <span v-for="a in row.answers || []" :key="a.key" class="muted small">{{ a.label }}: <b>{{ a.value === '1' ? t('Yes') : a.value }}</b></span>
+              <span v-if="(row.items || []).length" class="pkgs">
+                <span v-for="it in row.items" :key="it.item_code">{{ it.qty }} × {{ it.item_name }}</span>
+                <b v-if="row.estimated_total">{{ money(row.estimated_total) }}</b>
+              </span>
             </div>
             <span class="pill">{{ t('{n} guests', { n: row.guests }) }}</span>
             <div class="racts">
@@ -48,6 +56,11 @@
             <b>{{ row.customer_name }}</b>
             <span class="muted small ltr">{{ row.phone }}</span>
             <span v-if="row.note" class="muted small">{{ row.note }}</span>
+            <span v-for="a in row.answers || []" :key="a.key" class="muted small">{{ a.label }}: <b>{{ a.value === '1' ? t('Yes') : a.value }}</b></span>
+            <span v-if="(row.items || []).length" class="pkgs">
+              <span v-for="it in row.items" :key="it.item_code">{{ it.qty }} × {{ it.item_name }}</span>
+              <b v-if="row.estimated_total">{{ money(row.estimated_total) }}</b>
+            </span>
           </div>
           <span class="pill">{{ t('{n} guests', { n: row.guests }) }}</span>
           <span v-if="row.table_label" class="pill">{{ row.table_label }}</span>
@@ -121,6 +134,7 @@ import { call } from '../api'
 import { useSessionStore } from '../stores/session'
 import { useCartStore } from '../stores/cart'
 import { t } from '../i18n'
+import { money } from '../format'
 
 const router = useRouter()
 const session = useSessionStore()
@@ -297,9 +311,12 @@ onUnmounted(() => clearInterval(poll))
 .rtime b { font-size: 16px; }
 .rtime .small { display: block; }
 .rwho { flex: 1; min-width: 160px; }
-.rwho b { display: block; font-size: 14px; }
+.rwho > b { display: block; font-size: 14px; }
 .rwho .small { display: block; }
 .ltr { direction: ltr; text-align: start; }
+.pkgs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.pkgs span { background: rgba(20, 99, 255, 0.08); color: var(--brand-dark); border-radius: 7px; padding: 1px 9px; font-size: 12px; font-weight: 600; }
+.pkgs b { font-size: 12.5px; }
 .pill { background: var(--surface-2); border-radius: 8px; padding: 3px 11px; font-size: 12.5px; white-space: nowrap; }
 .pill.ok { background: rgba(29, 154, 108, 0.13); color: var(--pos, #157a55); font-weight: 700; }
 .pill.warn { background: rgba(201, 130, 27, 0.15); color: var(--amber); font-weight: 700; }

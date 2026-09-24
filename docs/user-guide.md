@@ -551,16 +551,42 @@ Arriving on a reservation that names a free table opens the table order in
 one press. A no-show stays on the record, so the shop learns who books and
 never comes. A reserved table wears a badge on the floor before its time.
 
-### The public booking page
+### The public booking page, designed by you
 
-Every outlet that ticks **Public booking page** on its POS Profile gets
-`/book/<outlet name>`: a page the restaurant shares on social media or its
-site, wearing its own name, logo and colour (Settings, General, Restaurant).
-Customers pick a day, a slot and a party size; the request lands in a tray
-on the Bookings screen (with a badge on the rail) and **stays unconfirmed
-until staff confirm it**: the page promises a call, never a table. Guests
-can write exactly one thing and read nothing; a flooding phone or address
-is politely told to call.
+Each outlet has its own page at `/book/<outlet name>`, the link a restaurant
+shares on social media or its website. Open **Bookings, Booking page** (or
+Settings, General, Restaurant) and design it with a live preview beside you,
+on a phone frame or a computer, in Arabic or English:
+
+- **Look:** eight ready-made styles in one click, or your own main colour,
+  form colour, a page background of one colour, two blended colours or a
+  photo, twelve Arabic fonts shown in themselves, and the corner style.
+- **Content:** title and welcome line in both languages, logo, a cover photo
+  above the form, terms above the button, the message after booking.
+- **Booking rules:** opening and closing time, a booking every 15 to 120
+  minutes, how many days ahead, the smallest and largest party, the most
+  guests one time slot can take (a full time is greyed out for the next
+  customer) and the days you are closed.
+- **Questions:** name and mobile are always asked; add any question you like
+  (short or long text, a number, a list to pick from, a yes or no tick, a
+  date), mark it required, order them. Ready ones: occasion, seating, high
+  chair, email.
+- **Packages:** anything the customer can pick with the booking, a buffet
+  priced **per guest** (it follows the party size), a cake or a set menu
+  they choose a quantity of, or something always included. Prices come from
+  the outlet price list, so the page and the till always agree.
+- **Contact:** phone, WhatsApp, location, website and social accounts as
+  buttons under the form. A chain designs one page and copies it to its
+  other branches (a copy is never published by itself).
+
+Nothing is public until you switch the page to **Published**. Requests land
+in a tray on the Bookings screen (with a badge on the rail) with their
+answers and packages, and wait for a person to confirm, unless you switch on
+**Confirm bookings automatically**, which confirms at once while the time
+still has room. When the guests arrive, **Arrived** opens their table with
+the buffet or cake they booked already on it. The page checks every answer,
+package, rule and slot again on the server, and a phone or address that
+floods it is politely told to call.
 
 **Needs a connection.** Tables, tickets and bookings are shared between
 every device in the place, so restaurant mode is not available offline.
@@ -856,7 +882,7 @@ effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise).
 ### LumenPOS releases
 | Version | Highlights |
 |---|---|
-| 0.51.0 | **Restaurant mode.** A per-outlet switch turns the till into a restaurant: a sell screen built for food (order type first, big menu tiles, line notes), tables and a floor screen, and payment through the same sale path as every shop till. Takeaway pays first and gets a **short daily order number**, printed big on the receipt, stamped on the invoice and carried by a **kitchen ticket**; the new **Kitchen screen** works the tickets (new, preparing, ready) with real timing, notes highlighted, and an optional ESC/POS kitchen printer per outlet. **Ready** flashes a call strip on the till so the cashier shouts the number. **Bookings**: a clear day book (arrived, no show, cancel), reservations that open the table in one press, and a **public booking page** per outlet (`/book/<outlet>`) wearing the restaurant's name, logo and colour, whose requests wait in a tray until staff confirm. |
+| 0.51.0 | **Restaurant mode.** A per-outlet switch turns the till into a restaurant: a sell screen built for food (order type first, big menu tiles, line notes), tables and a floor screen, and payment through the same sale path as every shop till. Takeaway pays first and gets a **short daily order number**, printed big on the receipt, stamped on the invoice and carried by a **kitchen ticket**; the new **Kitchen screen** works the tickets (new, preparing, ready) with real timing, notes highlighted, and an optional ESC/POS kitchen printer per outlet. **Ready** flashes a call strip on the till so the cashier shouts the number. **Bookings**: a clear day book (arrived, no show, cancel), reservations that open the table in one press, and a **public booking page** per outlet (`/book/<outlet>`) the owner designs with a live preview: ready-made styles, colours, backgrounds, fonts, their own questions, packages like a buffet priced per guest, booking rules and slot capacity. Requests wait in a tray until staff confirm, or confirm themselves if the owner wants. |
 | 0.50.1 | **A hold now quotes the price with tax on it.** At an outlet that adds VAT at the till, a hold used to total the shelf prices and nothing else, so a customer who had paid it "in full" was short by exactly the tax and handing the goods over failed with a mismatch. The tax is worked out on the day of the hold and frozen on it, so the balance on the screen is the money the till will actually take. Open holds are re-costed on update. **Holds are also switched off by default now** (Settings, General, Holds and deposits): a shop that never puts goods aside sees no button and no screen. And the Holds and deposits settings card, which rendered as a wall of run-on text, is laid out like the rest of them. |
 | 0.50.0 | **Holds and deposits.** A customer can leave a deposit and have the goods kept for them. Ring the items up, press **Hold**, take what they are paying today: the goods are reserved with a Sales Order so no other till sells the last one, and the money goes to a **liability** account, not revenue, because the shop is holding it. The new **Holds** screen shows what is held, for whom, paid and still to pay, flags anything past its date, and takes the next instalment, hands the goods over, or cancels and refunds. Handing over sells at the price agreed the day of the hold and collects only the balance. Tax follows the shop: by default the deposit is untaxed and the goods are taxed in full at hand-over, or switch on taxable deposits (as Saudi Arabia requires for an advance against a known supply) and the tax declared on the deposit is deducted at hand-over instead of charged twice. |
 | 0.49.0 | **The till opens with no connection at all, and installs like an app.** Until now an outage was survivable only as long as nobody reloaded the tab: the page itself came from the server, so a reload or a reboot meant a till that could not sell. The app now keeps itself on the device (a service worker holds the page, its script, styles and fonts), so /pos opens offline and the shift carries on with the cached catalogue and the offline queue. Settings → Status shows **Opens without a connection**. It can also be installed from Chrome or Edge, own window, own icon, starting at the till. Nothing about the data changed: no API answer is ever served from a cache, and opening or closing a shift still needs the server. |
