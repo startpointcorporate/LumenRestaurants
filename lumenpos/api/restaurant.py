@@ -117,10 +117,12 @@ def get_floor(pos_profile):
         rows = frappe.get_all(
             "POS Restaurant Order Item",
             filters={"parent": ("in", [o.name for o in orders])},
-            fields=["parent", "count(name) as lines"],
+            # NOT "as lines": lines is a reserved word in MariaDB and the
+            # whole floor screen dies with a syntax error.
+            fields=["parent", "count(name) as line_count"],
             group_by="parent",
         )
-        counts = {row["parent"]: row["lines"] for row in rows}
+        counts = {row["parent"]: row["line_count"] for row in rows}
     for order in orders:
         order["opened_by_name"] = names.get(order.opened_by) or order.opened_by
         order["lines"] = counts.get(order.name, 0)

@@ -12,6 +12,13 @@ function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
+// Deliberately NOT store state: the sell screen subscribes to every mutation
+// of this store to autosave a table order, so anything touchOrder writes would
+// call touchOrder again, and again. These two are plain module variables, one
+// till has one cart.
+let orderTimer = null
+let orderSig = null
+
 export const useCartStore = defineStore('cart', {
   state: () => ({
     lines: [], // {item_code, item_name, item_group, brand, qty, price, manual_discount_percent}
@@ -35,8 +42,6 @@ export const useCartStore = defineStore('cart', {
     // The table order this basket belongs to, at an outlet that serves tables:
     // {name, table_label, order_type, guests, ...}. Null on a shop till.
     order: null,
-    _orderTimer: null,
-    _orderSig: null,
     _quoteCache: null, // {signature, at, promise} see quote()
     _quoteTimer: null,
   }),
@@ -470,7 +475,7 @@ export const useCartStore = defineStore('cart', {
       this.activePriceList = null
       this.note = ''
       this.order = null
-      this._orderSig = null
+      orderSig = null
       // salesPerson intentionally kept, it's the staff member on shift
     },
 
@@ -755,7 +760,7 @@ export const useCartStore = defineStore('cart', {
       this.couponCodes = cart.coupon_codes || []
       this.orderDiscountPercent = cart.order_discount_percent || 0
       this.order = { ...order }
-      this._orderSig = JSON.stringify(this.orderSnapshot())
+      orderSig = JSON.stringify(this.orderSnapshot())
       if (order.customer) {
         try {
           const matches = await call('lumenpos.api.catalog.search_customers', {
@@ -785,10 +790,10 @@ export const useCartStore = defineStore('cart', {
     touchOrder() {
       if (!this.order) return
       const sig = JSON.stringify(this.orderSnapshot())
-      if (sig === this._orderSig) return
-      clearTimeout(this._orderTimer)
-      this._orderTimer = setTimeout(() => {
-        this._orderSig = sig
+      if (sig === orderSig) return
+      orderSig = sig
+      clearTimeout(orderTimer)
+      orderTimer = setTimeout(() => {
         this.saveOrder().catch(() => {})
       }, 700)
     },
@@ -807,7 +812,7 @@ export const useCartStore = defineStore('cart', {
     // Put the order down and go back to the floor. Saves first: a waiter who
     // walks away mid-order has not lost it.
     async leaveOrder() {
-      clearTimeout(this._orderTimer)
+      clearTimeout(orderTimer)
       if (this.order) {
         try {
           await this.saveOrder()
