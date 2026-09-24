@@ -63,7 +63,7 @@
                 </div>
                 <div class="t-meta who">{{ table.order.opened_by_name }}</div>
               </div>
-              <div v-else class="t-free">{{ t('Free') }}</div>
+              <div v-else class="t-free">{{ t('Table free') }}</div>
             </button>
             <button
               v-if="table.order"

@@ -563,6 +563,8 @@ const settings = {
     "الضريبة",
   "{n} holds are still open. The screen stays until they are handed over or cancelled, because that money and those goods belong to someone.":
     "ما زال هناك {n} حجز مفتوح. تبقى الشاشة ظاهرة حتى تسلم أو تلغى، لأن تلك الفلوس وتلك البضاعة ملك لأحد.",
+  "Table free":
+    "فارغة",
   "Tables":
     "الطاولات",
   "Restaurant":
