@@ -8,7 +8,6 @@ several times through a meal) or from a paid takeaway sale, which carries the
 short daily number the customer will be called by. The timestamps are written
 by the status changes, so "average preparation today" is real, not typed."""
 
-import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 

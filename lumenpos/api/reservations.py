@@ -338,6 +338,14 @@ def book_online(pos_profile=None, customer_name=None, phone=None, reservation_da
     opens, closes = get_time(str(page.open_time)), get_time(str(page.close_time))
     if not (opens <= moment <= closes):
         frappe.throw(_("We take bookings between {0} and {1}").format(str(page.open_time)[:5], str(page.close_time)[:5]))
+    # Only the times the page offers: one off the grid would sit in a slot of
+    # its own and get round the capacity of the real one next to it.
+    step = max(cint(page.slot_minutes) or 30, 10)
+    if ((moment.hour * 60 + moment.minute) - (opens.hour * 60 + opens.minute)) % step:
+        frappe.throw(_("Pick one of the times on the page"))
+    now = now_datetime()
+    if date == now.date() and moment <= now.time():
+        frappe.throw(_("That time has passed, pick a later one"))
     people = cint(guests) or 2
     if people < cint(page.min_guests or 1):
         frappe.throw(_("The smallest party we book is {0}").format(cint(page.min_guests)))

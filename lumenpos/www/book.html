@@ -110,23 +110,26 @@ var AVAILABLE = {{ 1 if available else 0 }};
 var PREVIEW = {{ preview }};
 var OUTLET = {{ outlet | tojson }};
 var CSRF = "{{ csrf_token }}";
+var SITE_NOW = {{ site_now | tojson }};
 
 var FONT_WEIGHTS = { "Lalezar": null };
 var UI = {
-  ar: { day: "اليوم", today: "اليوم", tomorrow: "غدا", time: "الوقت", guests: "عدد الأشخاص", packages: "اختر من العروض",
+  ar: { day: "التاريخ", today: "اليوم", tomorrow: "غدا", time: "الوقت", guests: "عدد الأشخاص", packages: "اختر من العروض",
         perGuest: "للشخص", included: "مشمول", name: "الاسم", phone: "رقم الجوال", note: "ملاحظة (اختياري)",
         send: "إرسال طلب الحجز", confirm: "تأكيد الحجز", sending: "جار الإرسال...", total: "الإجمالي التقديري",
         payAt: "يدفع في المطعم", full: "ممتلئ", noSlots: "لا أوقات متاحة في هذا اليوم، اختر يوما آخر",
+        passed: "هذا الوقت فات، اختر وقتا لاحقا",
         doneReq: "استلمنا طلبك", doneReqMsg: "بنتصل عليك قريبا نأكد الحجز. الحجز غير مؤكد حتى نتصل.",
         doneOk: "تم تأكيد حجزك", doneOkMsg: "بانتظارك في الموعد.", ref: "مرجع الحجز: ", persons: " أشخاص",
         pickTime: "اختر الوقت", writeName: "اكتب اسمك", writePhone: "اكتب رقم جوال صحيح", required: " مطلوب",
         preview: "معاينة: هذا النموذج لا يرسل شيئا", closed: "الحجز الإلكتروني غير متاح لهذا الفرع حاليا. اتصل بالمطعم مباشرة.",
         call: "اتصال", whatsapp: "واتساب", location: "الموقع", website: "الموقع الإلكتروني", yes: "نعم",
         pick: "اختر...", failed: "تعذر الإرسال، جرب مرة ثانية" },
-  en: { day: "Day", today: "Today", tomorrow: "Tomorrow", time: "Time", guests: "Guests", packages: "Choose a package",
+  en: { day: "Date", today: "Today", tomorrow: "Tomorrow", time: "Time", guests: "Guests", packages: "Choose a package",
         perGuest: "per guest", included: "Included", name: "Name", phone: "Mobile number", note: "Note (optional)",
         send: "Send booking request", confirm: "Confirm booking", sending: "Sending...", total: "Estimated total",
         payAt: "Paid at the restaurant", full: "Full", noSlots: "No times left on this day, pick another",
+        passed: "That time has passed, pick a later one",
         doneReq: "Request received", doneReqMsg: "We will call you shortly to confirm. The booking is not final until we call.",
         doneOk: "Your booking is confirmed", doneOkMsg: "See you then.", ref: "Reference: ", persons: " guests",
         pickTime: "Pick a time", writeName: "Write your name", writePhone: "Write a valid mobile number", required: " is required",
@@ -184,6 +187,15 @@ function ymd(d) {
 }
 function toMin(t) { var p = String(t || "0:0").split(":"); return (+p[0]) * 60 + (+p[1] || 0) }
 function fmt(m) { return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0") }
+// The branch's time, carried as the gap between the server's clock and this
+// device's, so it keeps running while the page stays open. Parsed by hand:
+// some older phones read a bare date and time as UTC.
+var SKEW = (function () {
+  var p = String(SITE_NOW || "").match(/^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)/);
+  if (!p) return 0;
+  return new Date(+p[1], +p[2] - 1, +p[3], +p[4], +p[5], +p[6]).getTime() - Date.now();
+})();
+function siteNow() { return new Date(Date.now() + SKEW) }
 
 // ------------------------------------------------------------- theme
 function applyTheme() {
@@ -232,10 +244,13 @@ function applyTheme() {
 
 // ------------------------------------------------------------- days and slots
 function openDays() {
-  var out = [], d = new Date(), n = Math.max(1, +PAGE.days_ahead || 14);
+  var out = [], d = siteNow(), n = Math.max(1, +PAGE.days_ahead || 14);
   for (var i = 0; i <= n; i++) {
     var day = new Date(d.getFullYear(), d.getMonth(), d.getDate() + i);
     if (PAGE[DAY_KEYS[day.getDay()]]) continue;
+    // Late in the evening today has no time left in it: start on the next
+    // open day instead of opening on one that offers nothing.
+    if (i === 0 && !slotsOn(ymd(day)).length) continue;
     out.push({ value: ymd(day), i: i, date: day });
   }
   return out;
@@ -245,14 +260,15 @@ function dayLabel(day) {
   if (day.i === 1) return tx("tomorrow");
   return day.date.toLocaleDateString(S.lang === "ar" ? "ar-u-ca-gregory-nu-latn" : "en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
-function slots() {
+function slotsOn(date) {
   var start = toMin(PAGE.open_time || "12:00"), end = toMin(PAGE.close_time || "23:30"), step = Math.max(10, +PAGE.slot_minutes || 30);
   var list = [];
-  var now = new Date(), cut = -1;
-  if (S.date === ymd(now)) cut = now.getHours() * 60 + now.getMinutes() + 15;
+  var now = siteNow(), cut = -1;
+  if (date === ymd(now)) cut = now.getHours() * 60 + now.getMinutes() + 15;
   for (var m = start; m <= end; m += step) if (m > cut) list.push(fmt(m));
   return list;
 }
+function slots() { return slotsOn(S.date) }
 function loadFull() {
   S.full = [];
   if (PREVIEW || !(+PAGE.slot_capacity) || !S.date) return render();
@@ -492,6 +508,12 @@ function serverMessage(payload) {
 function submit() {
   if (PREVIEW) return fail(tx("preview"));
   if (!S.time) return fail(tx("pickTime"));
+  if (!openDays().some(function (d) { return d.value === S.date }) || slots().indexOf(S.time) < 0) {
+    // The page sat open past the chosen time (or day): show what is left instead.
+    S.time = null;
+    render();
+    return fail(tx("passed"));
+  }
   if (String(S.name || "").trim().length < 2) return fail(tx("writeName"));
   if (String(S.phone || "").replace(/\D/g, "").length < 9) return fail(tx("writePhone"));
   var missing = (PAGE.fields || []).filter(function (f) { return f.required && !S.answers[f.key] })[0];

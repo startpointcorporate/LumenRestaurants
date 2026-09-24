@@ -16,6 +16,7 @@ published or not, and a preview never submits anything.
 import json
 
 import frappe
+from frappe.utils import now_datetime
 
 no_cache = 1
 
@@ -41,6 +42,10 @@ def get_context(context):
     # Embedded in a <script>: a "</" in any text the owner typed must not be
     # able to close the tag.
     context.page_json = json.dumps(data, default=str, ensure_ascii=False).replace("</", "<\\/")
+    # The branch's clock, not the phone's: the page works out its days and
+    # times from it, so a visitor in another time zone or a phone set wrong
+    # still sees only what the branch can take.
+    context.site_now = now_datetime().strftime("%Y-%m-%dT%H:%M:%S")
     try:
         context.csrf_token = frappe.sessions.get_csrf_token()
     except Exception:
