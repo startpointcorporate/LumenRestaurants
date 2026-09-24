@@ -1,6 +1,6 @@
 # LumenPOS: Complete User Guide
 
-*Applies to LumenPOS v0.50.1. This document is updated with every feature change.*
+*Applies to LumenPOS v0.51.0. This document is updated with every feature change.*
 
 > **Note on this document.** Sections 1 to 17 below were written up to v0.17 and are
 > being brought forward release by release; the **changelog in section 18 is
@@ -511,7 +511,62 @@ goods for a customer* under Settings → General → Approvals and access.
 available offline.
 
 ---
-## 11. Serial numbers (strict)
+## 11. Restaurant mode
+
+Tick **Run this outlet as a restaurant** on the POS Profile and that outlet
+becomes a restaurant till; a shop outlet on the same install is unaffected.
+The sell screen changes shape: order type first (**dine in, takeaway,
+delivery**), big menu tiles by category, a note on any line (no onions), and
+no retail furniture. Everything still posts through the same sale, so
+promotions, loyalty, cashback, the Z-report and returns work unchanged.
+
+### Takeaway and the order number
+
+A takeaway or delivery order is paid first. The moment the money is in, the
+till hands out a **short daily number** (starts at 1 every morning, per
+outlet), prints it big on the customer receipt, stamps it on the invoice in
+ERPNext, and opens a kitchen ticket carrying the same number. The kitchen
+presses **Ready** and the sell screen shows a green call strip: shout the
+number, hand the bag over, press **Handed over**. Dine-in tickets carry the
+table name instead, a table needs no number.
+
+### The kitchen screen
+
+Open **Kitchen** on any screen or tablet in the kitchen: three columns (new,
+preparing, ready), the items with the guest notes highlighted, and a clock
+that turns amber then red as a ticket waits. Each step stamps its time, so
+"average preparation today" in the header is real. A table order sends its
+unsent lines with **Send to kitchen**, as many rounds as the meal needs.
+
+**Kitchen paper:** set *Kitchen Printer IP* on the POS Profile and every
+ticket also prints (ESC/POS, no prices, the number huge). That works when
+the server can reach the printer, an on-premise install; on Frappe Cloud
+use the kitchen screen, or its per-ticket print button.
+
+### Reservations
+
+The **Bookings** screen is the day book: big time, name and phone, guests,
+an optional table, and three honest buttons (arrived, no show, cancel).
+Arriving on a reservation that names a free table opens the table order in
+one press. A no-show stays on the record, so the shop learns who books and
+never comes. A reserved table wears a badge on the floor before its time.
+
+### The public booking page
+
+Every outlet that ticks **Public booking page** on its POS Profile gets
+`/book/<outlet name>`: a page the restaurant shares on social media or its
+site, wearing its own name, logo and colour (Settings, General, Restaurant).
+Customers pick a day, a slot and a party size; the request lands in a tray
+on the Bookings screen (with a badge on the rail) and **stays unconfirmed
+until staff confirm it**: the page promises a call, never a table. Guests
+can write exactly one thing and read nothing; a flooding phone or address
+is politely told to call.
+
+**Needs a connection.** Tables, tickets and bookings are shared between
+every device in the place, so restaurant mode is not available offline.
+
+---
+## 12. Serial numbers (strict)
 
 A serialized item can never be sold without its exact serials:
 - Adding one opens a scan prompt; the serial must exist, belong to that item,
@@ -528,7 +583,7 @@ A serialized item can never be sold without its exact serials:
 
 ---
 
-## 12. Register & cash management
+## 13. Register & cash management
 
 - The **"Register open"** pill in the top bar is a shortcut, click it to
   jump to the Register page (where closing happens).
@@ -595,7 +650,7 @@ with an opening-float box, on both the Sell-screen prompt and the Register
 
 ---
 
-## 13. Sales history
+## 14. Sales history
 
 Search bar matches invoice no, customer name/ID, **mobile**, and **order ID**.
 Filters: date range, status, document status, **channel** (walk-in / app),
@@ -610,7 +665,7 @@ refund.
 
 ---
 
-## 14. Offline mode
+## 15. Offline mode
 
 After the first online load the catalog (incl. barcodes) is cached locally,
 this also makes everyday search instant. If the connection drops:
@@ -655,7 +710,7 @@ database and posted when the connection returns.
 behaviour: it sells offline as long as the tab stays open.)
 ---
 
-## 15. Settings reference (gear icon → /settings)
+## 16. Settings reference (gear icon → /settings)
 
 | Tab | Contents |
 |---|---|
@@ -675,7 +730,7 @@ on the **POS Profile**, the single source of truth.
 
 ---
 
-## 16. Roles & permissions
+## 17. Roles & permissions
 
 LumenPOS access is governed entirely by **standard ERPNext DocType permissions**,
 manage them in **Role Permissions Manager** (Frappe Cloud → desk → search
@@ -750,7 +805,7 @@ becomes one row automatically on update, and a site that restricted nothing
 stays open.
 
 ---
-## 17. Troubleshooting
+## 18. Troubleshooting
 
 | Symptom | Check |
 |---|---|
@@ -770,7 +825,7 @@ stays open.
 
 ---
 
-## 18. Customers (client lookup)
+## 19. Customers (client lookup)
 
 The **Customers** tab (left rail) is a fast way to find a client and see their
 POS activity in one place.
@@ -791,7 +846,7 @@ effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise).
 
 ---
 
-## 19. Changelog
+## 20. Changelog
 
 > **LumenPOS 0.1.0** is a standalone fork of this POS for the Frappe Marketplace,
 > rebranded to the **Lumen** identity (primary blue `#1463FF`, Plus Jakarta Sans
@@ -801,6 +856,7 @@ effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise).
 ### LumenPOS releases
 | Version | Highlights |
 |---|---|
+| 0.51.0 | **Restaurant mode.** A per-outlet switch turns the till into a restaurant: a sell screen built for food (order type first, big menu tiles, line notes), tables and a floor screen, and payment through the same sale path as every shop till. Takeaway pays first and gets a **short daily order number**, printed big on the receipt, stamped on the invoice and carried by a **kitchen ticket**; the new **Kitchen screen** works the tickets (new, preparing, ready) with real timing, notes highlighted, and an optional ESC/POS kitchen printer per outlet. **Ready** flashes a call strip on the till so the cashier shouts the number. **Bookings**: a clear day book (arrived, no show, cancel), reservations that open the table in one press, and a **public booking page** per outlet (`/book/<outlet>`) wearing the restaurant's name, logo and colour, whose requests wait in a tray until staff confirm. |
 | 0.50.1 | **A hold now quotes the price with tax on it.** At an outlet that adds VAT at the till, a hold used to total the shelf prices and nothing else, so a customer who had paid it "in full" was short by exactly the tax and handing the goods over failed with a mismatch. The tax is worked out on the day of the hold and frozen on it, so the balance on the screen is the money the till will actually take. Open holds are re-costed on update. **Holds are also switched off by default now** (Settings, General, Holds and deposits): a shop that never puts goods aside sees no button and no screen. And the Holds and deposits settings card, which rendered as a wall of run-on text, is laid out like the rest of them. |
 | 0.50.0 | **Holds and deposits.** A customer can leave a deposit and have the goods kept for them. Ring the items up, press **Hold**, take what they are paying today: the goods are reserved with a Sales Order so no other till sells the last one, and the money goes to a **liability** account, not revenue, because the shop is holding it. The new **Holds** screen shows what is held, for whom, paid and still to pay, flags anything past its date, and takes the next instalment, hands the goods over, or cancels and refunds. Handing over sells at the price agreed the day of the hold and collects only the balance. Tax follows the shop: by default the deposit is untaxed and the goods are taxed in full at hand-over, or switch on taxable deposits (as Saudi Arabia requires for an advance against a known supply) and the tax declared on the deposit is deducted at hand-over instead of charged twice. |
 | 0.49.0 | **The till opens with no connection at all, and installs like an app.** Until now an outage was survivable only as long as nobody reloaded the tab: the page itself came from the server, so a reload or a reboot meant a till that could not sell. The app now keeps itself on the device (a service worker holds the page, its script, styles and fonts), so /pos opens offline and the shift carries on with the cached catalogue and the offline queue. Settings → Status shows **Opens without a connection**. It can also be installed from Chrome or Edge, own window, own icon, starting at the till. Nothing about the data changed: no API answer is ever served from a cache, and opening or closing a shift still needs the server. |

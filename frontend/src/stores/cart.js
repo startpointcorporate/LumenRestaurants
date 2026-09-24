@@ -42,6 +42,10 @@ export const useCartStore = defineStore('cart', {
     // The table order this basket belongs to, at an outlet that serves tables:
     // {name, table_label, order_type, guests, ...}. Null on a shop till.
     order: null,
+    // Restaurant outlets only: what an UNBOUND basket is (Takeaway, Delivery,
+    // or Dine in, which really means "go pick a table"). A bound table order
+    // carries its own type.
+    serviceType: 'Takeaway',
     _quoteCache: null, // {signature, at, promise} see quote()
     _quoteTimer: null,
   }),
@@ -644,6 +648,17 @@ export const useCartStore = defineStore('cart', {
         discount_request: this.discountRequest,
         order: this.order?.name || null,
       }
+      const session2 = useSessionStore()
+      if (session2.restaurantMode && !this.order && this.serviceType !== 'Dine in') {
+        // The server hands out the day's number and opens the kitchen ticket
+        // in the same transaction as the money.
+        payload.restaurant = {
+          order_type: this.serviceType,
+          notes: this.lines
+            .filter((l) => (l.note || '').trim())
+            .map((l) => ({ item_code: l.item_code, note: l.note.trim() })),
+        }
+      }
       this.submitting = true
       try {
         const receipt = await call('lumenpos.api.sales.submit_sale', { payload })
@@ -771,6 +786,37 @@ export const useCartStore = defineStore('cart', {
           // offline or gone: the order still opens, the customer can be re-picked
         }
       }
+    },
+
+    // Send what was added since the last send. Tracks a sent_qty per line in
+    // the cart itself, so firing mains first and dessert later makes two
+    // tickets, and a reopened order remembers what the kitchen already has.
+    async sendToKitchen() {
+      if (!this.order) throw new Error('No table order is open')
+      const delta = []
+      for (const line of this.lines) {
+        const sent = line.sent_qty || 0
+        if (line.qty > sent) {
+          delta.push({
+            item_code: line.item_code,
+            item_name: line.item_name,
+            qty: line.qty - sent,
+            note: (line.note || '').trim() || null,
+          })
+        }
+      }
+      if (!delta.length) return 0
+      await call('lumenpos.api.kitchen.send_to_kitchen', {
+        order: this.order.name,
+        items: delta,
+      })
+      for (const line of this.lines) line.sent_qty = line.qty
+      try {
+        await this.saveOrder()
+      } catch {
+        // the ticket is in the kitchen either way; the order syncs next touch
+      }
+      return delta.length
     },
 
     orderSnapshot() {

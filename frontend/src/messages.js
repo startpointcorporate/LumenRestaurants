@@ -659,6 +659,148 @@ const settings = {
     "نقل الطاولات أو دمجها",
   "Cancel a table order":
     "إلغاء طلب طاولة",
+  "Bookings":
+    "الحجوزات",
+  "Kitchen":
+    "المطبخ",
+  "Order number":
+    "رقم الطلب",
+  "New orders":
+    "جديد",
+  "Preparing":
+    "قيد التحضير",
+  "Ready to hand over":
+    "جاهز للتسليم",
+  "Average today: {t}":
+    "متوسط التحضير اليوم: {t}",
+  "{n} live orders":
+    "{n} طلبات شغالة",
+  "The kitchen screen needs a connection.":
+    "شاشة المطبخ تحتاج اتصالا.",
+  "Nothing here":
+    "لا شيء هنا",
+  "Start preparing":
+    "ابدأ التحضير",
+  "Ready":
+    "جاهز",
+  "Handed over":
+    "تم التسليم",
+  "Print the kitchen slip":
+    "طباعة تذكرة المطبخ",
+  "Call number {n}":
+    "نادوا رقم {n}",
+  "Take it to {t}":
+    "وصلوه إلى {t}",
+  "under a minute":
+    "أقل من دقيقة",
+  "ready {t}":
+    "جاهز منذ {t}",
+  "Slip sent to the kitchen printer":
+    "أرسلت التذكرة لطابعة المطبخ",
+  "Reservations":
+    "الحجوزات",
+  "Today":
+    "اليوم",
+  "Tomorrow":
+    "غدا",
+  "New reservation":
+    "حجز جديد",
+  "{n} online requests waiting":
+    "{n} طلبات حجز من الإنترنت بانتظار الرد",
+  "{n} guests":
+    "{n} أشخاص",
+  "Decline":
+    "رفض",
+  "Reservations need a connection.":
+    "الحجوزات تحتاج اتصالا.",
+  "Nothing booked for this day.":
+    "لا حجوزات في هذا اليوم.",
+  "Arrived":
+    "وصل",
+  "No show":
+    "لم يحضر",
+  "Requested":
+    "بانتظار التأكيد",
+  "Confirmed":
+    "مؤكد",
+  "Seated":
+    "وصلوا وجلسوا",
+  "Edit reservation":
+    "تعديل الحجز",
+  "Name":
+    "الاسم",
+  "Table (optional)":
+    "الطاولة (اختياري)",
+  "Pick on arrival":
+    "تحدد عند الوصول",
+  "Occasion, high chair, by the window…":
+    "مناسبة، كرسي أطفال، بجانب النافذة…",
+  "Save reservation":
+    "حفظ الحجز",
+  "Reservation saved":
+    "تم حفظ الحجز",
+  "Own delivery":
+    "توصيل المطعم",
+  "The order number prints with the payment":
+    "رقم الطلب يطلع مع الدفع",
+  "Customer (optional)":
+    "العميل (اختياري)",
+  "Tap the menu to start the order":
+    "اضغط على المنيو لبدء الطلب",
+  "sent {n}":
+    "أرسل {n}",
+  "Includes {tax}":
+    "شامل {tax}",
+  "Send to kitchen ({n})":
+    "إرسال للمطبخ ({n})",
+  "Kitchen has it all":
+    "كل شيء عند المطبخ",
+  "Open the register to take payments":
+    "افتح الوردية لاستلام الدفعات",
+  "Ready to hand over:":
+    "جاهز للتسليم:",
+  "Search the menu…":
+    "ابحث في المنيو…",
+  "Nothing here yet":
+    "لا شيء هنا بعد",
+  "Serialized items are sold from the retail screen":
+    "الأصناف ذات الأرقام التسلسلية تباع من شاشة البيع العادية",
+  "Sent to the kitchen":
+    "أرسل للمطبخ",
+  "Public booking page":
+    "صفحة الحجز العامة",
+  "A page customers book from, made to look like the restaurant: share its link on social media or the website. Requests land on the Bookings screen until staff confirm them.":
+    "صفحة يحجز منها العميل بنفسه، بشكل المطعم وهويته: انشر رابطها في السوشيال ميديا أو الموقع. الطلبات تصل لشاشة الحجوزات وتبقى بانتظار تأكيد الموظف.",
+  "Page title":
+    "عنوان الصفحة",
+  "The restaurant name":
+    "اسم المطعم",
+  "Brand colour (hex)":
+    "لون الهوية (hex)",
+  "Welcome line":
+    "سطر الترحيب",
+  "Book your table and we will call to confirm":
+    "احجز طاولتك وبنتصل نأكد الحجز",
+  "Logo URL":
+    "رابط الشعار",
+  "Bookings from":
+    "الحجز من الساعة",
+  "Bookings until":
+    "الحجز حتى الساعة",
+  "Time slot (minutes)":
+    "الفاصل بين المواعيد (دقائق)",
+  "Days ahead":
+    "كم يوما مقدما",
+  "Largest group online":
+    "أكبر مجموعة من الإنترنت",
+  "Each outlet gets its own link":
+    "لكل فرع رابطه الخاص",
+  "Copy the link":
+    "نسخ الرابط",
+  "The link answers only for an outlet whose POS Profile has \"Public booking page\" switched on (ERP, POS Profile, LumenPOS Options).":
+    "الرابط لا يفتح إلا لفرع مفعل فيه خيار \"صفحة الحجز العامة\" من ERP ثم POS Profile ثم LumenPOS Options.",
+  "Link copied: {url}":
+    "نسخ الرابط: {url}",
 }
 
 // Register page + open-register overlay.

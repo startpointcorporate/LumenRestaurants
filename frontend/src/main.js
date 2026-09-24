@@ -8,11 +8,13 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import './theme' // applies saved/OS theme before first paint
 import './i18n' // applies saved/browser language + RTL direction before first paint
 import App from './App.vue'
-import SellView from './views/SellView.vue'
+import SellSwitch from './views/SellSwitch.vue'
 import HistoryView from './views/HistoryView.vue'
 import CustomersView from './views/CustomersView.vue'
 import HoldsView from './views/HoldsView.vue'
 import TablesView from './views/TablesView.vue'
+import KitchenView from './views/KitchenView.vue'
+import ReservationsView from './views/ReservationsView.vue'
 import RegisterView from './views/RegisterView.vue'
 import InsightsView from './views/InsightsView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -22,11 +24,13 @@ import './styles.css'
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    { path: '/', component: SellView },
+    { path: '/', component: SellSwitch },
     { path: '/history', component: HistoryView },
     { path: '/customers', component: CustomersView },
     { path: '/holds', component: HoldsView },
     { path: '/tables', component: TablesView },
+    { path: '/kitchen', component: KitchenView },
+    { path: '/reservations', component: ReservationsView },
     { path: '/register', component: RegisterView },
     { path: '/insights', component: InsightsView },
     { path: '/settings', component: SettingsView },

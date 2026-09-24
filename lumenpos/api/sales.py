@@ -495,12 +495,28 @@ def submit_sale(payload):
     # A table order that has just been paid: link the invoice to it and close
     # it here, on the sale itself, so the table is free the moment the money is
     # in and not when someone remembers to press something.
+    restaurant_meta = None
     if payload.get("order"):
         from lumenpos.api import restaurant
 
         restaurant.close_order(payload["order"], invoice.name, flt(invoice.grand_total))
+    elif payload.get("restaurant"):
+        # A takeaway or delivery at a restaurant outlet: the moment the money
+        # is in, the day's short number is handed out and the kitchen ticket
+        # opens. Same transaction: a failed payment burns neither.
+        from lumenpos.api import kitchen, restaurant
+
+        if restaurant.enabled(profile.name):
+            meta = payload["restaurant"]
+            if isinstance(meta, str):
+                meta = json.loads(meta or "{}")
+            if (meta.get("order_type") or "Takeaway") != "Dine in":
+                restaurant_meta = kitchen.after_sale(invoice, profile, meta)
 
     receipt = get_receipt(invoice.name)
+    if restaurant_meta:
+        receipt["order_no"] = str(restaurant_meta["order_no"])
+        receipt["kitchen_ticket"] = restaurant_meta.get("ticket")
     receipt["stock_after"] = _stock_after(invoice)
     _log_slow_sale(
         invoice.name,
@@ -1520,6 +1536,7 @@ def get_receipt(invoice):
         "loyalty_amount": flt(doc.loyalty_amount) if doc.get("redeem_loyalty_points") else 0,
         "sales_person": doc.sales_team[0].sales_person if doc.get("sales_team") else None,
         "app_type": _get_custom(doc, ("custom_app_type", "lumenpos_app_type")),
+        "order_no": _get_custom(doc, ("lumenpos_order_no",)) or None,
         "order_id": _get_custom(doc, ("pick_order_no", "custom_order_id", "lumenpos_order_id")),
         "is_exchange": _truthy_custom(_get_custom(doc, ("is_exchange", "custom_is_exchange"))),
         "posting_date": str(doc.posting_date),

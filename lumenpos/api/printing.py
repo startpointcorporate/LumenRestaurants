@@ -74,6 +74,12 @@ def build_receipt_bytes(receipt, open_drawer=0):
     out += ALIGN_CENTER + BOLD_ON + DOUBLE_SIZE
     out += _text(receipt["company"]) + b"\n"
     out += NORMAL_SIZE + BOLD_OFF
+    if receipt.get("order_no"):
+        # The number the customer is called by: bigger than anything else on
+        # the paper, because it is the one thing both sides read out loud.
+        out += b"\n" + BOLD_ON + DOUBLE_SIZE
+        out += _text(f"ORDER  {receipt['order_no']}") + b"\n"
+        out += NORMAL_SIZE + BOLD_OFF + b"\n"
     out += _text(receipt["name"]) + b"\n"
     out += _text(f"{receipt['posting_date']} {str(receipt['posting_time']).split('.')[0]}") + b"\n"
     out += _text(receipt["customer_name"] or "") + b"\n"
@@ -113,6 +119,61 @@ def build_receipt_bytes(receipt, open_drawer=0):
     out += ALIGN_CENTER + b"\n" + _text("Thank you!") + b"\n"
     out += FEED_CUT
     return bytes(out)
+
+
+def kitchen_printer(profile_name):
+    ip = frappe.db.get_value("POS Profile", profile_name, "lumenpos_kitchen_printer_ip")
+    port = frappe.db.get_value("POS Profile", profile_name, "lumenpos_kitchen_printer_port") or 9100
+    return ip, int(port)
+
+
+def build_kitchen_bytes(ticket):
+    """The kitchen slip: the number (or the table) huge, the items and their
+    notes, no prices. Prices feed nobody."""
+    out = bytearray(INIT)
+    out += ALIGN_CENTER + BOLD_ON + DOUBLE_SIZE
+    head = f"# {ticket.order_no}" if ticket.order_no else (ticket.table_label or "")
+    out += _text(head) + b"\n"
+    out += NORMAL_SIZE + BOLD_OFF
+    out += _text(ticket.order_type or "") + b"\n"
+    out += _text(str(ticket.created_at)[:16]) + b"\n"
+    out += ALIGN_LEFT + _line() + b"\n" + BOLD_ON
+    for row in ticket.items:
+        qty = _num(row.qty).rstrip("0").rstrip(".")
+        out += _text(f"{qty} x {row.item_name}"[:WIDTH]) + b"\n"
+        if row.note:
+            out += BOLD_OFF + _text(f"   >> {row.note}"[:WIDTH]) + b"\n" + BOLD_ON
+    out += BOLD_OFF
+    if ticket.note:
+        out += _line() + b"\n" + _text(ticket.note[: WIDTH * 2]) + b"\n"
+    out += FEED_CUT
+    return bytes(out)
+
+
+def auto_print_kitchen(ticket):
+    """Called by the sale / the fire button. Prints only when a kitchen printer
+    is configured; a slip that cannot print is never allowed to cost a sale."""
+    ip, port = kitchen_printer(ticket.pos_profile)
+    if not ip:
+        return False
+    with socket.create_connection((ip, int(port)), timeout=5) as sock:
+        sock.sendall(build_kitchen_bytes(ticket))
+    return True
+
+
+@frappe.whitelist()
+def print_kitchen_ticket(ticket):
+    """The reprint button on the kitchen screen."""
+    doc = frappe.get_doc("POS Kitchen Ticket", ticket)
+    doc.check_permission("read")
+    ip, port = kitchen_printer(doc.pos_profile)
+    if not ip:
+        frappe.throw(
+            _("No kitchen printer is set on POS Profile {0}. Use the kitchen screen, or set "
+              "Kitchen Printer IP on the profile.").format(doc.pos_profile)
+        )
+    _send(ip, port, build_kitchen_bytes(doc))
+    return {"printed": True}
 
 
 def _text(value):

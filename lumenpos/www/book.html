@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+{#- Copyright (c) 2026 Lumen Solutions | SPDX-License-Identifier: AGPL-3.0-only | "LumenPOS" is a trademark of Lumen Solutions. See TRADEMARKS.md. -#}
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <meta name="robots" content="noindex">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --brand: {{ color }}; --ink:#101623; --muted:#66707f; --bg:#f3f5f9; --card:#fff; --border:#e3e7ee; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:'IBM Plex Sans Arabic',system-ui,sans-serif; background:var(--bg); color:var(--ink); line-height:1.65; }
+    .page { max-width:480px; margin:0 auto; padding:20px 16px 48px; }
+    .head { text-align:center; padding:10px 0 18px; }
+    .head img { max-height:64px; max-width:200px; margin-bottom:10px; }
+    .head h1 { margin:0; font-size:22px; }
+    .head p { margin:4px 0 0; color:var(--muted); font-size:13.5px; }
+    .lang { position:absolute; top:14px; inset-inline-end:14px; border:1px solid var(--border); background:var(--card); border-radius:999px; padding:5px 14px; font:inherit; font-size:12.5px; font-weight:600; color:var(--muted); cursor:pointer; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:18px 16px; box-shadow:0 10px 30px rgba(16,22,35,.06); }
+    label.fl { display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin:16px 0 7px; }
+    label.fl:first-child { margin-top:0; }
+    .chips { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
+    .chips::-webkit-scrollbar { display:none; }
+    .chip { flex:none; border:1.5px solid var(--border); background:#fff; border-radius:12px; padding:8px 14px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; white-space:nowrap; }
+    .chip.on { border-color:var(--brand); background:color-mix(in srgb, var(--brand) 10%, #fff); color:var(--brand); }
+    .slots { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; max-height:176px; overflow:auto; }
+    .slots .chip { text-align:center; padding:9px 4px; direction:ltr; }
+    .guests { display:flex; align-items:center; gap:14px; }
+    .guests button { width:44px; height:44px; border-radius:12px; border:1.5px solid var(--border); background:#fff; font-size:22px; font-weight:600; cursor:pointer; color:var(--ink); }
+    .guests b { font-size:20px; min-width:34px; text-align:center; }
+    input.ti, textarea.ti { width:100%; border:1.5px solid var(--border); border-radius:12px; padding:12px; font:inherit; font-size:14.5px; background:#fff; outline:none; }
+    input.ti:focus, textarea.ti:focus { border-color:var(--brand); }
+    input[dir=ltr] { text-align:start; }
+    .go { width:100%; margin-top:20px; border:0; border-radius:14px; background:var(--brand); color:#fff; font:inherit; font-size:16.5px; font-weight:700; padding:15px; cursor:pointer; }
+    .go[disabled] { opacity:.55; cursor:default; }
+    .err { display:none; margin-top:12px; background:#fdecec; color:#a02525; border-radius:12px; padding:10px 14px; font-size:13px; }
+    .ok { display:none; text-align:center; padding:14px 4px; }
+    .ok .tick { width:64px; height:64px; margin:6px auto 12px; border-radius:99px; background:color-mix(in srgb, var(--brand) 12%, #fff); display:grid; place-items:center; }
+    .ok .tick svg { width:32px; height:32px; stroke:var(--brand); stroke-width:2.5; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+    .ok h2 { margin:0 0 6px; font-size:19px; }
+    .ok p { margin:0; color:var(--muted); font-size:13.5px; }
+    .ok .sum { margin:16px 0 4px; background:var(--bg); border-radius:12px; padding:10px; font-size:13.5px; font-weight:600; }
+    .foot { text-align:center; color:var(--muted); font-size:11px; margin-top:22px; }
+    .hp { position:absolute; inset-inline-start:-9999px; opacity:0; height:0; }
+    .closed { text-align:center; padding:30px 10px; }
+  </style>
+</head>
+<body>
+  <button class="lang" id="lang" type="button">English</button>
+  <div class="page">
+    <div class="head">
+      {% if logo %}<img src="{{ logo }}" alt="">{% endif %}
+      <h1>{{ title }}</h1>
+      <p data-ar="{{ subtitle or 'احجز طاولتك، وبنتصل نأكد الحجز' }}" data-en="Book your table and we will call to confirm">{{ subtitle or "احجز طاولتك، وبنتصل نأكد الحجز" }}</p>
+      {% if available %}<p style="font-size:12px" data-ar="فرع {{ outlet }}" data-en="{{ outlet }} branch">فرع {{ outlet }}</p>{% endif %}
+    </div>
+
+    {% if not available %}
+    <div class="card closed">
+      <p data-ar="الحجز الإلكتروني غير متاح لهذا الفرع حاليا. اتصل بالمطعم مباشرة." data-en="Online booking is not available for this branch right now. Please call the restaurant.">الحجز الإلكتروني غير متاح لهذا الفرع حاليا. اتصل بالمطعم مباشرة.</p>
+    </div>
+    {% else %}
+    <div class="card" id="form-card">
+      <label class="fl" data-ar="اليوم" data-en="Day">اليوم</label>
+      <div class="chips" id="days"></div>
+
+      <label class="fl" data-ar="الوقت" data-en="Time">الوقت</label>
+      <div class="slots" id="slots"></div>
+
+      <label class="fl" data-ar="عدد الأشخاص" data-en="Guests">عدد الأشخاص</label>
+      <div class="guests">
+        <button type="button" id="g-minus">-</button>
+        <b id="g-count">2</b>
+        <button type="button" id="g-plus">+</button>
+      </div>
+
+      <label class="fl" data-ar="الاسم" data-en="Name">الاسم</label>
+      <input class="ti" id="name" autocomplete="name">
+
+      <label class="fl" data-ar="رقم الجوال" data-en="Mobile number">رقم الجوال</label>
+      <input class="ti" id="phone" type="tel" dir="ltr" placeholder="05xxxxxxxx" autocomplete="tel">
+
+      <label class="fl" data-ar="ملاحظة (اختياري)" data-en="Note (optional)">ملاحظة (اختياري)</label>
+      <input class="ti" id="note" data-ar-ph="مناسبة، كرسي أطفال..." placeholder="مناسبة، كرسي أطفال...">
+
+      <input class="hp" id="website" tabindex="-1" autocomplete="off">
+
+      <button class="go" id="go" type="button" data-ar="إرسال طلب الحجز" data-en="Send booking request">إرسال طلب الحجز</button>
+      <div class="err" id="err"></div>
+    </div>
+
+    <div class="card ok" id="ok-card">
+      <div class="tick"><svg viewBox="0 0 24 24"><path d="M4.5 12.5 10 18 19.5 7"/></svg></div>
+      <h2 data-ar="استلمنا طلبك" data-en="Request received">استلمنا طلبك</h2>
+      <p data-ar="بنتصل عليك قريبا نأكد الحجز. الحجز غير مؤكد حتى نتصل." data-en="We will call you shortly to confirm. The booking is not final until we call.">بنتصل عليك قريبا نأكد الحجز. الحجز غير مؤكد حتى نتصل.</p>
+      <div class="sum" id="sum"></div>
+      <p style="font-size:12px" id="refline"></p>
+    </div>
+    {% endif %}
+
+    <div class="foot">LumenPOS</div>
+  </div>
+
+<script>
+var DAYS = {{ days_json }};
+var SLOTS = {{ slots_json }};
+var MAX_GUESTS = {{ max_guests }};
+var OUTLET = {{ outlet | tojson }};
+var CSRF = "{{ csrf_token }}";
+
+var state = { date: DAYS.length ? DAYS[0].value : null, time: null, guests: 2, lang: "ar" };
+
+function el(id) { return document.getElementById(id) }
+
+function renderChips() {
+  var days = el("days");
+  if (!days) return;
+  days.innerHTML = "";
+  DAYS.forEach(function (d, i) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (state.date === d.value ? " on" : "");
+    b.textContent = i === 0 ? (state.lang === "ar" ? "اليوم" : "Today") : d.label;
+    b.onclick = function () { state.date = d.value; renderChips() };
+    days.appendChild(b);
+  });
+  var slots = el("slots");
+  slots.innerHTML = "";
+  SLOTS.forEach(function (t) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (state.time === t ? " on" : "");
+    b.textContent = t;
+    b.onclick = function () { state.time = t; renderChips() };
+    slots.appendChild(b);
+  });
+}
+
+function setLang(lang) {
+  state.lang = lang;
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  el("lang").textContent = lang === "ar" ? "English" : "العربية";
+  var nodes = document.querySelectorAll("[data-ar]");
+  for (var i = 0; i < nodes.length; i++) {
+    nodes[i].textContent = nodes[i].getAttribute(lang === "ar" ? "data-ar" : "data-en");
+  }
+  var note = el("note");
+  if (note) note.placeholder = lang === "ar" ? note.getAttribute("data-ar-ph") : "Occasion, high chair...";
+  renderChips();
+}
+
+if (el("form-card")) {
+  renderChips();
+  el("g-minus").onclick = function () { state.guests = Math.max(1, state.guests - 1); el("g-count").textContent = state.guests };
+  el("g-plus").onclick = function () { state.guests = Math.min(MAX_GUESTS, state.guests + 1); el("g-count").textContent = state.guests };
+
+  el("go").onclick = function () {
+    var err = el("err");
+    err.style.display = "none";
+    if (!state.time) { return fail(state.lang === "ar" ? "اختر الوقت" : "Pick a time") }
+    if (el("name").value.trim().length < 2) { return fail(state.lang === "ar" ? "اكتب اسمك" : "Write your name") }
+    if (el("phone").value.replace(/\D/g, "").length < 9) { return fail(state.lang === "ar" ? "اكتب رقم جوال صحيح" : "Write a valid mobile number") }
+    var go = el("go");
+    go.disabled = true;
+    go.textContent = state.lang === "ar" ? "جار الإرسال..." : "Sending...";
+    fetch("/api/method/lumenpos.api.reservations.book_online", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Frappe-CSRF-Token": CSRF, "Accept": "application/json" },
+      body: JSON.stringify({
+        pos_profile: OUTLET,
+        customer_name: el("name").value.trim(),
+        phone: el("phone").value.trim(),
+        reservation_date: state.date,
+        reservation_time: state.time,
+        guests: state.guests,
+        note: el("note").value.trim(),
+        website: el("website").value
+      })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j } }) })
+      .then(function (res) {
+        if (!res.ok) { throw serverMessage(res.j) }
+        var day = DAYS.filter(function (d) { return d.value === state.date })[0];
+        el("sum").textContent = (day ? day.label : state.date) + " · " + state.time + " · " +
+          (state.lang === "ar" ? state.guests + " أشخاص" : state.guests + " guests");
+        el("refline").textContent = (state.lang === "ar" ? "مرجع الطلب: " : "Reference: ") + (res.j.message && res.j.message.ref || "");
+        el("form-card").style.display = "none";
+        el("ok-card").style.display = "block";
+        window.scrollTo({ top: 0 });
+      })
+      .catch(function (e) { fail(String(e && e.message || e)) })
+      .finally(function () {
+        go.disabled = false;
+        go.textContent = go.getAttribute(state.lang === "ar" ? "data-ar" : "data-en");
+      });
+  };
+}
+
+function fail(message) {
+  var err = el("err");
+  err.textContent = message;
+  err.style.display = "block";
+}
+
+function serverMessage(payload) {
+  try {
+    var raw = JSON.parse(payload._server_messages)[0];
+    return new Error(JSON.parse(raw).message.replace(/<[^>]*>/g, ""));
+  } catch (e) {
+    return new Error(payload.exception ? String(payload.exception).split(":").pop() :
+      (state.lang === "ar" ? "تعذر الإرسال، جرب مرة ثانية" : "Could not send, try again"));
+  }
+}
+
+el("lang").onclick = function () { setLang(state.lang === "ar" ? "en" : "ar") };
+</script>
+</body>
+</html>

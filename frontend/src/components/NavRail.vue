@@ -23,6 +23,15 @@
       <svg viewBox="0 0 24 24"><circle cx="12" cy="10.5" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 15.7V21M8 21h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       <span>{{ t('Tables') }}</span>
     </router-link>
+    <router-link v-if="session.restaurantMode" to="/reservations" class="rail-item" active-class="active">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>{{ t('Bookings') }}</span>
+      <span v-if="requestedCount" class="badge">{{ requestedCount }}</span>
+    </router-link>
+    <router-link v-if="session.restaurantMode" to="/kitchen" class="rail-item" active-class="active">
+      <svg viewBox="0 0 24 24"><path d="M5 11a7 7 0 0 1 14 0v1H5zM4 15h16M7 19h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>{{ t('Kitchen') }}</span>
+    </router-link>
     <router-link v-if="session.permissions.view_history !== false" to="/history" class="rail-item" active-class="active">
       <svg viewBox="0 0 24 24"><path d="M12 8v5l3.5 2M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>{{ t('History') }}</span>
@@ -92,6 +101,22 @@ const holdsVisible = computed(
 const approvalsOpen = ref(false)
 const pendingCount = ref(0)
 let timer = null
+let bookingTimer = null
+
+const requestedCount = ref(0)
+async function refreshRequested() {
+  if (!session.restaurantMode || session.offline) {
+    requestedCount.value = 0
+    return
+  }
+  try {
+    requestedCount.value = await call('lumenpos.api.reservations.requested_count', {
+      pos_profile: session.posProfile,
+    })
+  } catch {
+    requestedCount.value = 0
+  }
+}
 
 async function refreshPending() {
   if (!session.canApprove || session.offline) {
@@ -114,6 +139,8 @@ function onApprovalsClose() {
 }
 
 onMounted(() => {
+  refreshRequested()
+  bookingTimer = setInterval(refreshRequested, 30000)
   if (!session.canApprove) return
   refreshPending()
   timer = setInterval(refreshPending, 10000)
@@ -121,6 +148,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   clearInterval(timer)
+  clearInterval(bookingTimer)
   window.removeEventListener('focus', refreshPending)
 })
 </script>

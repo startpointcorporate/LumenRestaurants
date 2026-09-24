@@ -14,6 +14,10 @@
         {{ t('Tax ID') }}: {{ s.receipt_tax_id }}
       </div>
       <div v-if="receipt.is_return" class="return-stamp">{{ t('REFUND') }}</div>
+      <div v-if="receipt.order_no" class="order-no-box">
+        <span class="onb-label">{{ t('Order number') }}</span>
+        <span class="onb-num">{{ receipt.order_no }}</span>
+      </div>
       <div class="muted small">
         {{ receipt.name }} · {{ receipt.posting_date }} {{ String(receipt.posting_time || '').split('.')[0] }}
       </div>
@@ -220,4 +224,14 @@ function asImg(value) {
 .tpl-detailed .receipt-company { font-size: 18px; }
 .tpl-detailed .receipt-table td { padding: 7px 0; }
 .tpl-detailed .row { padding: 4px 0; }
+.order-no-box {
+  margin: 8px auto 6px;
+  border: 2px solid #000;
+  border-radius: 10px;
+  padding: 4px 10px 7px;
+  max-width: 170px;
+  text-align: center;
+}
+.onb-label { display: block; font-size: 10.5px; }
+.onb-num { display: block; font-size: 34px; font-weight: 800; line-height: 1.1; }
 </style>

@@ -63,4 +63,7 @@ page_renderer = ["lumenpos.service_worker.ServiceWorkerPage"]
 # All sub-paths resolve to the same page; the frontend uses a hash router.
 website_route_rules = [
     {"from_route": "/pos/<path:app_path>", "to_route": "pos"},
+    # The public booking page: /book/<outlet> is the link a restaurant puts on
+    # its social media. Guests only ever see it for outlets that opted in.
+    {"from_route": "/book/<outlet>", "to_route": "book"},
 ]

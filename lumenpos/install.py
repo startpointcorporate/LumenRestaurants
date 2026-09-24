@@ -552,6 +552,16 @@ def make_custom_fields():
             read_only=1,
         ),
         dict(
+            # The number a takeaway customer is called by: short, daily, per
+            # outlet. On the invoice so the receipt can shout it and history
+            # can find the sale by it.
+            fieldname="lumenpos_order_no",
+            label="Order No (daily)",
+            fieldtype="Data",
+            insert_after="lumenpos_note",
+            read_only=1,
+        ),
+        dict(
             fieldname="lumenpos_idempotency_key",
             label="POS Idempotency Key",
             fieldtype="Data",
@@ -639,6 +649,33 @@ def make_custom_fields():
                     fieldtype="Int",
                     insert_after="lumenpos_printer_ip",
                     default="9100",
+                ),
+                dict(
+                    fieldname="lumenpos_kitchen_printer_ip",
+                    label="Kitchen Printer IP (ESC/POS, RAW 9100)",
+                    fieldtype="Data",
+                    insert_after="lumenpos_printer_port",
+                    description="The kitchen slip prints here when the server can reach it. "
+                    "Leave empty to use the kitchen screen (or its print button) instead.",
+                ),
+                dict(
+                    fieldname="lumenpos_kitchen_printer_port",
+                    label="Kitchen Printer Port",
+                    fieldtype="Int",
+                    insert_after="lumenpos_kitchen_printer_ip",
+                    default="9100",
+                ),
+                dict(
+                    # Server side gate for the PUBLIC booking page: the page and
+                    # its endpoint both refuse an outlet that has not opted in.
+                    fieldname="lumenpos_online_booking",
+                    label="Public booking page (/book)",
+                    fieldtype="Check",
+                    default="0",
+                    insert_after="lumenpos_restaurant_mode",
+                    depends_on="eval:doc.lumenpos_restaurant_mode",
+                    description="Customers reserve a table themselves at /book/<outlet name>. "
+                    "Requests wait on the Reservations screen until staff confirm them.",
                 ),
             ],
             "POS Invoice": invoice_fields,

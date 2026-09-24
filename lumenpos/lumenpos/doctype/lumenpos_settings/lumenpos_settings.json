@@ -92,6 +92,16 @@
   "enable_insights",
   "cashback_section",
   "enable_cashback",
+  "restaurant_section",
+  "booking_title",
+  "booking_subtitle",
+  "booking_logo",
+  "booking_color",
+  "booking_open",
+  "booking_close",
+  "booking_slot_minutes",
+  "booking_days_ahead",
+  "booking_max_guests",
   "layaway_section",
   "enable_layaway",
   "layaway_reserve_stock",
@@ -666,6 +676,67 @@
    "fieldname": "enable_cashback",
    "fieldtype": "Check",
    "label": "Enable Cashback"
+  },
+  {
+   "fieldname": "restaurant_section",
+   "fieldtype": "Section Break",
+   "label": "Restaurant and booking page"
+  },
+  {
+   "fieldname": "booking_title",
+   "fieldtype": "Data",
+   "label": "Booking page title",
+   "description": "The restaurant name as the public booking page shows it. Empty = the company name."
+  },
+  {
+   "fieldname": "booking_subtitle",
+   "fieldtype": "Small Text",
+   "label": "Booking page welcome line",
+   "description": "One line under the name, e.g. book your table and we will call to confirm."
+  },
+  {
+   "fieldname": "booking_logo",
+   "fieldtype": "Data",
+   "label": "Booking page logo URL",
+   "description": "A link to the logo image (from your site or Files). Empty = no logo, the name carries the page."
+  },
+  {
+   "default": "#1463ff",
+   "fieldname": "booking_color",
+   "fieldtype": "Data",
+   "label": "Booking page colour",
+   "description": "The brand colour of the page, e.g. #b8860b, so it feels like the restaurant, not like us."
+  },
+  {
+   "default": "12:00:00",
+   "fieldname": "booking_open",
+   "fieldtype": "Time",
+   "label": "Bookings from"
+  },
+  {
+   "default": "23:30:00",
+   "fieldname": "booking_close",
+   "fieldtype": "Time",
+   "label": "Bookings until"
+  },
+  {
+   "default": "30",
+   "fieldname": "booking_slot_minutes",
+   "fieldtype": "Int",
+   "label": "Time slot (minutes)"
+  },
+  {
+   "default": "14",
+   "fieldname": "booking_days_ahead",
+   "fieldtype": "Int",
+   "label": "How many days ahead"
+  },
+  {
+   "default": "12",
+   "fieldname": "booking_max_guests",
+   "fieldtype": "Int",
+   "label": "Largest group online",
+   "description": "Bigger groups are asked to call the branch."
   },
   {
    "fieldname": "layaway_section",
