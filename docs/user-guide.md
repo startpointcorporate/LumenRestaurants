@@ -1,6 +1,20 @@
-# LumenPOS: Complete User Guide
+# Lumen Restaurants: Complete User Guide
 
-*Applies to LumenPOS v0.51.0. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r1, built from LumenPOS v0.51.0. This document is updated with every feature change.*
+
+**Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
+own.** Everything this guide says about LumenPOS applies to it: the till is the
+same, at `/pos`, and each outlet chooses what it is. Tick **Run this outlet as a
+restaurant** on the POS Profile (section **Lumen Restaurants**) and that outlet
+opens the restaurant till described in section 11. Every other outlet stays a
+shop till. At a restaurant outlet the shop features a restaurant has no use for
+are switched off: holds and deposits (the Holds screen still shows while a hold
+is open, so no deposit is stranded), the exchange flow, and the retail sell
+screen with its parking, price checker and serial numbers. Lumen Restaurants
+does not need LumenPOS installed, and a site runs one of the two, never both.
+Where this guide names *LumenPOS Settings*, the *LumenPOS Manager* or
+*LumenPOS Cashier* roles, or the *LumenPOS* module, those are the real names of
+those records in Lumen Restaurants too.
 
 > **Note on this document.** Sections 1 to 17 below were written up to v0.17 and are
 > being brought forward release by release; the **changelog in section 18 is
@@ -28,7 +42,7 @@ remembered per device. Return reasons and other configurable lists show the
 text you saved in Settings.
 
 LumenPOS is a professional Point of Sale for ERPNext / Frappe. Each **POS
-Profile** chooses how sales post (POS Profile → *LumenPOS Options* → **Sale posts
+Profile** chooses how sales post (POS Profile → *Lumen Restaurants* → **Sale posts
 as**):
 - **POS Invoice** (default), sales are POS Invoices with native **POS
   Opening/Closing Entries**, consolidated into Sales Invoices at register close.
@@ -601,7 +615,7 @@ A takeaway or delivery order is paid first. The moment the money is in, the
 till hands out a **short daily number** (starts at 1 every morning, per
 outlet), prints it big on the customer receipt, stamps it on the invoice in
 ERPNext, and opens a kitchen ticket carrying the same number. The kitchen
-presses **Ready** and the sell screen shows a green call strip: shout the
+presses **Ready** and the sell screen shows a blue call strip: shout the
 number, hand the bag over, press **Handed over**. Dine-in tickets carry the
 table name instead, a table needs no number.
 
@@ -962,6 +976,11 @@ effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise).
 > rebranded to the **Lumen** identity (primary blue `#1463FF`, Plus Jakarta Sans
 > typography). The version history below is the shared lineage carried over from
 > the original app.
+
+### Lumen Restaurants releases
+| Version | Highlights |
+|---|---|
+| 0.1.0-r1 | **Lumen Restaurants becomes an app of its own.** It is built from LumenPOS 0.51.0 with the restaurant (tables and open orders, the kitchen screen, takeaway order numbers, bookings and the public booking page) and carries everything LumenPOS does, so it no longer needs LumenPOS installed. Its name, page title, installable app, top bar and booking page footer say Lumen Restaurants, and the POS Profile sections are called **Lumen Restaurants** and **Lumen Restaurants Receipt Printer**. At a restaurant outlet holds and deposits and the exchange flow are now switched off (a shop outlet keeps them). The restaurant screens show ready, done and confirmed states in the Lumen blue instead of green. The logo is a placeholder until the Lumen Restaurants logo kit is ready. |
 
 ### LumenPOS releases
 | Version | Highlights |

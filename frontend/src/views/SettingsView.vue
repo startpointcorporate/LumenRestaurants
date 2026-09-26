@@ -1075,7 +1075,7 @@
         <p class="sec-note">{{ t('Tables and orders that stay open while the guests eat, then become one ordinary sale at the end.') }}</p>
         <p class="muted hint-row">
           <template v-if="session.restaurantMode">{{ t('This outlet serves tables.') }}</template>
-          <template v-else>{{ t('This outlet does not serve tables yet. Switch it on per outlet: ERP, POS Profile, LumenPOS Options, Run this outlet as a restaurant.') }}</template>
+          <template v-else>{{ t('This outlet does not serve tables yet. Switch it on per outlet: ERP, POS Profile, Lumen Restaurants, Run this outlet as a restaurant.') }}</template>
         </p>
         <div class="sub-label">{{ t('Tables at {outlet}', { outlet: session.posProfile }) }}</div>
         <div v-if="!tables.length" class="muted small" style="padding-bottom: 8px">{{ t('No tables yet.') }}</div>
@@ -1163,7 +1163,7 @@
         </button>
       </div>
 
-      <!-- Companies of the group (lumenpos.inter_company) -->
+      <!-- Companies of the group (lumen_restaurants.inter_company) -->
       <div class="sec-card" v-show="generalSection === 'companies'">
         <div class="sec-title"><Icon name="company" /> {{ t('Customer balances across companies') }}</div>
         <p class="sec-note">{{ t('Gift cards, cashback and store credit, on a site with more than one company. Shared: a customer spends their balance at any company of the group that keeps its books in the same currency, and each company\'s books are kept right by an Inter Company Journal Entry. Separate: a balance is spent only at the company that issued it.') }}</p>
@@ -1223,7 +1223,7 @@
         </template>
       </div>
 
-      <!-- The new-customer form (lumenpos.customer_form) -->
+      <!-- The new-customer form (lumen_restaurants.customer_form) -->
       <div class="sec-card" v-show="generalSection === 'customers'">
         <div class="sec-title"><Icon name="person" /> {{ t('New customer form') }}</div>
         <p class="sec-note">{{ t('What the till asks when a cashier adds a customer. Each field can be hidden, optional or required, for individuals and for companies apart. The address is the Saudi national address; a shop elsewhere can keep only the parts it needs.') }}</p>
@@ -1273,7 +1273,7 @@
         </p>
       </div>
 
-      <!-- Other currencies (lumenpos.currency) -->
+      <!-- Other currencies (lumen_restaurants.currency) -->
       <div class="sec-card" v-show="generalSection === 'currencies'">
         <div class="sec-title"><Icon name="cash" /> {{ t('Other currencies') }}</div>
         <p class="sec-note">{{ t('Sell to customers who pay in another currency. A customer whose Billing Currency in ERPNext is another currency buys in it, and a walk-in can be switched to it at the till. Prices, offers and discounts stay in the outlet currency and are converted at the rate of the shift.') }}</p>
@@ -2082,7 +2082,7 @@
     <!-- ============ STATUS ============ -->
     <section v-if="activeTab === 'Status'" class="tab-body">
       <div class="status-grid">
-        <div class="stat sec-card"><div class="stat-label">{{ t('LumenPOS version') }}</div><div class="stat-value">{{ settingsInfo.version || '-' }}</div></div>
+        <div class="stat sec-card"><div class="stat-label">{{ t('Lumen Restaurants version') }}</div><div class="stat-value">{{ settingsInfo.version || '-' }}</div></div>
         <div class="stat sec-card"><div class="stat-label">{{ t('Outlet (POS Profile)') }}</div><div class="stat-value">{{ session.posProfile }}</div></div>
         <div class="stat sec-card"><div class="stat-label">{{ t('Default price list') }}</div><div class="stat-value">{{ session.priceList }}</div></div>
         <div class="stat sec-card"><div class="stat-label">{{ t('Connection') }}</div><div class="stat-value">{{ session.offline ? t('⚠ Offline') : t('✓ Online') }}</div></div>
@@ -2190,12 +2190,12 @@ const missingIndexes = computed(
   () => indexHealth.value.filter((i) => i.state === 'missing').length
 )
 async function loadIndexHealth() {
-  indexHealth.value = await call('lumenpos.api.settings.get_index_health').catch(() => [])
+  indexHealth.value = await call('lumen_restaurants.api.settings.get_index_health').catch(() => [])
 }
 async function rebuildIndexes() {
   rebuilding.value = true
   try {
-    await call('lumenpos.api.settings.rebuild_indexes')
+    await call('lumen_restaurants.api.settings.rebuild_indexes')
     session.notify(t('Rebuilding indexes in the background. Check back shortly.'))
   } catch (e) {
     session.notify(e.message, true)
@@ -2343,7 +2343,7 @@ const savingTables = ref(false)
 async function loadTables() {
   if (!session.posProfile) return
   try {
-    tables.value = await call('lumenpos.api.restaurant.list_tables', {
+    tables.value = await call('lumen_restaurants.api.restaurant.list_tables', {
       pos_profile: session.posProfile,
     })
   } catch {
@@ -2363,7 +2363,7 @@ async function removeTable(i) {
   }
   if (!confirm(t('Remove this table?'))) return
   try {
-    await call('lumenpos.api.restaurant.delete_table', { name: row.name })
+    await call('lumen_restaurants.api.restaurant.delete_table', { name: row.name })
     tables.value.splice(i, 1)
   } catch (e) {
     session.notify(e.message, true)
@@ -2375,7 +2375,7 @@ async function saveTables() {
   try {
     for (const row of tables.value) {
       if (!String(row.table_no || '').trim()) continue
-      await call('lumenpos.api.restaurant.save_table', {
+      await call('lumen_restaurants.api.restaurant.save_table', {
         pos_profile: session.posProfile,
         name: row.name || null,
         table_no: row.table_no,
@@ -2410,13 +2410,13 @@ const generalSections = [
 ]
 const generalSection = ref('features')
 
-// ---- customer balances across companies (lumenpos.inter_company) ----
+// ---- customer balances across companies (lumen_restaurants.inter_company) ----
 const BALANCE_MODES = ['Shared by the group', 'Separate per company']
 const icStatus = ref(null)
 const icBusy = ref(false)
 async function loadInterCompany() {
   try {
-    icStatus.value = await call('lumenpos.inter_company.status')
+    icStatus.value = await call('lumen_restaurants.inter_company.status')
   } catch {
     icStatus.value = { pending: [], recent: [], companies: {} }
   }
@@ -2424,7 +2424,7 @@ async function loadInterCompany() {
 async function bookInterCompany() {
   icBusy.value = true
   try {
-    const res = await call('lumenpos.inter_company.post_now')
+    const res = await call('lumen_restaurants.inter_company.post_now')
     icStatus.value = res
     session.notify(t('{n} lines booked', { n: res.booked }))
   } catch (e) {
@@ -2445,7 +2445,7 @@ const customerFieldChoicesLeft = computed(() => {
 async function loadCustomerFieldChoices() {
   if (customerFieldChoices.value.length || session.offline) return
   try {
-    customerFieldChoices.value = await call('lumenpos.customer_form.field_choices')
+    customerFieldChoices.value = await call('lumen_restaurants.customer_form.field_choices')
   } catch (e) {
     session.notify(e.message, true)
   }
@@ -2486,7 +2486,7 @@ async function saveRate(row) {
   }
   row.busy = true
   try {
-    await call('lumenpos.currency.set_rate', {
+    await call('lumen_restaurants.currency.set_rate', {
       currency: row.currency,
       company_currency: row.company_currency,
       rate,
@@ -2509,7 +2509,7 @@ const restrictionForm = ref(null)
 const restrictionBusy = ref(false)
 
 async function loadReturnRestrictions() {
-  returnRestrictions.value = await call('lumenpos.api.settings.list_return_restrictions').catch(() => [])
+  returnRestrictions.value = await call('lumen_restaurants.api.settings.list_return_restrictions').catch(() => [])
 }
 
 function restrictionSummary(rule) {
@@ -2552,7 +2552,7 @@ async function saveReturnRestriction() {
   }
   restrictionBusy.value = true
   try {
-    await call('lumenpos.api.settings.save_return_restriction', {
+    await call('lumen_restaurants.api.settings.save_return_restriction', {
       payload: JSON.stringify({
         name: form.name,
         title: form.title.trim(),
@@ -2580,7 +2580,7 @@ async function saveReturnRestriction() {
 async function deleteReturnRestriction(rule) {
   if (!confirm(t('Delete the restriction "{title}"?', { title: rule.title }))) return
   try {
-    await call('lumenpos.api.settings.delete_return_restriction', { name: rule.name })
+    await call('lumen_restaurants.api.settings.delete_return_restriction', { name: rule.name })
     if (restrictionForm.value && restrictionForm.value.name === rule.name) restrictionForm.value = null
     await loadReturnRestrictions()
   } catch (e) {
@@ -2653,7 +2653,7 @@ const receiptForm = computed(() =>
 async function onReceiptScopeChange() {
   if (!receiptScope.value) return // back to the global default form
   try {
-    const res = await call('lumenpos.api.settings.get_profile_receipt', {
+    const res = await call('lumen_restaurants.api.settings.get_profile_receipt', {
       pos_profile: receiptScope.value,
     })
     profileReceiptForm.value = res.config || {}
@@ -2671,7 +2671,7 @@ async function saveProfileReceipt() {
   const config = {}
   for (const k of RECEIPT_KEYS) config[k] = profileReceiptForm.value[k]
   try {
-    await call('lumenpos.api.settings.save_profile_receipt', {
+    await call('lumen_restaurants.api.settings.save_profile_receipt', {
       pos_profile: profile,
       config: JSON.stringify(config),
       custom_fields: JSON.stringify(profileReceiptCustomFields.value),
@@ -2690,7 +2690,7 @@ async function resetProfileReceipt() {
   const profile = receiptScope.value
   if (!profile) return
   try {
-    await call('lumenpos.api.settings.clear_profile_receipt', { pos_profile: profile })
+    await call('lumen_restaurants.api.settings.clear_profile_receipt', { pos_profile: profile })
     profileReceiptOverrides.value = profileReceiptOverrides.value.filter((p) => p !== profile)
     await onReceiptScopeChange() // reload, now seeds from the global default
     session.notify(t('{outlet} now uses the default receipt', { outlet: profile }))
@@ -2713,7 +2713,7 @@ const customFields = computed(() =>
 async function loadFieldOptions(source) {
   if (!source || fieldOptions.value[source]) return
   try {
-    const opts = await call('lumenpos.api.settings.receipt_field_options', { source })
+    const opts = await call('lumen_restaurants.api.settings.receipt_field_options', { source })
     fieldOptions.value = { ...fieldOptions.value, [source]: opts }
   } catch {
     /* ignore, the picker just stays empty */
@@ -2775,7 +2775,7 @@ const AUDIT_PAGE = 50
 async function loadAudit(append = false) {
   auditLoading.value = true
   try {
-    const rows = await call('lumenpos.api.audit.list_logs', {
+    const rows = await call('lumen_restaurants.api.audit.list_logs', {
       action: auditFilter.value.action || undefined,
       from_date: auditFilter.value.from_date || undefined,
       to_date: auditFilter.value.to_date || undefined,
@@ -2836,7 +2836,7 @@ async function load() {
   loadIndexHealth()
   if (session.offline) return
   loadTables()
-  const info = await call('lumenpos.api.settings.get_settings')
+  const info = await call('lumen_restaurants.api.settings.get_settings')
   settingsInfo.value = info
   profileReceiptOverrides.value = info.profile_receipt_overrides || []
   loadFieldOptions('Sale Invoice')
@@ -2947,14 +2947,14 @@ async function load() {
   if ((info.companies || []).length && !info.companies.includes(selectedCompany.value)) {
     selectedCompany.value = info.companies[0]
   }
-  promotions.value = await call('lumenpos.api.settings.list_promotions')
+  promotions.value = await call('lumen_restaurants.api.settings.list_promotions')
   if (perms.value.cashback?.read) {
-    cashbackRules.value = await call('lumenpos.api.settings.list_cashback_rules').catch(() => [])
+    cashbackRules.value = await call('lumen_restaurants.api.settings.list_cashback_rules').catch(() => [])
     loadCashbackAccounting()
   }
-  priceBooks.value = await call('lumenpos.api.settings.list_price_books')
-  bundles.value = await call('lumenpos.api.settings.list_bundles')
-  loyaltyPrograms.value = await call('lumenpos.api.settings.list_loyalty_programs').catch(() => [])
+  priceBooks.value = await call('lumen_restaurants.api.settings.list_price_books')
+  bundles.value = await call('lumen_restaurants.api.settings.list_bundles')
+  loyaltyPrograms.value = await call('lumen_restaurants.api.settings.list_loyalty_programs').catch(() => [])
   loadGiftCards()
   if (perms.value.settings) loadReturnRestrictions()
 }
@@ -2963,12 +2963,12 @@ async function load() {
 async function saveLoyalty() {
   saving.value = true
   try {
-    await call('lumenpos.api.settings.create_loyalty_program', {
+    await call('lumen_restaurants.api.settings.create_loyalty_program', {
       payload: { ...loyaltyForm.value, company: loyaltyForm.value.company || session.company },
     })
     session.notify(t('Loyalty program created, earning starts on the next sale'))
     creatingLoyalty.value = false
-    loyaltyPrograms.value = await call('lumenpos.api.settings.list_loyalty_programs')
+    loyaltyPrograms.value = await call('lumen_restaurants.api.settings.list_loyalty_programs')
   } catch (e) {
     session.notify(e.message, true)
   } finally {
@@ -2982,7 +2982,7 @@ function debouncedLoadCards() {
 }
 
 async function loadGiftCards() {
-  giftCardList.value = await call('lumenpos.api.settings.list_gift_cards', {
+  giftCardList.value = await call('lumen_restaurants.api.settings.list_gift_cards', {
     search: giftCardSearch.value,
   }).catch(() => [])
 }
@@ -2990,7 +2990,7 @@ async function loadGiftCards() {
 async function disableCard(card) {
   if (!confirm(t('Disable gift card {card}? Its remaining balance becomes unusable.', { card: card.card_no }))) return
   try {
-    await call('lumenpos.api.settings.disable_gift_card', { card_no: card.card_no })
+    await call('lumen_restaurants.api.settings.disable_gift_card', { card_no: card.card_no })
     loadGiftCards()
   } catch (e) {
     session.notify(e.message, true)
@@ -3065,10 +3065,10 @@ async function saveBundle() {
   try {
     const payload = JSON.parse(JSON.stringify(bundleForm.value))
     payload.items = payload.items.filter((row) => row.item_code)
-    await call('lumenpos.api.settings.save_bundle', { payload })
+    await call('lumen_restaurants.api.settings.save_bundle', { payload })
     session.notify(t('Bundle saved'))
     editingBundle.value = false
-    bundles.value = await call('lumenpos.api.settings.list_bundles')
+    bundles.value = await call('lumen_restaurants.api.settings.list_bundles')
     session.bundles = bundles.value.filter((bundle) => bundle.status === 'Active')
   } catch (e) {
     session.notify(e.message, true)
@@ -3080,9 +3080,9 @@ async function saveBundle() {
 async function deleteBundle() {
   if (!confirm(t('Delete bundle "{title}"?', { title: bundleForm.value.title }))) return
   try {
-    await call('lumenpos.api.settings.delete_bundle', { name: bundleForm.value.name })
+    await call('lumen_restaurants.api.settings.delete_bundle', { name: bundleForm.value.name })
     editingBundle.value = false
-    bundles.value = await call('lumenpos.api.settings.list_bundles')
+    bundles.value = await call('lumen_restaurants.api.settings.list_bundles')
     session.bundles = bundles.value.filter((bundle) => bundle.status === 'Active')
   } catch (e) {
     session.notify(e.message, true)
@@ -3123,7 +3123,7 @@ async function loadCouponStats() {
   couponMsg.value = ''
   if (!promoForm.value.name) return
   try {
-    couponStats.value = await call('lumenpos.api.settings.list_coupons', {
+    couponStats.value = await call('lumen_restaurants.api.settings.list_coupons', {
       promotion: promoForm.value.name,
     })
   } catch {
@@ -3136,7 +3136,7 @@ async function generateCoupons() {
   couponBusy.value = true
   couponMsg.value = ''
   try {
-    const res = await call('lumenpos.api.settings.generate_coupons', {
+    const res = await call('lumen_restaurants.api.settings.generate_coupons', {
       promotion: promoForm.value.name,
       count: couponGen.value.count,
       prefix: couponGen.value.prefix || '',
@@ -3166,7 +3166,7 @@ function importCoupons(event) {
     couponBusy.value = true
     couponMsg.value = ''
     try {
-      const res = await call('lumenpos.api.settings.import_coupons', {
+      const res = await call('lumen_restaurants.api.settings.import_coupons', {
         promotion: promoForm.value.name,
         filename: file.name,
         content: reader.result,
@@ -3195,7 +3195,7 @@ function importCoupons(event) {
 async function exportCoupons() {
   couponBusy.value = true
   try {
-    const rows = await call('lumenpos.api.settings.export_coupons', { promotion: promoForm.value.name })
+    const rows = await call('lumen_restaurants.api.settings.export_coupons', { promotion: promoForm.value.name })
     const header = 'code,single_use,used,valid_until,batch\n'
     const body = rows
       .map((r) =>
@@ -3220,7 +3220,7 @@ async function deleteUnusedCoupons() {
   if (!confirm(t('Delete all unused coupons for this promotion?'))) return
   couponBusy.value = true
   try {
-    couponStats.value = await call('lumenpos.api.settings.delete_coupons', {
+    couponStats.value = await call('lumen_restaurants.api.settings.delete_coupons', {
       promotion: promoForm.value.name,
       only_unused: 1,
     })
@@ -3233,7 +3233,7 @@ async function deleteUnusedCoupons() {
 }
 
 async function editPromotion(name) {
-  const data = await call('lumenpos.api.settings.get_promotion', { name })
+  const data = await call('lumen_restaurants.api.settings.get_promotion', { name })
   data.items = (data.items || []).map((row) => ({
     applies_to: row.applies_to || 'Item',
     value: row.item_code || row.item_group || row.brand || row.tag || '',
@@ -3254,7 +3254,7 @@ async function runTest() {
   testing.value = true
   testResult.value = null
   try {
-    testResult.value = await call('lumenpos.api.settings.test_promotion', {
+    testResult.value = await call('lumen_restaurants.api.settings.test_promotion', {
       name: promoForm.value.name,
       pos_profile: session.posProfile,
       items: testBasket.value
@@ -3298,10 +3298,10 @@ async function savePromotion() {
         qty: row.qty,
         exclude: row.exclude ? 1 : 0,
       }))
-    await call('lumenpos.api.settings.save_promotion', { payload })
+    await call('lumen_restaurants.api.settings.save_promotion', { payload })
     session.notify(t('Promotion saved'))
     editingPromo.value = false
-    promotions.value = await call('lumenpos.api.settings.list_promotions')
+    promotions.value = await call('lumen_restaurants.api.settings.list_promotions')
     session.refreshPromotions()
   } catch (e) {
     session.notify(e.message, true)
@@ -3313,9 +3313,9 @@ async function savePromotion() {
 async function deletePromotion() {
   if (!confirm(t('Delete promotion "{title}"?', { title: promoForm.value.title }))) return
   try {
-    await call('lumenpos.api.settings.delete_promotion', { name: promoForm.value.name })
+    await call('lumen_restaurants.api.settings.delete_promotion', { name: promoForm.value.name })
     editingPromo.value = false
-    promotions.value = await call('lumenpos.api.settings.list_promotions')
+    promotions.value = await call('lumen_restaurants.api.settings.list_promotions')
     session.refreshPromotions()
   } catch (e) {
     session.notify(e.message, true)
@@ -3324,7 +3324,7 @@ async function deletePromotion() {
 
 // ---- cashback accounting ----
 async function loadCashbackAccounting() {
-  cashbackAccounting.value = await call('lumenpos.api.settings.cashback_accounting_status').catch(() => [])
+  cashbackAccounting.value = await call('lumen_restaurants.api.settings.cashback_accounting_status').catch(() => [])
 }
 
 // The server sends a state code, not text, so the note follows the POS language.
@@ -3339,7 +3339,7 @@ async function bookCashbackNow() {
   cashbackBookMsg.value = ''
   cashbackBookFailed.value = false
   try {
-    const res = await call('lumenpos.api.settings.post_cashback_to_gl')
+    const res = await call('lumen_restaurants.api.settings.post_cashback_to_gl')
     cashbackAccounting.value = res.status || []
     const posted = (res.posted || []).length
     const failed = (res.failed || []).length
@@ -3371,7 +3371,7 @@ function newCashbackRule() {
 }
 
 async function editCashbackRule(name) {
-  const data = await call('lumenpos.api.settings.get_cashback_rule', { name })
+  const data = await call('lumen_restaurants.api.settings.get_cashback_rule', { name })
   data.items = (data.items || []).map((row) => ({
     applies_to: row.applies_to || 'Item',
     value: row.item_code || row.item_group || row.brand || row.tag || '',
@@ -3404,10 +3404,10 @@ async function saveCashbackRule() {
         tag: row.applies_to === 'Tag' ? row.value : null,
         exclude: row.exclude ? 1 : 0,
       }))
-    await call('lumenpos.api.settings.save_cashback_rule', { payload })
+    await call('lumen_restaurants.api.settings.save_cashback_rule', { payload })
     session.notify(t('Cashback rule saved'))
     editingCashback.value = false
-    cashbackRules.value = await call('lumenpos.api.settings.list_cashback_rules')
+    cashbackRules.value = await call('lumen_restaurants.api.settings.list_cashback_rules')
   } catch (e) {
     session.notify(e.message, true)
   } finally {
@@ -3418,9 +3418,9 @@ async function saveCashbackRule() {
 async function deleteCashbackRule() {
   if (!confirm(t('Delete cashback rule "{title}"?', { title: cashbackForm.value.title }))) return
   try {
-    await call('lumenpos.api.settings.delete_cashback_rule', { name: cashbackForm.value.name })
+    await call('lumen_restaurants.api.settings.delete_cashback_rule', { name: cashbackForm.value.name })
     editingCashback.value = false
-    cashbackRules.value = await call('lumenpos.api.settings.list_cashback_rules')
+    cashbackRules.value = await call('lumen_restaurants.api.settings.list_cashback_rules')
   } catch (e) {
     session.notify(e.message, true)
   }
@@ -3465,7 +3465,7 @@ async function fetchBookItems() {
     if (bookFetch.value.by === 'Brand') args.brand = bookFetch.value.value
     else if (bookFetch.value.by === 'Item Group') args.item_group = bookFetch.value.value
     else args.tag = bookFetch.value.value
-    const rows = await call('lumenpos.api.settings.resolve_items', args)
+    const rows = await call('lumen_restaurants.api.settings.resolve_items', args)
     let added = 0
     for (const r of rows) {
       if (!bookForm.value.items.some((x) => x.item_code === r.item_code)) {
@@ -3533,7 +3533,7 @@ function importBookItems(event) {
     bookImporting.value = true
     bookImportReport.value = null
     try {
-      const res = await call('lumenpos.api.settings.parse_price_rows', {
+      const res = await call('lumen_restaurants.api.settings.parse_price_rows', {
         filename: file.name,
         content: reader.result,
       })
@@ -3581,7 +3581,7 @@ async function newAppPriceList(app) {
   )
   if (!name?.trim()) return
   try {
-    app.price_list = await call('lumenpos.api.settings.create_price_list', {
+    app.price_list = await call('lumen_restaurants.api.settings.create_price_list', {
       price_list_name: name.trim(),
     })
     session.notify(
@@ -3605,10 +3605,10 @@ async function saveBook() {
         .filter((r) => r.item_code)
         .map((r) => ({ item_code: r.item_code, rate: r.rate || 0 })),
     }
-    await call('lumenpos.api.settings.save_price_book', { payload })
+    await call('lumen_restaurants.api.settings.save_price_book', { payload })
     session.notify(t('Price book saved'))
     editingBook.value = false
-    priceBooks.value = await call('lumenpos.api.settings.list_price_books')
+    priceBooks.value = await call('lumen_restaurants.api.settings.list_price_books')
   } catch (e) {
     session.notify(e.message, true)
   } finally {
@@ -3619,9 +3619,9 @@ async function saveBook() {
 async function deleteBook() {
   if (!confirm(t('Delete price book "{title}"?', { title: bookForm.value.title }))) return
   try {
-    await call('lumenpos.api.settings.delete_price_book', { name: bookForm.value.name })
+    await call('lumen_restaurants.api.settings.delete_price_book', { name: bookForm.value.name })
     editingBook.value = false
-    priceBooks.value = await call('lumenpos.api.settings.list_price_books')
+    priceBooks.value = await call('lumen_restaurants.api.settings.list_price_books')
   } catch (e) {
     session.notify(e.message, true)
   }
@@ -3631,7 +3631,7 @@ async function deleteBook() {
 async function saveGeneral() {
   saving.value = true
   try {
-    const info = await call('lumenpos.api.settings.save_settings', {
+    const info = await call('lumen_restaurants.api.settings.save_settings', {
       payload: generalForm.value,
     })
     settingsInfo.value = info

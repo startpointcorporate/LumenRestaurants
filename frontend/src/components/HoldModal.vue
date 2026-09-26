@@ -127,7 +127,7 @@ const canHold = computed(
 onMounted(async () => {
   modeOfPayment.value = (modes.value.find((m) => m.default) || modes.value[0])?.mode_of_payment
   try {
-    quote.value = await call('lumenpos.api.layaway.quote_hold', {
+    quote.value = await call('lumen_restaurants.api.layaway.quote_hold', {
       pos_profile: session.posProfile,
       customer: cart.customer?.name || null,
       items: lines(),
@@ -160,7 +160,7 @@ function lines() {
 async function hold() {
   busy.value = true
   try {
-    const res = await call('lumenpos.api.layaway.create_layaway', {
+    const res = await call('lumen_restaurants.api.layaway.create_layaway', {
       payload: {
         pos_profile: session.posProfile,
         customer: cart.customer.name,

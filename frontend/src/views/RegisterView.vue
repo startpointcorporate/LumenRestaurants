@@ -305,7 +305,7 @@ const uploading = ref(false)
 const movement = ref({ movement_type: 'Cash In', amount: null, reason: '', mode_of_payment: null })
 
 // Shift figures are in the company currency; each drawer in another currency
-// ("Cash USD") keeps its own float, movements and count (lumenpos.currency).
+// ("Cash USD") keeps its own float, movements and count (lumen_restaurants.currency).
 const local = computed(() => summary.value?.company_currency || session.localCurrency)
 const foreignDrawers = computed(() =>
   (session.paymentModes || []).filter(
@@ -361,7 +361,7 @@ async function openRegister() {
 async function retryClosing(sessionName, isPending = false) {
   retrying.value = sessionName
   try {
-    await call('lumenpos.api.register.retry_closing', { session: sessionName })
+    await call('lumen_restaurants.api.register.retry_closing', { session: sessionName })
     session.notify(t('Finalising the shift…'))
     pollCloseState(sessionName)
   } catch (e) {
@@ -378,7 +378,7 @@ onMounted(() => {
 
 async function loadHistory() {
   if (session.offline) return
-  history.value = await call('lumenpos.api.register.list_sessions', {
+  history.value = await call('lumen_restaurants.api.register.list_sessions', {
     pos_profile: session.posProfile,
   }).catch(() => [])
 }
@@ -390,7 +390,7 @@ function pollCloseState(sessionName) {
   closingPoll = setInterval(async () => {
     tries += 1
     try {
-      const res = await call('lumenpos.api.register.closing_entry_status', { session: sessionName })
+      const res = await call('lumen_restaurants.api.register.closing_entry_status', { session: sessionName })
       // keep the visible close panel in sync if it's this session
       if (closedResult.value && closedResult.value.name === sessionName) {
         closeState.value = res
@@ -451,7 +451,7 @@ async function load() {
   loadError.value = ''
   loadingSummary.value = true
   try {
-    summary.value = await call('lumenpos.api.register.get_session_summary', {
+    summary.value = await call('lumen_restaurants.api.register.get_session_summary', {
       session: session.registerSession.name,
     })
     for (const row of summary.value.expected) {
@@ -483,7 +483,7 @@ async function addMovement() {
     return
   }
   try {
-    await call('lumenpos.api.register.add_cash_movement', {
+    await call('lumen_restaurants.api.register.add_cash_movement', {
       session: session.registerSession.name,
       movement_type: movement.value.movement_type,
       amount,
@@ -537,7 +537,7 @@ async function close() {
       countedClean[mode] = parseMoney(value) || 0
     }
     const closedSession = session.registerSession.name
-    closedResult.value = await call('lumenpos.api.register.close_register', {
+    closedResult.value = await call('lumen_restaurants.api.register.close_register', {
       session: closedSession,
       counted: countedClean,
       closing_note: closingNote.value || null,

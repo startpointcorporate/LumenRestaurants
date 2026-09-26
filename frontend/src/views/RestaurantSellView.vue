@@ -218,7 +218,7 @@ function initial(item) {
   return (item.item_name || '?').trim().charAt(0)
 }
 
-const PALETTE = ['#eaf1ff', '#fdf3e2', '#e4f5ee', '#f3eafd', '#fdeaea', '#eef7fb']
+const PALETTE = ['#eaf1ff', '#fdf3e2', '#eef1f6', '#f3eafd', '#fdeaea', '#eef7fb']
 function phStyle(item) {
   if (item.image) return {}
   let hash = 0
@@ -287,7 +287,7 @@ function closeReceipt() {
 async function loadReady() {
   if (session.offline || !session.restaurantMode) return
   try {
-    readyCalls.value = await call('lumenpos.api.kitchen.ready_calls', {
+    readyCalls.value = await call('lumen_restaurants.api.kitchen.ready_calls', {
       pos_profile: session.posProfile,
     })
   } catch {
@@ -299,7 +299,7 @@ async function deliverFirst() {
   const first = readyCalls.value[0]
   if (!first) return
   try {
-    await call('lumenpos.api.kitchen.set_ticket_status', { name: first.name, status: 'Done' })
+    await call('lumen_restaurants.api.kitchen.set_ticket_status', { name: first.name, status: 'Done' })
     await loadReady()
   } catch (e) {
     session.notify(e.message, true)
@@ -352,7 +352,7 @@ onUnmounted(() => clearInterval(readyTimer))
 .rl-main { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
 .rl-name b { font-size: 14px; display: block; }
 .rl-note { display: inline-block; background: var(--amber-soft, #fdf3e2); color: #9a6a0a; border-radius: 6px; padding: 0 8px; font-size: 11.5px; margin-top: 3px; }
-.rl-sent { display: inline-flex; align-items: center; gap: 3px; color: var(--pos, #1d9a6c); font-size: 11.5px; margin-inline-start: 6px; }
+.rl-sent { display: inline-flex; align-items: center; gap: 3px; color: var(--brand); font-size: 11.5px; margin-inline-start: 6px; }
 .rl-price { font-weight: 700; font-size: 14px; white-space: nowrap; }
 .rl-tools { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
 .stepper { display: flex; align-items: center; gap: 2px; border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -373,11 +373,11 @@ onUnmounted(() => clearInterval(readyTimer))
 .rmenu { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .rready {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-  margin: 12px 12px 0; padding: 10px 14px; background: var(--green-soft, #e4f5ee);
-  border: 1px solid rgba(29, 154, 108, 0.35); border-radius: 12px;
+  margin: 12px 12px 0; padding: 10px 14px; background: rgba(20, 99, 255, 0.08);
+  border: 1px solid rgba(20, 99, 255, 0.35); border-radius: 12px;
 }
-.rr-text { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--pos, #157a55); font-size: 13.5px; }
-.rr-chip { background: #fff; border-radius: 8px; padding: 2px 12px; font-weight: 700; font-size: 15px; }
+.rr-text { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--brand-dark); font-size: 13.5px; }
+.rr-chip { background: var(--card-bg); color: var(--text); border-radius: 8px; padding: 2px 12px; font-weight: 700; font-size: 15px; }
 .rmenu-head { padding: 12px 12px 0; }
 .rsearch { display: flex; align-items: center; gap: 7px; border: 1px solid var(--border); border-radius: 11px; padding: 0 12px; }
 .rsearch .icon { color: var(--text-muted); }

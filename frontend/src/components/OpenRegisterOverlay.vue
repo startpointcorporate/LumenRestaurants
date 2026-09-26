@@ -229,7 +229,7 @@ async function forceNew() {
 async function retry() {
   busy.value = true
   try {
-    await call('lumenpos.api.register.retry_closing', { session: pending.value.session })
+    await call('lumen_restaurants.api.register.retry_closing', { session: pending.value.session })
     session.notify(t('Finalising the previous shift…'))
     startPoll(pending.value.session)
   } catch (e) {
@@ -244,7 +244,7 @@ function startPoll(sessionName) {
   poll = setInterval(async () => {
     tries += 1
     try {
-      const res = await call('lumenpos.api.register.closing_entry_status', { session: sessionName })
+      const res = await call('lumen_restaurants.api.register.closing_entry_status', { session: sessionName })
       if (res.status === 'Closed') {
         clearInterval(poll)
         session.notify(t('Previous shift closed, you can open the register now'))

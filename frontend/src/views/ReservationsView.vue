@@ -189,7 +189,7 @@ async function load() {
     return
   }
   try {
-    const data = await call('lumenpos.api.reservations.day', {
+    const data = await call('lumen_restaurants.api.reservations.day', {
       pos_profile: session.posProfile,
       date: date.value,
     })
@@ -204,7 +204,7 @@ async function load() {
 
 async function loadTables() {
   try {
-    tables.value = (await call('lumenpos.api.restaurant.list_tables', {
+    tables.value = (await call('lumen_restaurants.api.restaurant.list_tables', {
       pos_profile: session.posProfile,
     })).filter((x) => !x.disabled)
   } catch {
@@ -242,7 +242,7 @@ function edit(row) {
 async function save() {
   busy.value = true
   try {
-    await call('lumenpos.api.reservations.save_reservation', {
+    await call('lumen_restaurants.api.reservations.save_reservation', {
       payload: { ...form.value, pos_profile: session.posProfile },
     })
     form.value = null
@@ -257,7 +257,7 @@ async function save() {
 
 async function setStatus(row, status) {
   try {
-    await call('lumenpos.api.reservations.set_reservation_status', { name: row.name, status })
+    await call('lumen_restaurants.api.reservations.set_reservation_status', { name: row.name, status })
     await load()
   } catch (e) {
     session.notify(e.message, true)
@@ -268,9 +268,9 @@ async function setStatus(row, status) {
 // there and the till lands straight on it; otherwise go pick a table.
 async function seat(row) {
   try {
-    const res = await call('lumenpos.api.reservations.set_reservation_status', { name: row.name, status: 'Seated' })
+    const res = await call('lumen_restaurants.api.reservations.set_reservation_status', { name: row.name, status: 'Seated' })
     if (res.order) {
-      const order = await call('lumenpos.api.restaurant.get_order', { name: res.order.name })
+      const order = await call('lumen_restaurants.api.restaurant.get_order', { name: res.order.name })
       await cart.openOrder(order)
       router.push('/')
     } else {
@@ -318,7 +318,7 @@ onUnmounted(() => clearInterval(poll))
 .pkgs span { background: rgba(20, 99, 255, 0.08); color: var(--brand-dark); border-radius: 7px; padding: 1px 9px; font-size: 12px; font-weight: 600; }
 .pkgs b { font-size: 12.5px; }
 .pill { background: var(--surface-2); border-radius: 8px; padding: 3px 11px; font-size: 12.5px; white-space: nowrap; }
-.pill.ok { background: rgba(29, 154, 108, 0.13); color: var(--pos, #157a55); font-weight: 700; }
+.pill.ok { background: rgba(20, 99, 255, 0.12); color: var(--brand-dark); font-weight: 700; }
 .pill.warn { background: rgba(201, 130, 27, 0.15); color: var(--amber); font-weight: 700; }
 .pill.bad { background: rgba(214, 69, 69, 0.12); color: var(--red); font-weight: 700; }
 .racts { display: flex; gap: 7px; flex-wrap: wrap; }

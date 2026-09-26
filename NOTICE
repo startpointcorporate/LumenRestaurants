@@ -1,4 +1,4 @@
-LumenPOS
+Lumen Restaurants
 Copyright (c) 2026 Lumen Solutions
 
 This program is free software: you can redistribute it and/or modify it under
@@ -12,8 +12,13 @@ PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>.
 
-"LumenPOS" and the LumenPOS logo are trademarks of Lumen Solutions. They are not
-covered by the licence above. See TRADEMARKS.md.
+"Lumen Restaurants", "LumenPOS" and their logos are trademarks of Lumen
+Solutions. They are not covered by the licence above. See TRADEMARKS.md.
+
+Lumen Restaurants is built from LumenPOS, the point of sale by the same
+author, and carries LumenPOS's code under the same licence. The licence history
+and the compatibility notes below are LumenPOS's, and they apply to that code
+here as well.
 
 
 LICENCE HISTORY
@@ -37,7 +42,7 @@ a network must offer those users its complete source code.
 COMPATIBILITY WITH ERPNEXT AND FRAPPE
 -------------------------------------
 LumenPOS calls ERPNext's own code directly (loyalty points, POS invoice
-consolidation and the credit note builder, see lumenpos/erpnext_compat.py).
+consolidation and the credit note builder, see lumen_restaurants/erpnext_compat.py).
 ERPNext is licensed under version 3 of the GNU General Public License.
 
 The two licences are designed to be combined. Section 13 of the GPLv3 permits

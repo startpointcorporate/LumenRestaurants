@@ -165,7 +165,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    info.value = await call('lumenpos.api.insights.status')
+    info.value = await call('lumen_restaurants.api.insights.status')
   } catch (e) {
     error.value = e.message || String(e)
   } finally {
@@ -177,7 +177,7 @@ async function create() {
   working.value = true
   actionError.value = ''
   try {
-    info.value = await call('lumenpos.api.insights.ensure_dashboard', { lang: locale.value })
+    info.value = await call('lumen_restaurants.api.insights.ensure_dashboard', { lang: locale.value })
   } catch (e) {
     actionError.value = e.message || String(e)
   } finally {

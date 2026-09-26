@@ -1,201 +1,58 @@
-# LumenPOS: a professional Point of Sale for ERPNext / Frappe
+# Lumen Restaurants
 
-> 📘 **[Full user guide & documentation → docs/user-guide.md](docs/user-guide.md)**
-> (setup, every feature in detail, settings reference, troubleshooting, changelog,
-> kept up to date with every release)
+The restaurant till for ERPNext, built from [LumenPOS](https://github.com/ma7mod7osam/lumenpos).
 
-A Frappe app that gives ERPNext a point of sale modeled on **Vend (Lightspeed
-X-Series)**: the same sell-screen experience and a Vend-style **promotions
-schema** that replaces ERPNext Pricing Rules at the POS.
+> **[Full user guide and documentation: docs/user-guide.md](docs/user-guide.md)**
 
-Since v0.4 sales post as **POS Invoices** with native **POS Opening/Closing
-Entries**, so ERPNext consolidates them into Sales Invoices at register close
-exactly like the standard POS. v0.4 also adds: **price books** (Vend-style
-customer-group/outlet price lists), **delivery-app channels**
-(`custom_app_type` + mandatory order ID + per-app price list), an exchange
-flag, an **in-POS Settings page** (promotions, price books, channels,
-discount approval, Vend Setup style), **manager-passcode discount approval**,
-Individual/Company customer creation (tax ID + national address for
-companies), salesperson search by name or number, a **local-first catalog**
-(IndexedDB-served search, near-instant), and a **LumenPOS workspace** in the
-ERPNext desk. Brand accent color: `#2E5BFF`.
+Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its own.
+It carries everything LumenPOS does: the shift and the register, payments, the
+POS Invoice, receipts, returns and refunds, customers, offers and bundles, price
+books, loyalty, gift cards, cashback, approvals, insights, other currencies and
+groups of several companies. On top of that it runs what a restaurant needs:
 
-- Sell screen at **`/pos`**: product grid + search/barcode, cart with live
-  promotion badges, customer lookup/create, park & retrieve sales, split
-  payments with quick-cash buttons, change due, printable receipt,
-  salesperson attribution (posted to the invoice Sales Team for commission
-  reports), and an out-of-stock guard.
-- **Promotions engine**: Simple Discount, Buy X Get Y (multi-buy, cheapest
-  unit rewarded), Spend & Save, and **Bundle Price** (these N products
-  together for a fixed total, items stay separate invoice lines, the saving
-  is split cent-correctly across them), scheduled by date range, days of
-  week and daily time windows (happy hour, wraps midnight), scoped by outlet
-  and customer group, with stacking control and optional **coupon codes**
-  (coupon-locked promotions never reach the browser until the right code is
-  entered). Evaluated instantly client-side, re-evaluated **authoritatively
-  server-side** on submit (`ignore_pricing_rule` is set, so ERPNext Pricing
-  Rules never interfere).
-- **Smart offer nudges**: when the cart almost qualifies, has the "buy"
-  items of a Buy X Get Y, misses one bundle component, or sits near a
-  spend-and-save threshold, the cart shows a suggestion the cashier can
-  tap to pull up the missing product.
-- **Register sessions**: opening float, cash in/out, blind-countable closing
-  counts per payment mode with expected vs counted differences (Z-report data
-  stored on the `POS Register Session` doc).
-- **Returns & refunds**: open any sale from History → Refund, pick lines and
-  quantities (partial returns tracked), refund to any payment mode or to
-  store credit. Posts a proper credit-note Sales Invoice linked to the
-  register session, so the drawer count stays right.
-- **Loyalty & store credit**: earn/redeem via ERPNext's native Loyalty
-  Program; store credit is a per-customer ledger backed by an auto-created
-  liability account and a "Store Credit" mode of payment. Balances show in
-  the cart and the payment screen.
-- **Offline mode**: the catalog, promotions and bootstrap are cached in
-  IndexedDB. If the connection drops, search keeps working and sales are
-  queued locally, then synced automatically when the network returns.
-- **ESC/POS printing**: receipts print to network thermal printers (RAW TCP
-  9100, Epson-compatible) configured per POS Profile, with cash-drawer kick;
-  falls back to browser printing when no printer is configured.
-- **Strict serial numbers**: a serialized item cannot enter the cart without
-  scanning/typing its serial, validated live (exists, Active, in this
-  register's warehouse) and re-validated on submit; no FIFO auto-pick.
-  Quantity is locked to the scanned serial count, scanning a serial in the
-  search bar adds its item directly, and refunds require selecting exactly
-  which sold serials are coming back. Serialized items can't be sold offline.
-- Sales post as standard **Sales Invoices** (`is_pos = 1`) so stock, GL and
-  reports work exactly as ERPNext expects. Applied promotions are stored on
-  the invoice (`lumenpos_promotions`) for auditing.
+- **Tables and a floor plan.** Tables in areas, orders that stay open while the
+  guests eat, move and merge tables, and pay one ordinary sale at the end.
+- **A sell screen made for food.** Order type first (dine in, takeaway,
+  delivery), big menu tiles, a note on any line ("no onions").
+- **Order numbers.** A takeaway gets a short daily number the moment it is
+  paid, printed big on the receipt and shown on the kitchen ticket, so the
+  counter can call it.
+- **The kitchen screen.** Tickets with the notes highlighted and real timing,
+  and an optional ESC/POS kitchen printer per outlet.
+- **Bookings.** A clear day book, and a **public booking page** per outlet
+  (`/book/<outlet>`) the owner designs: colours, backgrounds, fonts, their own
+  questions and packages such as a buffet priced per guest.
+
+Each outlet chooses. Tick **Run this outlet as a restaurant** (ERP, POS Profile,
+section **Lumen Restaurants**) and that outlet opens the restaurant till. Every
+other outlet stays a shop till, so a group with shops and restaurants runs one
+system. At a restaurant outlet the shop features a restaurant has no use for are
+switched off: holds and deposits, the exchange flow, and the retail sell screen
+with its parking, price checker and serial numbers.
 
 ## Requirements
 
-- Frappe / ERPNext **v13, v14, v15 or v16**
-- A configured **POS Profile** (company, selling price list, warehouse,
-  payment methods; add your cashier under *Applicable for Users*)
+- ERPNext v13 to v16.
+- Nothing else. Lumen Restaurants does not need LumenPOS installed. A site runs
+  Lumen Restaurants or LumenPOS, never both, because they hold the same records.
 
 ## Install
 
-The frontend ships pre-built (`lumenpos/public/pos`), so the bench does **not**
-need Node or npm:
-
 ```bash
-cd frappe-bench
-bench get-app https://github.com/ma7mod7osam/lumenpos
-bench --site yoursite install-app lumenpos
-bench --site yoursite clear-cache
+bench get-app <the Lumen Restaurants repository>
+bench --site <site> install-app lumen_restaurants
 ```
 
-If you change anything under `frontend/src`, rebuild and commit the assets:
-`cd frontend && npm install && npm run build`.
+The till is at `/pos`, and it can be installed on a tablet or a phone as its own
+app. The public booking pages are at `/book/<outlet>`.
 
-Open **`https://yoursite/pos`**, enter an opening float, and sell.
+## Updates from LumenPOS
 
-## Creating promotions
-
-Desk → **POS Promotion** → New.
-
-| Type | What it does | Key fields |
-|---|---|---|
-| Simple Discount | % / amount off, or a fixed price, on matching products | Discount Type, Discount Value |
-| Buy X Get Y | Multi-buy. "Buy" rows trigger, "Get" rows are rewarded (cheapest units first). No "Get" rows = classic *buy 2 get 1 free* on the same pool | Buy Qty, Get Qty, Reward, Max Applications |
-| Spend and Save | Basket-level discount once eligible spend crosses a threshold | Minimum Spend, Basket Discount |
-| Bundle Price | The listed products bought together (Qty column per row) for a fixed total; items stay separate lines on the invoice | Products + Qty, Bundle Price |
-
-Tick **Requires Coupon Code** on any promotion to gate it behind a code the
-cashier enters at the till. Codes are unique across active promotions and
-are never shipped to the browser.
-
-Products match by **Item, Item Group, or Brand** (or *Apply on all products*).
-Eligibility: outlets (POS Profiles) and customer groups. Scheduling: date
-range, days of week, and an optional daily time window.
-
-**Stacking rule:** promotions marked *Can combine* stack with each other;
-non-stackable promotions compete and the customer automatically gets whichever
-is worth more, the combined stack or the single best exclusive promotion.
-Discounts never exceed the line/basket total.
-
-## Architecture
-
-```
-lumenpos/
-├── lumenpos/
-│   ├── promotions/
-│   │   ├── engine.py        # pure evaluation engine (no Frappe imports)
-│   │   ├── loader.py        # POS Promotion -> engine dicts
-│   │   └── test_engine.py   # standalone unit tests
-│   ├── api/                 # whitelisted endpoints (session, catalog, sales, register)
-│   ├── lumenpos/doctype/        # POS Promotion (+children), POS Register Session, POS Parked Sale
-│   └── www/pos.html         # serves the built SPA at /pos
-└── frontend/                # Vue 3 + Vite + Pinia
-    └── src/promotions.js    # JS mirror of engine.py (instant cart feedback)
-```
-
-The promotion engine exists twice **by design**: the JS copy gives the cart
-instant feedback; the Python copy recomputes everything on submit and is the
-only one that is trusted. `frontend/parity-check.mjs` runs the same scenarios
-through the JS engine that `test_engine.py` covers in Python:
-
-```bash
-python -m unittest lumenpos.promotions.test_engine   # from the app root
-node parity-check.mjs                            # from frontend/
-```
-
-## Development
-
-```bash
-cd frontend
-npm run dev    # Vite dev server on :8080, proxies /api to a bench on :8000
-```
-
-## Feature setup notes
-
-- **Loyalty**: create a Loyalty Program in ERPNext and assign it to customers
-  (or via customer group); earning happens automatically on POS sales,
-  redemption appears in the payment screen when the customer has points.
-- **Store credit**: nothing to configure, the "Store Credit" mode of payment
-  and its liability account are created on first use.
-- **Printer**: on the POS Profile set *Printer IP* (and port, default 9100).
-  The Frappe server opens the socket, so the printer must be reachable from
-  the server, on cloud-hosted sites use the browser-print fallback.
-- **Offline**: the catalog caches automatically after the first online load.
-  The register must be opened while online; loyalty/store credit and history
-  need a connection. Queued sales sync as soon as the network returns.
-  **Keep the tab open while offline**, the page itself is served by the
-  server, so a refresh or navigation during an outage cannot reload the app
-  (a service worker for full offline boot is on the roadmap).
-
-## Not yet included (roadmap)
-
-- Quick Keys (customizable tile layouts)
-- Sale-level manual discount and per-line price override
-- Promo codes (coupon-gated promotions)
-- Gift cards, customer-facing display, email receipts
+Lumen Restaurants keeps LumenPOS's history, so every LumenPOS release can be
+brought in: see [docs/updating-from-lumenpos.md](docs/updating-from-lumenpos.md).
 
 ## Licence
 
-Copyright (c) 2026 Lumen Solutions.
-
-LumenPOS is licensed under the **GNU Affero General Public License v3.0**
-(`AGPL-3.0-only`). See [license.txt](license.txt).
-
-You may use, study and modify it. If you distribute it, or run a modified version
-as a network service, you must offer your complete source code to the people who
-receive or use it, under the same licence, and keep every copyright notice. It
-may not be relicensed or resold as closed-source software.
-
-ERPNext is GPLv3 and LumenPOS calls its code directly. The GPLv3 and the AGPLv3
-each permit combining with the other (section 13 of both), so the two remain
-compatible. AGPL-3.0 is accepted on the Frappe Cloud Marketplace.
-
-For a commercial licence without the AGPL obligations, contact
-hello@lumen-solutions.co.
-
-> **Earlier releases:** versions up to and including **0.38.0** were published
-> under MIT, and versions **0.39.0 to 0.42.1** under GPL-3.0-or-later. Those
-> grants are not revoked. A copy obtained under either keeps those terms for its
-> recipient. See [NOTICE](NOTICE).
-
-## Trademarks
-
-"LumenPOS" and the LumenPOS logo are trademarks of Lumen Solutions. The code
-licence does not grant permission to use them. Forks and modified versions must
-use a different name and logo. See [TRADEMARKS.md](TRADEMARKS.md).
+GNU Affero General Public License v3.0 only. See `license.txt` and `NOTICE`.
+"Lumen Restaurants", "LumenPOS" and their logos are trademarks of Lumen
+Solutions, see `TRADEMARKS.md`.

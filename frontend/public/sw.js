@@ -25,7 +25,7 @@
 const VERSION = new URL(self.location.href).searchParams.get('v') || 'dev'
 const CACHE = 'lumenpos-shell-' + VERSION
 const PAGE = '/pos'
-const ASSETS = '/assets/lumenpos/pos/'
+const ASSETS = '/assets/lumen_restaurants/pos/'
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
 
 const SHELL = [

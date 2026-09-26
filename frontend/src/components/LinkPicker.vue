@@ -84,7 +84,7 @@ function onType(value) {
 async function search(term) {
   loading.value = true
   try {
-    results.value = await call('lumenpos.api.settings.link_options', {
+    results.value = await call('lumen_restaurants.api.settings.link_options', {
       doctype: props.doctype,
       search: term,
       ...props.filters,

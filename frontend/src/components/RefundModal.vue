@@ -261,7 +261,7 @@ const reasonValue = computed(() =>
 )
 
 // The sale being returned: its currency and the rate it was sold at
-// (lumenpos.currency). Everything here is in that currency.
+// (lumen_restaurants.currency). Everything here is in that currency.
 const sold = ref({ currency: null, company_currency: null, rate: 1 })
 const foreign = computed(
   () => Boolean(sold.value.currency && sold.value.company_currency) && sold.value.currency !== sold.value.company_currency
@@ -370,7 +370,7 @@ const needsApproval = computed(() => {
 
 onMounted(async () => {
   try {
-    const data = await call('lumenpos.api.sales.get_returnable', {
+    const data = await call('lumen_restaurants.api.sales.get_returnable', {
       invoice: props.invoice,
       pos_profile: session.posProfile,
     })
@@ -399,7 +399,7 @@ onUnmounted(() => {
   clearInterval(pollTimer)
   // Withdraw a still-pending request so it doesn't linger for approvers.
   if (reqPhase.value === 'waiting' && reqName.value) {
-    call('lumenpos.api.approval_requests.cancel_request', { name: reqName.value }).catch(() => {})
+    call('lumen_restaurants.api.approval_requests.cancel_request', { name: reqName.value }).catch(() => {})
   }
 })
 
@@ -407,7 +407,7 @@ async function sendReturnRequest() {
   if (reqBusy.value) return
   reqBusy.value = true
   try {
-    const res = await call('lumenpos.api.approval_requests.create_request', {
+    const res = await call('lumen_restaurants.api.approval_requests.create_request', {
       request_type: 'Return',
       pos_profile: session.posProfile,
       return_invoice: props.invoice,
@@ -432,7 +432,7 @@ async function sendReturnRequest() {
 
 async function pollReturnStatus() {
   try {
-    const res = await call('lumenpos.api.approval_requests.request_status', { name: reqName.value })
+    const res = await call('lumen_restaurants.api.approval_requests.request_status', { name: reqName.value })
     if (res.status === 'Approved') {
       clearInterval(pollTimer)
       returnRequest.value = reqName.value
@@ -456,7 +456,7 @@ async function pollReturnStatus() {
 async function cancelReturnRequest() {
   clearInterval(pollTimer)
   if (reqName.value) {
-    await call('lumenpos.api.approval_requests.cancel_request', { name: reqName.value }).catch(() => {})
+    await call('lumen_restaurants.api.approval_requests.cancel_request', { name: reqName.value }).catch(() => {})
   }
   resetReturnReq()
 }
@@ -563,7 +563,7 @@ async function submit() {
   busy.value = true
   try {
     const { items, serials } = pickedItems()
-    const receipt = await call('lumenpos.api.sales.create_return', {
+    const receipt = await call('lumen_restaurants.api.sales.create_return', {
       invoice: props.invoice,
       items,
       serials,

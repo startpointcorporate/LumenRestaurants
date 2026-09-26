@@ -5,12 +5,12 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 // Build straight into the Frappe app's public folder with fixed filenames so
-// lumenpos/www/pos.html can reference /assets/lumenpos/pos/pos.js and pos.css.
+// lumen_restaurants/www/pos.html can reference /assets/lumen_restaurants/pos/pos.js and pos.css.
 export default defineConfig({
   plugins: [vue()],
-  base: '/assets/lumenpos/pos/',
+  base: '/assets/lumen_restaurants/pos/',
   build: {
-    outDir: '../lumenpos/public/pos',
+    outDir: '../lumen_restaurants/public/pos',
     emptyOutDir: true,
     rollupOptions: {
       output: {

@@ -252,7 +252,7 @@ async function load() {
     return
   }
   try {
-    const data = await call('lumenpos.api.restaurant.get_floor', {
+    const data = await call('lumen_restaurants.api.restaurant.get_floor', {
       pos_profile: session.posProfile,
     })
     tables.value = data.tables || []
@@ -285,7 +285,7 @@ function startLoose(type) {
 async function confirmOpen() {
   busy.value = true
   try {
-    const order = await call('lumenpos.api.restaurant.open_order', {
+    const order = await call('lumen_restaurants.api.restaurant.open_order', {
       pos_profile: session.posProfile,
       table: opening.value.table?.name || null,
       order_type: opening.value.type,
@@ -305,7 +305,7 @@ async function confirmOpen() {
 async function openOrder(name) {
   menuFor.value = null
   try {
-    const order = await call('lumenpos.api.restaurant.get_order', { name })
+    const order = await call('lumen_restaurants.api.restaurant.get_order', { name })
     await cart.openOrder(order)
     router.push('/')
   } catch (e) {
@@ -334,17 +334,17 @@ async function runAction() {
   try {
     const { kind, order } = action.value
     if (kind === 'move') {
-      await call('lumenpos.api.restaurant.move_order', {
+      await call('lumen_restaurants.api.restaurant.move_order', {
         name: order.name,
         table: targetTable.value,
       })
     } else if (kind === 'merge') {
-      await call('lumenpos.api.restaurant.merge_orders', {
+      await call('lumen_restaurants.api.restaurant.merge_orders', {
         source: order.name,
         target: targetOrder.value,
       })
     } else {
-      await call('lumenpos.api.restaurant.cancel_order', {
+      await call('lumen_restaurants.api.restaurant.cancel_order', {
         name: order.name,
         reason: reason.value || null,
       })

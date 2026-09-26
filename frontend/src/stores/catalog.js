@@ -44,7 +44,7 @@ export const useCatalogStore = defineStore('catalog', {
       // Cold start: no cache yet, query the server directly
       this.loading = true
       try {
-        const data = await call('lumenpos.api.catalog.get_items', {
+        const data = await call('lumen_restaurants.api.catalog.get_items', {
           pos_profile: session.posProfile,
           search: this.search,
           item_group: this.itemGroup,
@@ -70,7 +70,7 @@ export const useCatalogStore = defineStore('catalog', {
       const session = useSessionStore()
       if (!session.posProfile || session.offline) return
       try {
-        const items = await call('lumenpos.api.catalog.get_full_catalog', {
+        const items = await call('lumen_restaurants.api.catalog.get_full_catalog', {
           pos_profile: session.posProfile,
         })
         await saveCatalog(items)
@@ -87,7 +87,7 @@ export const useCatalogStore = defineStore('catalog', {
       const session = useSessionStore()
       if (!session.posProfile || session.offline) return
       try {
-        const res = await call('lumenpos.api.catalog.recent_customers', {
+        const res = await call('lumen_restaurants.api.catalog.recent_customers', {
           pos_profile: session.posProfile,
         })
         await saveCustomers(res.customers || [])

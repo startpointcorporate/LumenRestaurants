@@ -1,6 +1,11 @@
+// Copyright (c) 2026 Lumen Solutions
+// SPDX-License-Identifier: AGPL-3.0-only
+// "LumenPOS" is a trademark of Lumen Solutions. See TRADEMARKS.md.
+//
 // The installed-app icons, drawn as pixels and encoded as PNG here so the repo
-// needs no image toolchain. The mark is the LumenPOS bars on the brand square,
-// the same shape as the favicon in pos.html.
+// needs no image toolchain (the same approach as LumenPOS's own). The mark is
+// a table with four chairs seen from above, white on the LumenPOS brand
+// square: the same shape as the favicon in www/restaurant.html.
 import { deflateSync } from 'node:zlib'
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -13,56 +18,74 @@ const OUT = fileURLToPath(new URL('../frontend/public/', import.meta.url))
 const C1 = [42, 123, 255]
 const C2 = [11, 67, 184]
 
+// In the 100x100 space of the favicon: the table, then the chairs.
+const DISCS = [
+  [50, 50, 15],
+  [50, 24, 6],
+  [50, 76, 6],
+  [24, 50, 6],
+  [76, 50, 6],
+]
+const SUB = 4 // 4x4 samples per pixel for smooth edges
+
+function inRounded(x, y, size) {
+  const radius = size * 0.22
+  const near = (cx, cy) => (x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2
+  if (x >= radius && x <= size - radius) return true
+  if (y >= radius && y <= size - radius) return true
+  return near(radius, radius) || near(size - radius, radius) || near(radius, size - radius) || near(size - radius, size - radius)
+}
+
+function inGlyph(x, y, size) {
+  const s = size / 100
+  return DISCS.some(([cx, cy, r]) => (x - cx * s) ** 2 + (y - cy * s) ** 2 <= (r * s) ** 2)
+}
+
 function draw(size) {
   const px = Buffer.alloc(size * size * 4)
-  const radius = Math.round(size * 0.22)
-  const set = (x, y, r, g, b, a) => {
-    const i = (y * size + x) * 4
-    px[i] = r
-    px[i + 1] = g
-    px[i + 2] = b
-    px[i + 3] = a
-  }
-  const inRounded = (x, y) => {
-    const near = (cx, cy) => (x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2
-    if (x >= radius && x < size - radius) return true
-    if (y >= radius && y < size - radius) return true
-    return (
-      near(radius, radius) ||
-      near(size - radius - 1, radius) ||
-      near(radius, size - radius - 1) ||
-      near(size - radius - 1, size - radius - 1)
-    )
-  }
-  // the four bars, in the 100x100 space of the favicon, then scaled
-  const bars = [
-    [36, 36, 7.5, 38, 1],
-    [48, 55, 4.5, 19, 0.62],
-    [57, 55, 7.5, 19, 1],
-    [69, 55, 4.5, 19, 1],
-  ]
-  const s = size / 100
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
-      if (!inRounded(x, y)) {
-        set(x, y, 0, 0, 0, 0)
+      let inside = 0
+      let white = 0
+      for (let sy = 0; sy < SUB; sy += 1) {
+        for (let sx = 0; sx < SUB; sx += 1) {
+          const fx = x + (sx + 0.5) / SUB
+          const fy = y + (sy + 0.5) / SUB
+          if (!inRounded(fx, fy, size)) continue
+          inside += 1
+          if (inGlyph(fx, fy, size)) white += 1
+        }
+      }
+      const i = (y * size + x) * 4
+      if (!inside) {
+        px[i + 3] = 0
         continue
       }
       const t = (x / size + y / size) / 2
-      let r = Math.round(C1[0] + (C2[0] - C1[0]) * t)
-      let g = Math.round(C1[1] + (C2[1] - C1[1]) * t)
-      let b = Math.round(C1[2] + (C2[2] - C1[2]) * t)
-      for (const [bx, by, bw, bh, alpha] of bars) {
-        if (x >= bx * s && x < (bx + bw) * s && y >= by * s && y < (by + bh) * s) {
-          r = Math.round(r + (255 - r) * alpha)
-          g = Math.round(g + (255 - g) * alpha)
-          b = Math.round(b + (255 - b) * alpha)
-        }
-      }
-      set(x, y, r, g, b, 255)
+      const base = C1.map((c, k) => c + (C2[k] - c) * t)
+      const w = white / inside
+      px[i] = Math.round(base[0] + (255 - base[0]) * w)
+      px[i + 1] = Math.round(base[1] + (255 - base[1]) * w)
+      px[i + 2] = Math.round(base[2] + (255 - base[2]) * w)
+      px[i + 3] = Math.round((255 * inside) / (SUB * SUB))
     }
   }
   return px
+}
+
+let table = null
+function crc32(buf) {
+  if (!table) {
+    table = new Int32Array(256)
+    for (let n = 0; n < 256; n += 1) {
+      let c = n
+      for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+      table[n] = c
+    }
+  }
+  let c = -1
+  for (const byte of buf) c = table[(c ^ byte) & 0xff] ^ (c >>> 8)
+  return c ^ -1
 }
 
 function png(size) {
@@ -91,21 +114,6 @@ function png(size) {
     chunk('IDAT', deflateSync(raw, { level: 9 })),
     chunk('IEND', Buffer.alloc(0)),
   ])
-}
-
-let table = null
-function crc32(buf) {
-  if (!table) {
-    table = new Int32Array(256)
-    for (let n = 0; n < 256; n += 1) {
-      let c = n
-      for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
-      table[n] = c
-    }
-  }
-  let c = -1
-  for (const byte of buf) c = table[(c ^ byte) & 0xff] ^ (c >>> 8)
-  return c ^ -1
 }
 
 for (const size of [192, 512]) {

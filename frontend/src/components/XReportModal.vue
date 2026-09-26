@@ -86,7 +86,7 @@ defineEmits(['close'])
 
 const session = useSessionStore()
 const s = computed(() => props.summary)
-// Totals are in the company currency; each drawer in its own (lumenpos.currency).
+// Totals are in the company currency; each drawer in its own (lumen_restaurants.currency).
 const local = computed(() => props.summary.company_currency || session.localCurrency)
 const rates = computed(() =>
   Object.entries(props.summary.rates || {}).map(([currency, rate]) => ({

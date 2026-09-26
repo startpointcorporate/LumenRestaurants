@@ -116,7 +116,7 @@ export const useSessionStore = defineStore('session', {
         ? `${name} · ${s.profileCompanies[name]}`
         : name,
     // The money the main drawer holds, and that change is given in: the
-    // company currency (lumenpos.currency).
+    // company currency (lumen_restaurants.currency).
     localCurrency: (s) => s.multiCurrency?.company_currency || s.currency,
     // The currencies a sale can be switched to, besides the outlet's own.
     saleCurrencies: (s) =>
@@ -171,7 +171,7 @@ export const useSessionStore = defineStore('session', {
         }
       }
       try {
-        const data = await call('lumenpos.api.session.get_bootstrap', {
+        const data = await call('lumen_restaurants.api.session.get_bootstrap', {
           pos_profile: target,
         })
         this._applyBootstrap(data)
@@ -288,7 +288,7 @@ export const useSessionStore = defineStore('session', {
           return
         }
         try {
-          await call('lumenpos.api.session.ping', {}, { timeout: 4000 })
+          await call('lumen_restaurants.api.session.ping', {}, { timeout: 4000 })
         } catch {
           return // still down, try again on the next tick
         }
@@ -348,14 +348,14 @@ export const useSessionStore = defineStore('session', {
               if (!localMap[cust]) {
                 const pending = await getPendingCustomer(cust)
                 if (!pending) throw new Error('offline customer record is missing')
-                const res = await call('lumenpos.api.catalog.resolve_pending_customer', {
+                const res = await call('lumen_restaurants.api.catalog.resolve_pending_customer', {
                   payload: pending.payload,
                 })
                 localMap[cust] = res.name
               }
               payload = { ...payload, customer: localMap[cust] }
             }
-            const receipt = await call('lumenpos.api.sales.submit_sale', { payload })
+            const receipt = await call('lumen_restaurants.api.sales.submit_sale', { payload })
             // The server's figure replaces the estimate the till made offline.
             useCatalogStore().applyStock(receipt?.stock_after)
             await removeQueued(entry.local_id)
@@ -409,13 +409,13 @@ export const useSessionStore = defineStore('session', {
 
     async refreshPromotions() {
       if (!this.posProfile || this.offline) return
-      this.promotions = await call('lumenpos.api.session.get_promotions', {
+      this.promotions = await call('lumen_restaurants.api.session.get_promotions', {
         pos_profile: this.posProfile,
       })
     },
 
     async openRegister(openingFloat, extra = {}) {
-      const result = await call('lumenpos.api.register.open_register', {
+      const result = await call('lumen_restaurants.api.register.open_register', {
         pos_profile: this.posProfile,
         opening_float: openingFloat,
         ...extra,

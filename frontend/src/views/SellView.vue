@@ -303,7 +303,7 @@ function openCustomerDisplay() {
 async function loadFavourites() {
   favLoading.value = true
   try {
-    const res = await call('lumenpos.api.catalog.get_quick_keys', {
+    const res = await call('lumen_restaurants.api.catalog.get_quick_keys', {
       pos_profile: session.posProfile,
     })
     favourites.value = res.items || []
@@ -334,7 +334,7 @@ async function onSearchEnter() {
   // Scanner fast path: barcodes and serial numbers resolve server-side
   if (!session.offline) {
     try {
-      const result = await call('lumenpos.api.catalog.resolve_scan', {
+      const result = await call('lumen_restaurants.api.catalog.resolve_scan', {
         pos_profile: session.posProfile,
         code: term,
         customer_group: cart.customer?.customer_group || null,

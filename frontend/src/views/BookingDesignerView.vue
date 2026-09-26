@@ -481,7 +481,7 @@ async function addItem() {
     return session.notify(t('That item is already on the page'), true)
   }
   try {
-    const info = await call('lumenpos.api.booking_page.item_info', { pos_profile: outlet.value, item_code: code })
+    const info = await call('lumen_restaurants.api.booking_page.item_info', { pos_profile: outlet.value, item_code: code })
     draft.value.rates = { ...(draft.value.rates || {}), [code]: info.rate }
     draft.value.item_names = { ...(draft.value.item_names || {}), [code]: info.item_name }
     draft.value.item_images = { ...(draft.value.item_images || {}), [code]: info.image }
@@ -498,7 +498,7 @@ async function addItem() {
 async function load() {
   loading.value = true
   try {
-    const page = await call('lumenpos.api.booking_page.get_page', { pos_profile: outlet.value })
+    const page = await call('lumen_restaurants.api.booking_page.get_page', { pos_profile: outlet.value })
     for (const key of ['open_time', 'close_time']) if (page[key]) page[key] = String(page[key]).slice(0, 5)
     page.fields = page.fields || []
     page.items = page.items || []
@@ -514,7 +514,7 @@ async function load() {
 async function save() {
   saving.value = true
   try {
-    const page = await call('lumenpos.api.booking_page.save_page', { pos_profile: outlet.value, page: strip(draft.value) })
+    const page = await call('lumen_restaurants.api.booking_page.save_page', { pos_profile: outlet.value, page: strip(draft.value) })
     for (const key of ['open_time', 'close_time']) if (page[key]) page[key] = String(page[key]).slice(0, 5)
     draft.value = page
     saved.value = JSON.stringify(strip(page))
@@ -530,7 +530,7 @@ async function copyDesign() {
   if (!copyFrom.value) return
   if (!confirm(t('Replace this design with the one from {o}?', { o: copyFrom.value }))) return
   try {
-    const page = await call('lumenpos.api.booking_page.copy_design', { source: copyFrom.value, target: outlet.value })
+    const page = await call('lumen_restaurants.api.booking_page.copy_design', { source: copyFrom.value, target: outlet.value })
     for (const key of ['open_time', 'close_time']) if (page[key]) page[key] = String(page[key]).slice(0, 5)
     draft.value = page
     saved.value = JSON.stringify(strip(page))
@@ -594,7 +594,7 @@ onMounted(() => {
   display: inline-flex; align-items: center; gap: 7px; border: 1.5px solid var(--border); border-radius: 999px;
   padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--text-muted);
 }
-.bd-publish.on { border-color: var(--pos, #1d9a6c); color: var(--pos, #157a55); background: rgba(29, 154, 108, 0.08); }
+.bd-publish.on { border-color: var(--brand); color: var(--brand-dark); background: rgba(20, 99, 255, 0.08); }
 .bd-link { display: inline-flex; align-items: center; gap: 4px; background: var(--surface-2); border-radius: 9px; padding: 3px 4px 3px 12px; font-size: 12px; max-width: 320px; }
 .bd-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bd-empty { padding: 40px; text-align: center; }

@@ -120,7 +120,7 @@ async function load() {
     return
   }
   try {
-    const data = await call('lumenpos.api.kitchen.board', { pos_profile: session.posProfile })
+    const data = await call('lumen_restaurants.api.kitchen.board', { pos_profile: session.posProfile })
     tickets.value = data.tickets || []
     avgSeconds.value = data.avg_seconds || 0
     if (data.now) clockSkew = Date.now() - serverTime(data.now)
@@ -133,7 +133,7 @@ async function load() {
 
 async function advance(ticket, status) {
   try {
-    await call('lumenpos.api.kitchen.set_ticket_status', { name: ticket.name, status })
+    await call('lumen_restaurants.api.kitchen.set_ticket_status', { name: ticket.name, status })
     await load()
   } catch (e) {
     session.notify(e.message, true)
@@ -142,7 +142,7 @@ async function advance(ticket, status) {
 
 async function printSlip(ticket) {
   try {
-    await call('lumenpos.api.printing.print_kitchen_ticket', { ticket: ticket.name })
+    await call('lumen_restaurants.api.printing.print_kitchen_ticket', { ticket: ticket.name })
     session.notify(t('Slip sent to the kitchen printer'))
   } catch (e) {
     session.notify(e.message, true)
@@ -175,7 +175,7 @@ onUnmounted(() => {
   border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: var(--shadow);
 }
 .kticket.prep { border-top-color: var(--amber); }
-.kticket.ready { border-top-color: var(--pos, #1d9a6c); }
+.kticket.ready { border-top-color: var(--brand); }
 .khead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .kno { font-size: 24px; font-weight: 700; line-height: 1; }
 .kno.table { font-size: 16px; }
@@ -183,7 +183,7 @@ onUnmounted(() => {
 .kbadge.away { background: rgba(20, 99, 255, 0.1); color: var(--brand-dark); }
 .kbadge.hall { background: rgba(109, 74, 255, 0.12); color: var(--promo); }
 .ktimer { margin-inline-start: auto; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px; }
-.ktimer.ok { background: rgba(29, 154, 108, 0.13); color: var(--pos, #157a55); }
+.ktimer.ok { background: rgba(20, 99, 255, 0.12); color: var(--brand-dark); }
 .ktimer.warn { background: rgba(201, 130, 27, 0.15); color: var(--amber); }
 .ktimer.late { background: rgba(214, 69, 69, 0.13); color: var(--red); }
 .kitems { margin: 0; padding: 0; list-style: none; font-size: 14.5px; }
@@ -195,9 +195,9 @@ onUnmounted(() => {
 .kbtns { display: flex; gap: 8px; margin-top: 9px; }
 .kbtn { flex: 1; border: 0; border-radius: 10px; padding: 10px; font: inherit; font-weight: 700; font-size: 13.5px; cursor: pointer; }
 .kbtn.go { background: var(--brand); color: #fff; }
-.kbtn.done { background: var(--pos, #1d9a6c); color: #fff; }
-.kbtn.hand { background: transparent; border: 1.5px solid var(--pos, #1d9a6c); color: var(--pos, #157a55); }
+.kbtn.done { background: var(--brand); color: #fff; }
+.kbtn.hand { background: transparent; border: 1.5px solid var(--brand); color: var(--brand-dark); }
 .kbtn.print { flex: none; width: 44px; background: var(--surface-2); color: var(--text-muted); }
-.kready-note { text-align: center; font-size: 12.5px; color: var(--pos, #157a55); font-weight: 700; margin-top: 7px; }
+.kready-note { text-align: center; font-size: 12.5px; color: var(--brand-dark); font-weight: 700; margin-top: 7px; }
 @media (max-width: 900px) { .kcols { grid-template-columns: 1fr; } }
 </style>

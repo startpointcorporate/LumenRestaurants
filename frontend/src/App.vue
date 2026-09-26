@@ -102,13 +102,13 @@
 
   <div v-else-if="!isDisplay && session.error" class="boot-error">
     <div class="card boot-card">
-      <h2>{{ t('LumenPOS could not start') }}</h2>
+      <h2>{{ t('Lumen Restaurants could not start') }}</h2>
       <p>{{ session.error }}</p>
       <button class="btn btn-primary" @click="session.bootstrap()">{{ t('Retry') }}</button>
     </div>
   </div>
 
-  <div v-else class="boot-loading">{{ t('Loading LumenPOS…') }}</div>
+  <div v-else class="boot-loading">{{ t('Loading Lumen Restaurants…') }}</div>
 </template>
 
 <script setup>
@@ -186,7 +186,7 @@ async function openXReport() {
   if (!session.registerSession || xreportLoading.value) return
   xreportLoading.value = true
   try {
-    xreportSummary.value = await call('lumenpos.api.register.get_session_summary', {
+    xreportSummary.value = await call('lumen_restaurants.api.register.get_session_summary', {
       session: session.registerSession.name,
     })
     xreportOpen.value = true

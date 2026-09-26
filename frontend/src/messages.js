@@ -70,9 +70,9 @@ const common = {
   'Syncing…': 'جار المزامنة…',
   Syncing: 'جار المزامنة',
   'Sales History': 'سجل المبيعات',
-  'LumenPOS could not start': 'تعذر تشغيل نقطة البيع',
+  'Lumen Restaurants could not start': 'تعذر تشغيل نقطة البيع',
   Retry: 'إعادة المحاولة',
-  'Loading LumenPOS…': 'جار تحميل نقطة البيع…',
+  'Loading Lumen Restaurants…': 'جار تحميل نقطة البيع…',
 
   All: 'الكل',
   Bundles: 'الباقات',
@@ -456,7 +456,7 @@ const settings = {
   "PIN": "رمز PIN",
   "+ Add approver": "+ إضافة معتمد",
   "You need write access to LumenPOS Settings to change these. Ask an administrator to grant the LumenPOS Manager role.": "تحتاج إلى صلاحية الكتابة على إعدادات LumenPOS لتغيير هذه. اطلب من المسؤول منحك دور مدير LumenPOS.",
-  "LumenPOS version": "إصدار LumenPOS",
+  "Lumen Restaurants version": "إصدار Lumen Restaurants",
   "Outlet (POS Profile)": "الفرع (ملف نقطة البيع)",
   "Default price list": "قائمة الأسعار الافتراضية",
   "Connection": "الاتصال",
@@ -643,8 +643,8 @@ const settings = {
     "طاولات وطلبات تبقى مفتوحة والضيوف يأكلون، ثم تصير في النهاية عملية بيع عادية واحدة.",
   "This outlet serves tables.":
     "هذا الفرع يخدم طاولات.",
-  "This outlet does not serve tables yet. Switch it on per outlet: ERP, POS Profile, LumenPOS Options, Run this outlet as a restaurant.":
-    "هذا الفرع لا يخدم طاولات بعد. فعله لكل فرع من ERP ثم POS Profile ثم LumenPOS Options ثم تشغيل الفرع كمطعم.",
+  "This outlet does not serve tables yet. Switch it on per outlet: ERP, POS Profile, Lumen Restaurants, Run this outlet as a restaurant.":
+    "هذا الفرع لا يخدم طاولات بعد. فعله لكل فرع من ERP ثم POS Profile ثم Lumen Restaurants ثم تشغيل الفرع كمطعم.",
   "A table that is out of service keeps its history and disappears from the floor screen.":
     "الطاولة خارج الخدمة تحتفظ بسجلها وتختفي من شاشة الصالة.",
   "Pick where it goes. Only free tables are listed.":
@@ -797,8 +797,8 @@ const settings = {
     "لكل فرع رابطه الخاص",
   "Copy the link":
     "نسخ الرابط",
-  "The link answers only for an outlet whose POS Profile has \"Public booking page\" switched on (ERP, POS Profile, LumenPOS Options).":
-    "الرابط لا يفتح إلا لفرع مفعل فيه خيار \"صفحة الحجز العامة\" من ERP ثم POS Profile ثم LumenPOS Options.",
+  "The link answers only for an outlet whose POS Profile has \"Public booking page\" switched on (ERP, POS Profile, Lumen Restaurants).":
+    "الرابط لا يفتح إلا لفرع مفعل فيه خيار \"صفحة الحجز العامة\" من ERP ثم POS Profile ثم Lumen Restaurants.",
   "Link copied: {url}":
     "نسخ الرابط: {url}",
   "Booking page":

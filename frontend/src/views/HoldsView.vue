@@ -167,7 +167,7 @@ async function load() {
   }
   loading.value = true
   try {
-    const data = await call('lumenpos.api.layaway.list_layaways', {
+    const data = await call('lumen_restaurants.api.layaway.list_layaways', {
       pos_profile: session.posProfile,
       status: status.value,
       search: search.value,
@@ -181,7 +181,7 @@ async function load() {
 }
 
 async function show(name) {
-  open.value = await call('lumenpos.api.layaway.get_layaway', { name })
+  open.value = await call('lumen_restaurants.api.layaway.get_layaway', { name })
   payAmount.value = open.value.balance || null
   payMode.value = (modes.value.find((m) => m.default) || modes.value[0])?.mode_of_payment
 }
@@ -189,7 +189,7 @@ async function show(name) {
 async function takePayment() {
   busy.value = true
   try {
-    const res = await call('lumenpos.api.layaway.add_instalment', {
+    const res = await call('lumen_restaurants.api.layaway.add_instalment', {
       layaway: open.value.name,
       payments: [{ mode_of_payment: payMode.value, amount: Number(payAmount.value) }],
       pos_profile: session.posProfile,
@@ -210,7 +210,7 @@ async function handOver() {
   const payments = due > 0 ? [{ mode_of_payment: payMode.value, amount: due }] : []
   busy.value = true
   try {
-    const res = await call('lumenpos.api.layaway.complete_layaway', {
+    const res = await call('lumen_restaurants.api.layaway.complete_layaway', {
       layaway: open.value.name,
       payments,
       pos_profile: session.posProfile,
@@ -228,7 +228,7 @@ async function handOver() {
 async function cancelHold() {
   busy.value = true
   try {
-    const res = await call('lumenpos.api.layaway.cancel_layaway', {
+    const res = await call('lumen_restaurants.api.layaway.cancel_layaway', {
       layaway: open.value.name,
       refund_mode: payMode.value,
       pos_profile: session.posProfile,

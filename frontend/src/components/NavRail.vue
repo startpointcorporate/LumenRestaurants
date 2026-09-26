@@ -4,14 +4,16 @@
 <template>
   <nav class="rail">
     <div class="logo">
-      <svg viewBox="0 0 100 100" width="32" height="32" aria-label="LumenPOS">
+      <svg viewBox="0 0 100 100" width="32" height="32" aria-label="Lumen Restaurants">
         <defs><linearGradient id="lp-logo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2A7BFF"/><stop offset="1" stop-color="#0B43B8"/></linearGradient></defs>
         <rect width="100" height="100" rx="22" fill="url(#lp-logo)"/>
-        <g transform="translate(30,30) scale(0.833)">
-          <rect x="6" y="6" width="7.5" height="38" rx="3.75" fill="#fff"/>
-          <rect x="18" y="25" width="4.5" height="19" rx="2.25" fill="rgba(255,255,255,.62)"/>
-          <rect x="27" y="25" width="7.5" height="19" rx="3.75" fill="#fff"/>
-          <rect x="39" y="25" width="4.5" height="19" rx="2.25" fill="#fff"/>
+        <!-- Placeholder mark until the Lumen Restaurants logo kit: a table and four chairs. -->
+        <g fill="#fff">
+          <circle cx="50" cy="50" r="15"/>
+          <circle cx="50" cy="24" r="6"/>
+          <circle cx="50" cy="76" r="6"/>
+          <circle cx="24" cy="50" r="6"/>
+          <circle cx="76" cy="50" r="6"/>
         </g>
       </svg>
     </div>
@@ -110,7 +112,7 @@ async function refreshRequested() {
     return
   }
   try {
-    requestedCount.value = await call('lumenpos.api.reservations.requested_count', {
+    requestedCount.value = await call('lumen_restaurants.api.reservations.requested_count', {
       pos_profile: session.posProfile,
     })
   } catch {
@@ -126,7 +128,7 @@ async function refreshPending() {
   try {
     // No profile scoping, an approver sees every open-shift request they can
     // act on, even when their till is on a different POS profile than the cashier.
-    const rows = await call('lumenpos.api.approval_requests.pending_requests', {})
+    const rows = await call('lumen_restaurants.api.approval_requests.pending_requests', {})
     pendingCount.value = rows.length
   } catch {
     /* ignore, the badge is best-effort */

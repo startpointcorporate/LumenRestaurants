@@ -72,7 +72,7 @@ onMounted(() => {
 async function sell() {
   busy.value = true
   try {
-    const receipt = await call('lumenpos.api.sales.sell_gift_card', {
+    const receipt = await call('lumen_restaurants.api.sales.sell_gift_card', {
       payload: {
         pos_profile: session.posProfile,
         amount: amount.value,

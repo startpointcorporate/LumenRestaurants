@@ -34,7 +34,7 @@
           {{ remaining < 0 && sale.foreign ? money(localChange, local) : money(Math.abs(remaining), sale.currency) }}
         </div>
         <!-- A sale in another currency: what is left in local money, and the
-             change, which always comes back in local money (lumenpos.currency). -->
+             change, which always comes back in local money (lumen_restaurants.currency). -->
         <div v-if="sale.foreign" class="due-sub">
           <template v-if="remaining >= 0">= {{ money(fromSale(remaining, local), local) }}</template>
           <template v-else>{{ t('{amount} given back in {currency}', { amount: money(-remaining, sale.currency), currency: local }) }}</template>
@@ -238,7 +238,7 @@ const giftCardNo = ref('')
 const giftCardInfo = ref(null)
 const giftCardChecking = ref(false)
 
-// What the sale is in (lumenpos.currency). The server's quote has the final
+// What the sale is in (lumen_restaurants.currency). The server's quote has the final
 // word (currency and the rate the shift sells at); until it answers, the
 // cart's own estimate. `rate` turns the sale's currency into local money.
 const quoted = ref(null)
@@ -375,7 +375,7 @@ async function switchCurrency(code) {
 }
 
 // A tender ERPNext accepts for this sale at the close: one whose account is in
-// the company currency or in the sale's own (lumenpos.currency). So a dollar
+// the company currency or in the sale's own (lumen_restaurants.currency). So a dollar
 // drawer is offered on a dollar sale only.
 const visibleModes = computed(() =>
   session.paymentModes.filter((m) => {
@@ -477,7 +477,7 @@ const referencesOk = computed(() =>
 async function loadBlockedModes() {
   if (session.offline) return
   try {
-    blockedModes.value = await call('lumenpos.api.catalog.blocked_payment_modes', {
+    blockedModes.value = await call('lumen_restaurants.api.catalog.blocked_payment_modes', {
       pos_profile: session.posProfile,
       item_codes: JSON.stringify(cart.lines.map((l) => l.item_code)),
     })
@@ -558,7 +558,7 @@ async function checkGiftCard() {
   giftCardChecking.value = true
   giftCardInfo.value = null
   try {
-    const info = await call('lumenpos.api.sales.gift_card_info', {
+    const info = await call('lumen_restaurants.api.sales.gift_card_info', {
       card_no: giftCardNo.value,
       pos_profile: session.posProfile,
     })
@@ -605,7 +605,7 @@ async function loadExchange() {
   try {
     // Quoted from the SAME payload that will post, so the figure on screen and
     // the figure that settles cannot drift apart.
-    const q = await call('lumenpos.api.exchanges.quote_exchange', {
+    const q = await call('lumen_restaurants.api.exchanges.quote_exchange', {
       payload: {
         ...cart._basePayload(),
         original_invoice: cart.exchange.invoice,
