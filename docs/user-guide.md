@@ -1,6 +1,6 @@
 # Lumen Restaurants: Complete User Guide
 
-*Applies to Lumen Restaurants v0.1.0-r1, built from LumenPOS v0.51.0. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r2, built from LumenPOS v0.51.0. This document is updated with every feature change.*
 
 **Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
 own.** Everything this guide says about LumenPOS applies to it: the till is the
@@ -11,10 +11,12 @@ shop till. At a restaurant outlet the shop features a restaurant has no use for
 are switched off: holds and deposits (the Holds screen still shows while a hold
 is open, so no deposit is stranded), the exchange flow, and the retail sell
 screen with its parking, price checker and serial numbers. Lumen Restaurants
-does not need LumenPOS installed, and a site runs one of the two, never both.
-Where this guide names *LumenPOS Settings*, the *LumenPOS Manager* or
-*LumenPOS Cashier* roles, or the *LumenPOS* module, those are the real names of
-those records in Lumen Restaurants too.
+does not need LumenPOS installed, and a site runs one of the two, never both:
+installing one on a site that runs the other is refused before anything
+changes. The two can still share a server. Where this guide names *LumenPOS
+Settings*, the *LumenPOS Manager* or *LumenPOS Cashier* roles, or the *LumenPOS*
+workspace, those are the real names of those records in Lumen Restaurants too.
+The module that holds them is called *Lumen Restaurants*.
 
 > **Note on this document.** Sections 1 to 17 below were written up to v0.17 and are
 > being brought forward release by release; the **changelog in section 18 is
@@ -980,6 +982,7 @@ effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise).
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r2 | **Lumen Restaurants and LumenPOS can share a server.** The module that holds the app's records is now called **Lumen Restaurants** instead of LumenPOS, because Frappe matches module names to apps across the whole server, so two apps with one module name could not sit side by side (Frappe Cloud puts many apps on one server). The records themselves keep their names. **One of the two per site:** installing Lumen Restaurants on a site that runs LumenPOS, or LumenPOS on a site that runs Lumen Restaurants, is refused before anything changes, with a message in English and Arabic (the second direction needs Frappe v14 or later). |
 | 0.1.0-r1 | **Lumen Restaurants becomes an app of its own.** It is built from LumenPOS 0.51.0 with the restaurant (tables and open orders, the kitchen screen, takeaway order numbers, bookings and the public booking page) and carries everything LumenPOS does, so it no longer needs LumenPOS installed. Its name, page title, installable app, top bar and booking page footer say Lumen Restaurants, and the POS Profile sections are called **Lumen Restaurants** and **Lumen Restaurants Receipt Printer**. At a restaurant outlet holds and deposits and the exchange flow are now switched off (a shop outlet keeps them). The restaurant screens show ready, done and confirmed states in the Lumen blue instead of green. The logo is a placeholder until the Lumen Restaurants logo kit is ready. |
 
 ### LumenPOS releases

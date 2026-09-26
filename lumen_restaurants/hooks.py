@@ -10,6 +10,12 @@ app_license = "AGPL-3.0-only"
 
 required_apps = ["erpnext"]
 
+# Lumen Restaurants: a site runs LumenPOS or Lumen Restaurants, never both
+# (they share doctype names). Both directions are refused before anything is
+# written, see site_guard.py.
+before_install = "lumen_restaurants.site_guard.before_install"
+before_app_install = "lumen_restaurants.site_guard.before_app_install"
+
 after_install = "lumen_restaurants.install.after_install"
 # Runs on every app update (Frappe Cloud deploy), keeps the LumenPOS roles and
 # custom fields in place on existing sites without shell access.

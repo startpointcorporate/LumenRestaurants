@@ -85,7 +85,7 @@ def after_sale(invoice, profile, meta):
     items for the ticket come from the INVOICE (names the kitchen knows and
     the quantities that were actually paid for), with the cart's notes laid
     over them by item code."""
-    from lumen_restaurants.lumenpos.doctype.pos_daily_counter.pos_daily_counter import next_order_no
+    from lumen_restaurants.lumen_restaurants.doctype.pos_daily_counter.pos_daily_counter import next_order_no
 
     order_type = meta.get("order_type") or "Takeaway"
     notes = {}

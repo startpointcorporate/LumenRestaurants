@@ -7,38 +7,51 @@ Restaurants release.
 
 ## What stays LumenPOS-named on purpose
 
-Only the app's identity is Lumen Restaurants: the Python package
-`lumen_restaurants`, the app name and title, the dotted paths (imports, hooks,
-patches, the server methods the screens call) and the asset URLs
-(`/assets/lumen_restaurants/...`). The internal record names stay LumenPOS's:
-the doctypes (such as *LumenPOS Settings*), the *LumenPOS* module, the custom
-fields (`lumenpos_*`), the roles (*LumenPOS Manager*, *LumenPOS Cashier*) and the
-browser's offline store. That keeps each merge small, and a site that moves from
-LumenPOS keeps its data.
+Only the app's identity and its module are Lumen Restaurants: the Python
+package `lumen_restaurants`, the app name and title, the module *Lumen
+Restaurants* (folder `lumen_restaurants/lumen_restaurants/`, and the `module`
+of every doctype), the dotted paths (imports, hooks, patches, the server methods
+the screens call) and the asset URLs (`/assets/lumen_restaurants/...`). The
+module needs a name of its own because Frappe maps module names to apps across
+the whole bench: two apps with one module name cannot share a bench, and Frappe
+Cloud puts many apps on one bench. The internal record names stay LumenPOS's:
+the doctypes (such as *LumenPOS Settings*), the custom fields (`lumenpos_*`),
+the roles (*LumenPOS Manager*, *LumenPOS Cashier*), the *LumenPOS* workspace and
+the browser's offline store. That keeps each merge small, and a site that moves
+from LumenPOS keeps its data.
+
+Because the record names are shared, a site runs one of the two apps.
+`lumen_restaurants/site_guard.py` refuses either app on a site that runs the
+other, before anything is written.
 
 ## The steps
 
 1. **Fetch LumenPOS.** `git fetch lumenpos`. The `lumenpos` remote points at the
    LumenPOS repository, and pushing to it is disabled on purpose.
-2. **Merge.** `git merge lumenpos/main`. Git follows the package folder rename
-   (`lumenpos/` to `lumen_restaurants/`) by itself in almost every case.
+2. **Merge.** `git merge lumenpos/main`. Git follows the folder renames
+   (`lumenpos/` to `lumen_restaurants/`, and the module folder
+   `lumenpos/lumenpos/` to `lumen_restaurants/lumen_restaurants/`) by itself in
+   almost every case.
 3. **Give the new code the Lumen Restaurants identity.**
    `node scripts/rename_from_lumenpos.mjs`. It moves anything that still landed
-   under `lumenpos/`, and renames the dotted paths, the asset URLs and the app
-   name. Running it twice changes nothing.
+   under an old folder, and renames the dotted paths, the module name, the asset
+   URLs and the app name. Running it twice changes nothing.
 4. **Resolve the conflicts.**
    - Keep ours, then carry over any real change by hand: `README.md`, `NOTICE`,
      `TRADEMARKS.md`, `frontend/public/manifest.json`, `frontend/public/icon-*.png`,
      `scripts/make_icons.mjs`, and the version in `lumen_restaurants/__init__.py`.
-   - Keep both sides: `lumen_restaurants/api/session.py` (the restaurant switches
-     at the end of `get_bootstrap`), `lumen_restaurants/install.py` (the section
+   - Keep both sides: `lumen_restaurants/hooks.py` (the title, the description
+     and the two `site_guard` hooks), `lumen_restaurants/api/session.py` (the
+     restaurant switches at the end of `get_bootstrap`), `lumen_restaurants/install.py` (the section
      labels), `lumen_restaurants/www/pos.html` and `book.html` (the titles),
      `frontend/src/components/NavRail.vue` (the logo), and `App.vue`,
      `SettingsView.vue` and `messages.js` (the product name).
    - `docs/user-guide.md`: keep our header and the *Lumen Restaurants releases*
      table, take LumenPOS's new sections and rows.
-   - The restaurant's own files (its screens, doctypes and APIs) do not exist in
-     LumenPOS, so they never conflict.
+   - A doctype file LumenPOS changed: take its change. Should a conflict land on
+     the `"module"` line, the rename script sets it back to Lumen Restaurants.
+   - The restaurant's own files (its screens, doctypes and APIs) and
+     `site_guard.py` do not exist in LumenPOS, so they never conflict.
 5. **Rebuild the till.** `cd frontend && npm ci && npx vite build`, and commit the
    build in `lumen_restaurants/public/pos`. The build is what the sites run.
 6. **Check.**

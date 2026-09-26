@@ -7,10 +7,14 @@
 // methods called by the screens) and the asset URLs. Run it after every merge
 // of LumenPOS main, then rebuild the frontend (see docs/updating-from-lumenpos.md).
 //
-// It changes the app's IDENTITY only. Internal record names stay LumenPOS's
-// (doctypes such as "LumenPOS Settings", custom fields such as lumenpos_session,
-// the "LumenPOS" module), so each merge from LumenPOS stays small, and a site
-// moving from LumenPOS keeps its data. Running it twice changes nothing.
+// It changes the app's IDENTITY, and the module: "LumenPOS" becomes
+// "Lumen Restaurants" (folder lumen_restaurants/lumen_restaurants/), because
+// Frappe maps module names to apps across the whole bench, so two apps that
+// share a module name cannot sit on one bench (Frappe Cloud puts many apps on
+// one bench). Record names stay LumenPOS's (doctypes such as "LumenPOS
+// Settings", custom fields such as lumenpos_session, the roles), so each merge
+// from LumenPOS stays small, and a site moving from LumenPOS keeps its data.
+// Running it twice changes nothing.
 //
 //   node scripts/rename_from_lumenpos.mjs          rename in place
 //   node scripts/rename_from_lumenpos.mjs --check  list what would change, exit 1 if anything
@@ -24,11 +28,15 @@ const CHECK = process.argv.includes('--check')
 
 const RULES = [
   // Dotted paths rooted at the package: imports, hooks, patches.txt, the API
-  // methods the screens call. A path segment after a dot is left alone, so
-  // lumenpos.lumenpos.doctype becomes lumen_restaurants.lumenpos.doctype
-  // (the second "lumenpos" is the module folder, which keeps its name).
-  // A dash before it means a file name such as updating-from-lumenpos.md.
+  // methods the screens call. A path segment after a dot is left alone here,
+  // so lumenpos.lumenpos.doctype first becomes lumen_restaurants.lumenpos.doctype
+  // and the module rule below finishes it. A dash before it means a file name
+  // such as updating-from-lumenpos.md.
   [/(?<![\w.-])lumenpos\./g, 'lumen_restaurants.'],
+  // The module folder inside the package, and the module name in the records.
+  [/\blumen_restaurants\.lumenpos\./g, 'lumen_restaurants.lumen_restaurants.'],
+  [/\blumen_restaurants\/lumenpos\//g, 'lumen_restaurants/lumen_restaurants/'],
+  [/"module": "LumenPOS"/g, '"module": "Lumen Restaurants"'],
   [/\bfrom lumenpos import\b/g, 'from lumen_restaurants import'],
   [/^(\s*)import lumenpos\b/gm, '$1import lumen_restaurants'],
   // The app's asset URL root, and the frontend build's output folder.
@@ -59,24 +67,32 @@ function tracked() {
   return out.split('\0').filter(Boolean)
 }
 
-// 1. The package folder. After a merge git usually follows the folder rename
-//    by itself; anything that still lands under lumenpos/ is moved here.
-const oldPkg = path.join(ROOT, 'lumenpos')
-if (fs.existsSync(oldPkg)) {
+// Rules for one file only.
+const FILE_RULES = {
+  'lumen_restaurants/modules.txt': [[/^LumenPOS$/m, 'Lumen Restaurants']],
+}
+
+// 1. The folders: the package, then the module folder inside it. After a merge
+//    git usually follows these renames by itself; anything that still lands
+//    under an old folder is moved here.
+function moveFolder(from, to, what) {
+  if (!fs.existsSync(path.join(ROOT, from))) return
   if (CHECK) {
-    console.log('would move the package folder lumenpos/ to lumen_restaurants/')
-  } else if (!fs.existsSync(path.join(ROOT, 'lumen_restaurants'))) {
-    execFileSync('git', ['mv', 'lumenpos', 'lumen_restaurants'], { cwd: ROOT })
-    console.log('moved the package folder lumenpos/ to lumen_restaurants/')
+    console.log(`would move the ${what} folder ${from}/ to ${to}/`)
+  } else if (!fs.existsSync(path.join(ROOT, to))) {
+    execFileSync('git', ['mv', from, to], { cwd: ROOT })
+    console.log(`moved the ${what} folder ${from}/ to ${to}/`)
   } else {
-    for (const f of tracked().filter((p) => p.startsWith('lumenpos/'))) {
-      const target = 'lumen_restaurants/' + f.slice('lumenpos/'.length)
+    for (const f of tracked().filter((p) => p.startsWith(from + '/'))) {
+      const target = to + '/' + f.slice(from.length + 1)
       fs.mkdirSync(path.join(ROOT, path.dirname(target)), { recursive: true })
       execFileSync('git', ['mv', '-f', f, target], { cwd: ROOT })
       console.log('moved', f, '->', target)
     }
   }
 }
+moveFolder('lumenpos', 'lumen_restaurants', 'package')
+moveFolder('lumen_restaurants/lumenpos', 'lumen_restaurants/lumen_restaurants', 'module')
 
 // 2. The text of every tracked file.
 let files = 0
@@ -89,7 +105,7 @@ for (const rel of tracked()) {
   if (before.includes('\0')) continue
   let after = before
   let n = 0
-  for (const [re, to] of RULES) {
+  for (const [re, to] of RULES.concat(FILE_RULES[rel] || [])) {
     const found = after.match(re)
     if (!found) continue
     n += found.length
