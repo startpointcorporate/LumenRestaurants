@@ -52,6 +52,9 @@ other, before anything is written.
      labels), `lumen_restaurants/www/pos.html` (the title and the icon links) and
      `book.html` (the title, the favicon and the footer mark),
      `frontend/public/sw.js` (the icon names it keeps offline),
+     `lumen_restaurants/api/printing.py` (the two `receipt_images` lines:
+     the restaurant's logo on top, our mark at the foot),
+     `frontend/src/components/ReceiptView.vue` (our mark at the foot),
      `frontend/src/components/NavRail.vue` (the logo), `App.vue` (the product
      name, the router view keyed by the outlet, the table order put down on an
      outlet switch, the restaurant screens sent back to the till at a shop
@@ -62,8 +65,8 @@ other, before anything is written.
    - A doctype file LumenPOS changed: take its change. Should a conflict land on
      the `"module"` line, the rename script sets it back to Lumen Restaurants.
    - The restaurant's own files (its screens, doctypes and APIs) and
-     `site_guard.py` and `branding.py` do not exist in LumenPOS, so they never
-     conflict.
+     `site_guard.py`, `branding.py` and `receipt_images.py` do not exist in
+     LumenPOS, so they never conflict.
 5. **Rebuild the till.** `cd frontend && npm ci && npx vite build`, and commit the
    build in `lumen_restaurants/public/pos`. The build is what the sites run.
 6. **Check.**

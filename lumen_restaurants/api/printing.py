@@ -19,6 +19,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
+from lumen_restaurants import receipt_images
 from lumen_restaurants.api.sales import get_receipt
 
 ESC = b"\x1b"
@@ -75,6 +76,9 @@ def build_receipt_bytes(receipt, open_drawer=0):
     if open_drawer:
         out += KICK_DRAWER
 
+    # Lumen Restaurants: the restaurant's own logo on top when its receipt has
+    # one, our mark at the foot (receipt_images.py).
+    out += ALIGN_CENTER + receipt_images.logo_bytes((receipt.get("receipt_settings") or {}).get("receipt_logo"))
     out += ALIGN_CENTER + BOLD_ON + DOUBLE_SIZE
     out += _text(receipt["company"]) + b"\n"
     out += NORMAL_SIZE + BOLD_OFF
@@ -141,6 +145,7 @@ def build_receipt_bytes(receipt, open_drawer=0):
         out += _text(f"Points earned: {receipt['loyalty_points_earned']}") + b"\n"
 
     out += ALIGN_CENTER + b"\n" + _text("Thank you!") + b"\n"
+    out += b"\n" + receipt_images.mark_bytes() + b"\n" + _text("Lumen Restaurants") + b"\n"
     out += FEED_CUT
     return bytes(out)
 

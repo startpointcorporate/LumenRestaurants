@@ -126,6 +126,23 @@
       <div v-if="s.receipt_footer" class="receipt-extra">{{ s.receipt_footer }}</div>
       {{ t('Thank you!') }}
     </div>
+
+    <!-- Lumen Restaurants (he chose it, 2026-09-27): our mark small at the foot
+         of every receipt, the kit's mini cut, in the brand blues on screen and
+         pure black on paper like its receipt cut. The restaurant's own logo
+         stays at the top. -->
+    <div class="receipt-brand">
+      <svg class="rb-mark" viewBox="0 0 48 48" aria-hidden="true">
+        <rect class="rb-acc" x="9" y="6" width="6" height="11" rx="3" />
+        <rect class="rb-acc" x="18" y="6" width="6" height="11" rx="3" />
+        <rect x="9" y="13" width="15" height="7" rx="3.5" />
+        <rect x="13" y="13" width="7" height="21" rx="3.5" />
+        <rect x="28" y="6" width="11" height="18" rx="5.5" />
+        <rect x="28" y="19" width="7" height="15" rx="3.5" />
+        <rect class="rb-acc" x="4" y="36" width="40" height="8" rx="4" />
+      </svg>
+      <span>Lumen Restaurants</span>
+    </div>
   </div>
 </template>
 
@@ -263,4 +280,29 @@ function asImg(value) {
 }
 .onb-label { display: block; font-size: 10.5px; }
 .onb-num { display: block; font-size: 34px; font-weight: 800; line-height: 1.1; }
+
+.receipt-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+/* The kit's colours: brand blue and the light accent, their dark cut on a
+   dark theme. */
+.rb-mark { width: 16px; height: 16px; flex: none; fill: #1463ff; }
+.rb-mark .rb-acc { fill: #7fa8ff; }
+:root[data-theme='dark'] .rb-mark { fill: #2f7bff; }
+:root[data-theme='dark'] .rb-mark .rb-acc { fill: #6ba4ff; }
+@media print {
+  .receipt-brand { color: #000; }
+  /* 12 mm, the kit's receipt size (never below 10 mm), all black. */
+  .rb-mark { width: 12mm; height: 12mm; }
+  .rb-mark,
+  .rb-mark .rb-acc,
+  :root[data-theme='dark'] .rb-mark,
+  :root[data-theme='dark'] .rb-mark .rb-acc { fill: #000; }
+}
 </style>
