@@ -84,7 +84,9 @@
         </div>
       </header>
       <main class="content">
-        <router-view />
+        <!-- Keyed by the outlet: a switch rebuilds the open screen for the new
+             outlet, so no screen keeps showing (or acting on) the old one. -->
+        <router-view :key="session.posProfile" />
         <!-- The open-register prompt only blocks the Sell screen; the nav
              rail and other tabs (Register, History, Settings) stay usable. -->
         <OpenRegisterOverlay v-if="!session.registerOpen && route.path === '/'" />
@@ -113,7 +115,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { call } from './api'
 import { useSessionStore } from './stores/session'
 import { useCatalogStore } from './stores/catalog'
@@ -138,7 +140,18 @@ const cart = useCartStore()
 async function switchOutlet(event) {
   const name = event.target.value
   if (!name || name === session.posProfile) return
-  if (cart.lines.length && !confirm(t('The sale on screen will be cleared. Switch outlet?'))) {
+  if (cart.order) {
+    // Lumen Restaurants: a table order lives on its table. Put it down, which
+    // saves the last change, instead of clearing it: it is there when the till
+    // comes back to this outlet.
+    try {
+      await cart.leaveOrder()
+    } catch (e) {
+      session.notify(e.message, true)
+      event.target.value = session.posProfile
+      return
+    }
+  } else if (cart.lines.length && !confirm(t('The sale on screen will be cleared. Switch outlet?'))) {
     event.target.value = session.posProfile
     return
   }
@@ -149,7 +162,19 @@ async function switchOutlet(event) {
   catalog.cacheCustomers()
 }
 const route = useRoute()
+const router = useRouter()
 const isDisplay = computed(() => route.path === '/display')
+
+// Lumen Restaurants: the restaurant screens belong to restaurant outlets. At a
+// shop outlet (after a switch, or from an old link) they go back to the till.
+const RESTAURANT_ONLY = ['/tables', '/kitchen', '/reservations', '/booking-designer']
+watch(
+  () => [session.loaded, session.restaurantMode, route.path],
+  ([loaded, restaurant, path]) => {
+    if (loaded && !restaurant && RESTAURANT_ONLY.includes(path)) router.replace('/')
+  },
+  { immediate: true },
+)
 
 // Live clock + "shift open" elapsed timer for the top bar (ticks every second).
 const now = ref(Date.now())

@@ -90,7 +90,7 @@
               class="outlet-select"
               :value="session.posProfile"
               :disabled="busy"
-              @change="onSwitchOutlet($event.target.value)"
+              @change="onSwitchOutlet($event.target.value, $event.target)"
             >
               <option v-for="p in session.availableProfiles" :key="p" :value="p">{{ session.outletLabel(p) }}</option>
             </select>
@@ -149,12 +149,14 @@ import Icon from './Icon.vue'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { useCatalogStore } from '../stores/catalog'
+import { useCartStore } from '../stores/cart'
 import { call } from '../api'
 import { t } from '../i18n'
 import { parseMoney } from '../format'
 
 const session = useSessionStore()
 const catalog = useCatalogStore()
+const cart = useCartStore()
 const openingFloat = ref('0')
 const busy = ref(false)
 const floatInput = ref(null)
@@ -190,8 +192,19 @@ onBeforeUnmount(() => clearInterval(poll))
 // Choose which outlet to open the register for (users assigned to more than one
 // POS Profile). Switching reloads that outlet, if it's already open the dialog
 // closes and you're selling on it; if closed, the dialog now opens that outlet.
-async function onSwitchOutlet(name) {
+async function onSwitchOutlet(name, select = null) {
   if (!name || name === session.posProfile) return
+  // Lumen Restaurants: a table order left on screen is put down on its table
+  // (saved) first, so it never follows the till to the other outlet.
+  if (cart.order) {
+    try {
+      await cart.leaveOrder()
+    } catch (e) {
+      session.notify(e.message, true)
+      if (select) select.value = session.posProfile
+      return
+    }
+  }
   await session.switchProfile(name)
   catalog.fetch()
   catalog.cacheFullCatalog()

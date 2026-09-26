@@ -637,6 +637,8 @@ const settings = {
     "غير مصرح لك بفتح طلب طاولة",
   "Tables need a connection: the order is shared between every device in the place.":
     "الطاولات تحتاج اتصالا، فالطلب مشترك بين كل أجهزة المحل.",
+  "The order could not be saved. Check the connection.":
+    "تعذر حفظ الطلب. تحقق من الاتصال.",
   "No tables yet. Add them under Settings, General, Restaurant.":
     "لا توجد طاولات بعد. أضفها من الإعدادات، عام، المطعم.",
   "Tables and orders that stay open while the guests eat, then become one ordinary sale at the end.":

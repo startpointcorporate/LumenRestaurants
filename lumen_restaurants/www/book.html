@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }}</title>
   <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="/assets/lumen_restaurants/images/svg/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/lumen_restaurants/images/png/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/lumen_restaurants/images/png/favicon-16.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link id="font-link" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;700&display=swap">
@@ -95,7 +98,8 @@
     .links a { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: rgba(255,255,255,.9); color: #1d2533;
                border: 1px solid rgba(127,127,127,.25); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; }
     .links a svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .foot { text-align: center; color: var(--head-muted); font-size: 11px; margin-top: 18px; opacity: .8; }
+    .foot { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--head-muted); font-size: 11px; margin-top: 18px; opacity: .8; }
+    .foot img { width: 16px; height: 16px; display: block; }
     .hp { position: absolute; inset-inline-start: -9999px; opacity: 0; height: 0; }
     .closed { text-align: center; padding: 34px 16px; color: var(--muted); }
   </style>
@@ -486,7 +490,11 @@ function links() {
     linkBtn(handleUrl(PAGE.tiktok, "https://tiktok.com/@"), "at", "TikTok"),
     linkBtn(handleUrl(PAGE.x_url, "https://x.com/"), "at", "X")
   ]);
-  var wrap = h("div", {}, [box, h("div", { cls: "foot", text: "Lumen Restaurants" })]);
+  // The credit carries the Lumen Restaurants mark, the favicon's tile with the
+  // mini cut, which is the kit's cut below 28 px. The header stays the
+  // restaurant's own (its logo and name).
+  var mark = h("img", { src: "/assets/lumen_restaurants/images/svg/favicon.svg", alt: "" });
+  var wrap = h("div", {}, [box, h("div", { cls: "foot" }, [mark, "Lumen Restaurants"])]);
   return wrap;
 }
 

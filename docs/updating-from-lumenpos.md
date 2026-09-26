@@ -38,14 +38,23 @@ other, before anything is written.
    URLs and the app name. Running it twice changes nothing.
 4. **Resolve the conflicts.**
    - Keep ours, then carry over any real change by hand: `README.md`, `NOTICE`,
-     `TRADEMARKS.md`, `frontend/public/manifest.json`, `frontend/public/icon-*.png`,
-     `scripts/make_icons.mjs`, and the version in `lumen_restaurants/__init__.py`.
+     `TRADEMARKS.md`, `frontend/public/manifest.json`, the icons in
+     `frontend/public/` (`favicon.svg`, `favicon-*.png`, `pwa-*.png`,
+     `app-icon-180.png`, all from the logo kit), `lumen_restaurants/public/images/`
+     (the logo kit itself), and the version in `lumen_restaurants/__init__.py`.
+   - Delete again if a merge brings them back: `scripts/make_icons.mjs` and
+     `frontend/public/icon-192.png` / `icon-512.png` (LumenPOS's icons).
    - Keep both sides: `lumen_restaurants/hooks.py` (the title, the description
      and the two `site_guard` hooks), `lumen_restaurants/api/session.py` (the
      restaurant switches at the end of `get_bootstrap`), `lumen_restaurants/install.py` (the section
-     labels), `lumen_restaurants/www/pos.html` and `book.html` (the titles),
-     `frontend/src/components/NavRail.vue` (the logo), and `App.vue`,
-     `SettingsView.vue` and `messages.js` (the product name).
+     labels), `lumen_restaurants/www/pos.html` (the title and the icon links) and
+     `book.html` (the title, the favicon and the footer mark),
+     `frontend/public/sw.js` (the icon names it keeps offline),
+     `frontend/src/components/NavRail.vue` (the logo), `App.vue` (the product
+     name, the router view keyed by the outlet, the table order put down on an
+     outlet switch, the restaurant screens sent back to the till at a shop
+     outlet), `components/OpenRegisterOverlay.vue` (the same table order rule),
+     and `SettingsView.vue` and `messages.js` (the product name).
    - `docs/user-guide.md`: keep our header and the *Lumen Restaurants releases*
      table, take LumenPOS's new sections and rows.
    - A doctype file LumenPOS changed: take its change. Should a conflict land on

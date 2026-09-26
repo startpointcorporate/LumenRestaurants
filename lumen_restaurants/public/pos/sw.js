@@ -33,8 +33,9 @@ const SHELL = [
   ASSETS + 'pos.js?v=' + VERSION,
   ASSETS + 'pos.css?v=' + VERSION,
   ASSETS + 'manifest.json',
-  ASSETS + 'icon-192.png',
-  ASSETS + 'icon-512.png',
+  ASSETS + 'pwa-192.png',
+  ASSETS + 'pwa-512.png',
+  ASSETS + 'favicon.svg',
 ]
 
 self.addEventListener('install', (event) => {

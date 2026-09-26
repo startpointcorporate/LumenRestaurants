@@ -4,16 +4,21 @@
 <template>
   <nav class="rail">
     <div class="logo">
-      <svg viewBox="0 0 100 100" width="32" height="32" aria-label="Lumen Restaurants">
-        <defs><linearGradient id="lp-logo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2A7BFF"/><stop offset="1" stop-color="#0B43B8"/></linearGradient></defs>
-        <rect width="100" height="100" rx="22" fill="url(#lp-logo)"/>
-        <!-- Placeholder mark until the Lumen Restaurants logo kit: a table and four chairs. -->
-        <g fill="#fff">
-          <circle cx="50" cy="50" r="15"/>
-          <circle cx="50" cy="24" r="6"/>
-          <circle cx="50" cy="76" r="6"/>
-          <circle cx="24" cy="50" r="6"/>
-          <circle cx="76" cy="50" r="6"/>
+      <!-- The Lumen Restaurants app icon (reference/brand-kit, svg/app-icon.svg):
+           the mark "Set on the table", a fork and a knife standing on a table
+           bar, white on the blue tile. Full cut: the rail draws it at 32 px. -->
+      <svg viewBox="0 0 48 48" width="32" height="32" role="img" aria-label="Lumen Restaurants">
+        <defs><linearGradient id="lr-logo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1463FF"/><stop offset="1" stop-color="#0B43B8"/></linearGradient></defs>
+        <rect width="48" height="48" rx="10.8" fill="url(#lr-logo)"/>
+        <g transform="translate(10.56,10.56) scale(0.56)" fill="#fff">
+          <rect x="9" y="6" width="3.8" height="12" rx="1.9" fill-opacity="0.6"/>
+          <rect x="14.6" y="6" width="3.8" height="12" rx="1.9" fill-opacity="0.6"/>
+          <rect x="20.2" y="6" width="3.8" height="12" rx="1.9" fill-opacity="0.6"/>
+          <rect x="9" y="13.5" width="15" height="6" rx="3"/>
+          <rect x="13.1" y="13.5" width="6.8" height="20.5" rx="3.4"/>
+          <rect x="28.5" y="6" width="10" height="19" rx="5"/>
+          <rect x="28.5" y="20" width="6" height="14" rx="3"/>
+          <rect x="5" y="36.5" width="38" height="6" rx="3" fill-opacity="0.6"/>
         </g>
       </svg>
     </div>
