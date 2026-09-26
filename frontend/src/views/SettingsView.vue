@@ -226,13 +226,7 @@
             </button>
           </div>
           <div class="sub-label">{{ t('Outlets & customers') }}</div>
-          <div class="outlet-row">
-            <label v-for="profile in session.availableProfiles" :key="profile" class="inline-check">
-              <input type="checkbox" :value="profile" v-model="promoForm.pos_profiles" />
-              {{ profile }}
-            </label>
-            <span class="muted small">{{ t('(none ticked = all outlets)') }}</span>
-          </div>
+          <ScopePicker v-model:company="promoForm.company" v-model:outlets="promoForm.pos_profiles" />
           <div class="item-row">
             <LinkPicker
               doctype="Customer Group"
@@ -614,13 +608,7 @@
             </button>
           </div>
           <div class="sub-label">{{ t('Outlets & customers') }}</div>
-          <div class="outlet-row">
-            <label v-for="profile in session.availableProfiles" :key="profile" class="inline-check">
-              <input type="checkbox" :value="profile" v-model="cashbackForm.pos_profiles" />
-              {{ profile }}
-            </label>
-            <span class="muted small">{{ t('(none ticked = all outlets)') }}</span>
-          </div>
+          <ScopePicker v-model:company="cashbackForm.company" v-model:outlets="cashbackForm.pos_profiles" />
           <div class="item-row">
             <LinkPicker
               doctype="Customer Group"
@@ -748,13 +736,7 @@
           </p>
 
           <div class="sub-label">{{ t('Outlets') }}</div>
-          <div class="outlet-row">
-            <label v-for="profile in session.availableProfiles" :key="profile" class="inline-check">
-              <input type="checkbox" :value="profile" v-model="bundleForm.pos_profiles" />
-              {{ profile }}
-            </label>
-            <span class="muted small">{{ t('(none ticked = all outlets)') }}</span>
-          </div>
+          <ScopePicker v-model:company="bundleForm.company" v-model:outlets="bundleForm.pos_profiles" />
         </div>
 
         <!-- Sticky footer -->
@@ -818,12 +800,7 @@
             {{ t('Active') }}
           </label>
           <div class="sub-label">{{ t('Outlets & customers') }}</div>
-          <div class="outlet-row">
-            <label v-for="profile in session.availableProfiles" :key="profile" class="inline-check">
-              <input type="checkbox" :value="profile" v-model="bookForm.pos_profiles" />
-              {{ profile }}
-            </label>
-          </div>
+          <ScopePicker v-model:company="bookForm.company" v-model:outlets="bookForm.pos_profiles" />
           <div class="item-row">
             <LinkPicker
               doctype="Customer Group"
@@ -950,6 +927,7 @@
         </div>
         <div v-for="program in loyaltyPrograms" :key="program.name" class="info-row">
           <div class="row-title"><Icon name="star" /> {{ program.loyalty_program_name }}</div>
+          <div v-if="companies.length > 1" class="muted small">{{ t('Redeemed at the outlets of {company}', { company: program.company }) }}</div>
           <div class="muted small">
             {{ t('Earn 1 point per {factor} spent', { factor: program.collection_factor }) }} ·
             {{ t('1 point = {value}', { value: program.conversion_factor }) }} ·
@@ -965,6 +943,13 @@
         <div v-if="creatingLoyalty" class="loyalty-editor">
           <div class="field-grid">
             <label class="field span-2"><span>{{ t('Program name *') }}</span><input v-model="loyaltyForm.name" :placeholder="t('e.g. Rewards')" /></label>
+            <label v-if="companies.length > 1" class="field span-2">
+              <span>{{ t('Company') }}</span>
+              <select v-model="loyaltyForm.company" @change="loyaltyForm.expense_account = ''">
+                <option v-for="c in companies" :key="c" :value="c">{{ c }}</option>
+              </select>
+              <span class="muted small">{{ t('ERPNext keeps a loyalty program to one company: points are earned at any outlet and redeemed only at this company\'s. For a reward every company of the group honours, use cashback.') }}</span>
+            </label>
             <label class="field">
               <span>{{ t('Earn: 1 point per … spent *') }}</span>
               <input type="number" min="0.01" step="0.01" v-model.number="loyaltyForm.spend_per_point" />
@@ -979,7 +964,13 @@
             </label>
             <label class="field">
               <span>{{ t('Expense account (empty = auto-create)') }}</span>
-              <LinkPicker doctype="Account" v-model="loyaltyForm.expense_account" :placeholder="t('Loyalty Points Expense…')" />
+              <LinkPicker
+                :key="'lpx-' + loyaltyForm.company"
+                doctype="Account"
+                :filters="{ company: loyaltyForm.company, root_type: 'Expense' }"
+                v-model="loyaltyForm.expense_account"
+                :placeholder="t('Loyalty Points Expense…')"
+              />
             </label>
           </div>
           <div class="editor-actions">
@@ -1008,7 +999,7 @@
           <div>
             <div class="row-title mono">{{ card.card_no }}</div>
             <div class="muted small">
-              {{ t('{balance} of {initial} left', { balance: money(card.balance), initial: money(card.initial_amount) }) }}<span v-if="card.customer"> · {{ card.customer }}</span><span v-if="card.expiry_date"> · {{ t('expires {date}', { date: card.expiry_date }) }}</span>
+              {{ t('{balance} of {initial} left', { balance: money(card.balance), initial: money(card.initial_amount) }) }}<span v-if="card.customer"> · {{ card.customer }}</span><span v-if="card.expiry_date"> · {{ t('expires {date}', { date: card.expiry_date }) }}</span><span v-if="companies.length > 1 && card.company"> · {{ card.company }}</span>
             </div>
           </div>
           <div style="display: flex; gap: 8px; align-items: center">
@@ -1170,6 +1161,66 @@
         <button class="btn btn-outline add-row" @click="generalForm.delivery_apps.push({ app_name: '', price_list: '', require_order_id: 1 })">
           {{ t('+ Add delivery app') }}
         </button>
+      </div>
+
+      <!-- Companies of the group (lumenpos.inter_company) -->
+      <div class="sec-card" v-show="generalSection === 'companies'">
+        <div class="sec-title"><Icon name="company" /> {{ t('Customer balances across companies') }}</div>
+        <p class="sec-note">{{ t('Gift cards, cashback and store credit, on a site with more than one company. Shared: a customer spends their balance at any company of the group that keeps its books in the same currency, and each company\'s books are kept right by an Inter Company Journal Entry. Separate: a balance is spent only at the company that issued it.') }}</p>
+        <p v-if="companies.length < 2" class="muted small">{{ t('This site has one company, so this applies once a second company has outlets.') }}</p>
+        <div class="segmented" style="margin: 6px 0 10px">
+          <button
+            v-for="opt in BALANCE_MODES"
+            :key="opt"
+            class="seg-btn"
+            :class="{ on: generalForm.balances_across_companies === opt }"
+            @click="generalForm.balances_across_companies = opt"
+          >
+            {{ t(opt) }}
+          </button>
+        </div>
+        <p class="muted small">{{ t('Companies with different currencies never share a balance.') }}</p>
+      </div>
+      <div class="sec-card" v-show="generalSection === 'companies'">
+        <div class="sec-title"><Icon name="bank" /> {{ t('Entries between companies') }}</div>
+        <p class="sec-note">{{ t('When a balance issued by one company is spent at another, the two are settled once a day with one Inter Company Journal Entry pair per pair of companies and kind of balance. The accounts are set per company under Accounts and gift cards.') }}</p>
+        <div v-if="!icStatus" class="muted small">{{ t('Loading…') }}</div>
+        <template v-else>
+          <div v-if="!icStatus.pending.length" class="muted small">{{ t('Nothing is waiting to be booked.') }}</div>
+          <div v-else class="ic-wrap"><table class="ic-table">
+            <thead>
+              <tr><th>{{ t('Issued by') }}</th><th>{{ t('Spent at') }}</th><th>{{ t('Balance') }}</th><th class="right">{{ t('Amount') }}</th><th>{{ t('Since') }}</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in icStatus.pending" :key="row.from_company + row.to_company + row.wallet">
+                <td>{{ row.from_company }}</td>
+                <td>{{ row.to_company }}</td>
+                <td>{{ t(row.wallet) }}</td>
+                <td class="right">{{ money(row.amount, icStatus.companies[row.from_company]) }}</td>
+                <td>
+                  {{ row.since }}
+                  <div v-if="row.error" class="neg small">{{ row.error }}</div>
+                </td>
+              </tr>
+            </tbody>
+          </table></div>
+          <button
+            class="btn btn-outline"
+            style="margin-top: 10px"
+            :disabled="icBusy || !icStatus.pending.length"
+            @click="bookInterCompany"
+          >
+            {{ icBusy ? t('Booking…') : t('Book now') }}
+          </button>
+          <div v-if="icStatus.recent.length" class="sub-label">{{ t('Latest entries') }}</div>
+          <div v-for="row in icStatus.recent" :key="row.to_journal_entry" class="muted small ic-recent">
+            {{ row.posting_date }} · {{ t(row.wallet) }} · {{ row.from_company }} → {{ row.to_company }} ·
+            {{ money(row.amount, icStatus.companies[row.from_company]) }} ·
+            <a :href="`/app/journal-entry/${row.to_journal_entry}`" target="_blank">{{ row.to_journal_entry }}</a>
+            /
+            <a :href="`/app/journal-entry/${row.from_journal_entry}`" target="_blank">{{ row.from_journal_entry }}</a>
+          </div>
+        </template>
       </div>
 
       <!-- The new-customer form (lumenpos.customer_form) -->
@@ -1653,6 +1704,39 @@
             />
             <span class="muted small">{{ t('The cost of the cashback program.') }}</span>
           </label>
+          <label class="field">
+            <span>{{ t('Customer deposits account') }}</span>
+            <LinkPicker
+              :key="'dep-' + selectedCompany"
+              doctype="Account"
+              :filters="{ company: selectedCompany, root_type: 'Liability' }"
+              v-model="companyRow.deposit_account"
+              :placeholder="t('Liability account, created automatically if empty')"
+            />
+            <span class="muted small">{{ t('Where money taken on holds waits until the goods are handed over.') }}</span>
+          </label>
+          <label class="field">
+            <span>{{ t('Due from group companies') }}</span>
+            <LinkPicker
+              :key="'gdf-' + selectedCompany"
+              doctype="Account"
+              :filters="{ company: selectedCompany, root_type: 'Asset' }"
+              v-model="companyRow.group_receivable_account"
+              :placeholder="t('Asset account, created automatically if empty')"
+            />
+            <span class="muted small">{{ t('What other companies of the group owe this one for customer balances spent here.') }}</span>
+          </label>
+          <label class="field">
+            <span>{{ t('Due to group companies') }}</span>
+            <LinkPicker
+              :key="'gdt-' + selectedCompany"
+              doctype="Account"
+              :filters="{ company: selectedCompany, root_type: 'Liability' }"
+              v-model="companyRow.group_payable_account"
+              :placeholder="t('Liability account, created automatically if empty')"
+            />
+            <span class="muted small">{{ t('What this company owes others of the group for its customer balances spent there.') }}</span>
+          </label>
         </div>
       </div>
 
@@ -2066,6 +2150,7 @@ import { useSessionStore } from '../stores/session'
 import { useCatalogStore } from '../stores/catalog'
 import { catalogCount, storagePersisted, customerCount } from '../offline'
 import LinkPicker from '../components/LinkPicker.vue'
+import ScopePicker from '../components/ScopePicker.vue'
 import PriceListEditor from '../components/PriceListEditor.vue'
 import ReceiptView from '../components/ReceiptView.vue'
 import { t } from '../i18n'
@@ -2151,7 +2236,7 @@ const bundleForm = ref({})
 
 const loyaltyPrograms = ref([])
 const creatingLoyalty = ref(false)
-const loyaltyForm = ref({ name: '', spend_per_point: 10, point_value: 0.1, expiry_days: 365, expense_account: '' })
+const loyaltyForm = ref({ name: '', spend_per_point: 10, point_value: 0.1, expiry_days: 365, expense_account: '', company: session.company || '' })
 const giftCardList = ref([])
 const giftCardSearch = ref('')
 let cardTimer = null
@@ -2187,6 +2272,7 @@ const generalForm = ref({
   enable_multi_currency: 0,
   sale_currencies: [],
   customer_form_fields: [],
+  balances_across_companies: 'Shared by the group',
   layaway_reserve_stock: 1,
   deposit_with_tax: 0,
   layaway_days: 30,
@@ -2314,6 +2400,7 @@ const generalSections = [
   { key: 'payments', label: 'Payments and delivery', icon: 'card' },
   { key: 'currencies', label: 'Other currencies', icon: 'cash' },
   { key: 'customers', label: 'Customers', icon: 'person' },
+  { key: 'companies', label: 'Companies', icon: 'company' },
   { key: 'returns', label: 'Returns and refunds', icon: 'refresh' },
   { key: 'holds', label: 'Holds and deposits', icon: 'bookmark' },
   { key: 'restaurant', label: 'Restaurant', icon: 'table' },
@@ -2322,6 +2409,30 @@ const generalSections = [
   { key: 'approvals', label: 'Approvals and access', icon: 'shield' },
 ]
 const generalSection = ref('features')
+
+// ---- customer balances across companies (lumenpos.inter_company) ----
+const BALANCE_MODES = ['Shared by the group', 'Separate per company']
+const icStatus = ref(null)
+const icBusy = ref(false)
+async function loadInterCompany() {
+  try {
+    icStatus.value = await call('lumenpos.inter_company.status')
+  } catch {
+    icStatus.value = { pending: [], recent: [], companies: {} }
+  }
+}
+async function bookInterCompany() {
+  icBusy.value = true
+  try {
+    const res = await call('lumenpos.inter_company.post_now')
+    icStatus.value = res
+    session.notify(t('{n} lines booked', { n: res.booked }))
+  } catch (e) {
+    session.notify(e.message, true)
+  } finally {
+    icBusy.value = false
+  }
+}
 
 // ---- the new-customer form: Customer fields a shop can add ----
 const FORM_STATES = ['Hidden', 'Optional', 'Required']
@@ -2487,6 +2598,9 @@ const companyRow = computed(
       service_charge_account: '',
       cashback_liability_account: '',
       cashback_expense_account: '',
+      deposit_account: '',
+      group_receivable_account: '',
+      group_payable_account: '',
     }
 )
 
@@ -2748,6 +2862,7 @@ async function load() {
       cash_mode: r.cash_mode || '',
     })),
     customer_form_fields: (info.customer_form_fields || []).map((r) => ({ ...r })),
+    balances_across_companies: info.balances_across_companies || 'Shared by the group',
     layaway_reserve_stock: info.layaway_reserve_stock ? 1 : 0,
     deposit_with_tax: info.deposit_with_tax ? 1 : 0,
     layaway_days: info.layaway_days || 0,
@@ -2822,9 +2937,13 @@ async function load() {
         service_charge_account: '',
         cashback_liability_account: '',
         cashback_expense_account: '',
+        deposit_account: '',
+        group_receivable_account: '',
+        group_payable_account: '',
       })
     }
   }
+  loadInterCompany()
   if ((info.companies || []).length && !info.companies.includes(selectedCompany.value)) {
     selectedCompany.value = info.companies[0]
   }
@@ -2845,7 +2964,7 @@ async function saveLoyalty() {
   saving.value = true
   try {
     await call('lumenpos.api.settings.create_loyalty_program', {
-      payload: { ...loyaltyForm.value, company: session.company },
+      payload: { ...loyaltyForm.value, company: loyaltyForm.value.company || session.company },
     })
     session.notify(t('Loyalty program created, earning starts on the next sale'))
     creatingLoyalty.value = false
@@ -2884,6 +3003,7 @@ function newBundle() {
     title: '', status: 'Active', bundle_price: 0,
     valid_from: null, valid_to: null,
     items: [{ item_code: '', label: '', qty: 1 }],
+    company: '',
     pos_profiles: [],
   }
   editingBundle.value = true
@@ -2903,6 +3023,7 @@ function editBundle(bundle) {
       qty: row.qty,
       allocated_amount: row.allocated_amount || null,
     })),
+    company: bundle.company || '',
     pos_profiles: [...(bundle.pos_profiles || [])],
   }
   editingBundle.value = true
@@ -2981,6 +3102,7 @@ function newPromotion() {
     buy_qty: 2, get_qty: 1, get_discount_type: 'Free', get_discount_value: 0, max_applications: 0,
     min_spend: 0, basket_discount_type: 'Percentage', basket_discount_value: 0,
     bundle_price: 0,
+    company: '',
     pos_profiles: [], customer_groups: [], items: [],
   }
   couponStats.value = null
@@ -3120,6 +3242,7 @@ async function editPromotion(name) {
     qty: row.qty || 1,
     exclude: row.exclude || 0,
   }))
+  data.company = data.company || ''
   promoForm.value = data
   editingPromo.value = true
   testResult.value = null
@@ -3241,6 +3364,7 @@ function newCashbackRule() {
     monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, saturday: 1, sunday: 1,
     stackable: 0, priority: 1, requires_coupon: 0, coupon_code: '',
     customer_eligibility: 'All Customers', apply_on_all: 1,
+    company: '',
     pos_profiles: [], customer_groups: [], items: [],
   }
   editingCashback.value = true
@@ -3254,6 +3378,7 @@ async function editCashbackRule(name) {
     label: row.item_code || row.item_group || row.brand || row.tag || '',
     exclude: row.exclude || 0,
   }))
+  data.company = data.company || ''
   cashbackForm.value = data
   editingCashback.value = true
 }
@@ -3361,6 +3486,7 @@ function newBook() {
   bookForm.value = {
     title: '', status: 'Active', priority: 1,
     valid_from: null, valid_to: null,
+    company: '',
     pos_profiles: [], customer_groups: [], items: [],
   }
   bookImportReport.value = null
@@ -3377,6 +3503,7 @@ function isProtected(pl) {
 function editBook(book) {
   bookForm.value = {
     ...JSON.parse(JSON.stringify(book)),
+    company: book.company || '',
     items: (book.items || []).map((r) => ({ ...r })),
   }
   bookImportReport.value = null
@@ -3651,6 +3778,12 @@ const filteredBooks = computed(() => {
 .cf-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
 .cf-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 .cf-table { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ic-wrap { overflow-x: auto; }
+.ic-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.neg { color: var(--red); }
+.ic-table th, .ic-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: start; }
+.ic-table .right { text-align: end; }
+.ic-recent { margin-top: 4px; }
 .cf-head,
 .cf-line {
   display: grid;

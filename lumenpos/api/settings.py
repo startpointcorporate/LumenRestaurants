@@ -14,7 +14,7 @@ from frappe.utils.password import get_decrypted_password
 from lumenpos import __version__
 from lumenpos import erpnext_compat
 from lumenpos.api import insights
-from lumenpos import cashback_rules
+from lumenpos import cashback_rules, scope
 
 def _can_manage():
     """Can the user change LumenPOS-wide settings (the General tab)?"""
@@ -142,6 +142,9 @@ def get_settings():
                 "service_charge_account": r.service_charge_account or "",
                 "cashback_liability_account": r.get("cashback_liability_account") or "",
                 "cashback_expense_account": r.get("cashback_expense_account") or "",
+                "deposit_account": r.get("deposit_account") or "",
+                "group_receivable_account": r.get("group_receivable_account") or "",
+                "group_payable_account": r.get("group_payable_account") or "",
             }
             for r in (doc.get("company_settings") or [])
         ],
@@ -206,6 +209,8 @@ def get_settings():
         ],
         # Other currencies (lumenpos.currency), each with today's selling rate.
         "enable_multi_currency": 1 if doc.get("enable_multi_currency") else 0,
+        # Customer balances across the companies of a group (lumenpos.inter_company).
+        "balances_across_companies": doc.get("balances_across_companies") or "Shared by the group",
         "sale_currencies": _sale_currencies(doc),
         # The new-customer form (lumenpos.customer_form): every field, built-in
         # ones first, with its state for individuals and for companies.
@@ -317,18 +322,29 @@ def save_settings(payload):
         sc = row.get("service_charge_account") or None
         cb_liability = row.get("cashback_liability_account") or None
         cb_expense = row.get("cashback_expense_account") or None
+        # The deposit account was set in Desk only, and every save of these
+        # settings rebuilt the table without it, so it was quietly erased.
+        dep = row.get("deposit_account") or None
+        # The two accounts that carry customer balances spent across the group
+        # (lumenpos.inter_company): an asset and a liability of this company.
+        due_from = row.get("group_receivable_account") or None
+        due_to = row.get("group_payable_account") or None
         if comp:
             # A wrong cashback account would put the program's cost or what
             # customers are owed in the wrong place, so refuse it at save time
             # with the reason rather than quietly using another account later.
             from lumenpos.cashback import account_problem
 
-            problem = account_problem(cb_liability, comp, "liability") or account_problem(
-                cb_expense, comp, "expense"
+            problem = (
+                account_problem(cb_liability, comp, "liability")
+                or account_problem(cb_expense, comp, "expense")
+                or account_problem(dep, comp, "liability")
+                or account_problem(due_from, comp, "asset")
+                or account_problem(due_to, comp, "liability")
             )
             if problem:
                 frappe.throw(problem)
-        if comp and (gc or sc or cb_liability or cb_expense):
+        if comp and (gc or sc or cb_liability or cb_expense or dep or due_from or due_to):
             doc.append(
                 "company_settings",
                 {
@@ -337,6 +353,9 @@ def save_settings(payload):
                     "service_charge_account": sc,
                     "cashback_liability_account": cb_liability,
                     "cashback_expense_account": cb_expense,
+                    "deposit_account": dep,
+                    "group_receivable_account": due_from,
+                    "group_payable_account": due_to,
                 },
             )
     doc.gift_card_mode_of_payment = payload.get("gift_card_mode_of_payment") or None
@@ -439,6 +458,8 @@ def save_settings(payload):
         )
     # Other currencies (lumenpos.currency). A row keeps what was set up for it
     # (its walk-in customer and drawer); a new one is set up right after saving.
+    if payload.get("balances_across_companies") in ("Shared by the group", "Separate per company"):
+        doc.balances_across_companies = payload["balances_across_companies"]
     if "enable_multi_currency" in payload:
         doc.enable_multi_currency = 1 if payload.get("enable_multi_currency") else 0
     if "sale_currencies" in payload:
@@ -792,7 +813,7 @@ PROMO_FIELDS = [
     "title", "status", "promotion_type", "description", "priority", "stackable", "price_basis",
     "start_date", "end_date", "start_time", "end_time",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-    "customer_eligibility", "apply_on_all",
+    "customer_eligibility", "apply_on_all", "company",
     "discount_type", "discount_value",
     "buy_qty", "get_qty", "get_discount_type", "get_discount_value", "max_applications",
     "min_spend", "basket_discount_type", "basket_discount_value",
@@ -891,6 +912,9 @@ def save_promotion(payload):
             },
         )
 
+    from lumenpos import scope
+
+    scope.validate(doc)
     doc.save()
     # Frappe REFILLS an empty Time column with the current time on save, so a
     # promotion with no happy hour would otherwise store (and show in the desk)
@@ -944,7 +968,7 @@ CASHBACK_FIELDS = [
     "validity_days", "activation_delay_days",
     "start_date", "end_date", "start_time", "end_time",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-    "customer_eligibility", "apply_on_all", "requires_coupon", "coupon_code",
+    "customer_eligibility", "apply_on_all", "requires_coupon", "coupon_code", "company",
 ]
 
 
@@ -1035,6 +1059,9 @@ def save_cashback_rule(payload):
             },
         )
 
+    from lumenpos import scope
+
+    scope.validate(doc)
     doc.save()
     # Frappe REFILLS an empty Time column with the current time on save (same
     # trap as promotions) -- keep the record honest so a rule with no happy hour
@@ -1203,7 +1230,7 @@ def test_promotion(name, items, pos_profile, customer_group=None):
         },
         {
             "label": _("Outlet {0} included").format(pos_profile),
-            "ok": not promo["pos_profiles"] or pos_profile in promo["pos_profiles"],
+            "ok": scope.applies_to(promo.get("company"), promo["pos_profiles"], pos_profile),
         },
         {
             "label": _("Customer group eligibility"),
@@ -1257,7 +1284,7 @@ def list_bundles():
     today = getdate(nowdate())
     bundles = frappe.get_all(
         "POS Bundle",
-        fields=["name", "title", "bundle_price", "status", "valid_from", "valid_to"],
+        fields=["name", "title", "bundle_price", "status", "valid_from", "valid_to", "company"],
         order_by="modified desc",
         limit_page_length=200,
     )
@@ -1292,6 +1319,7 @@ def save_bundle(payload):
     doc.bundle_price = payload.get("bundle_price")
     doc.valid_from = payload.get("valid_from") or None
     doc.valid_to = payload.get("valid_to") or None
+    doc.company = payload.get("company") or None
     doc.items = []
     for row in payload.get("items") or []:
         doc.append(
@@ -1305,6 +1333,9 @@ def save_bundle(payload):
     doc.pos_profiles = []
     for profile in payload.get("pos_profiles") or []:
         doc.append("pos_profiles", {"pos_profile": profile})
+    from lumenpos import scope
+
+    scope.validate(doc)
     doc.save()
     return doc.name
 
@@ -1324,7 +1355,7 @@ def list_price_books():
     today = getdate(nowdate())
     books = frappe.get_all(
         "POS Price Book",
-        fields=["name", "title", "price_list", "status", "priority", "valid_from", "valid_to"],
+        fields=["name", "title", "price_list", "status", "priority", "valid_from", "valid_to", "company"],
         order_by="priority desc",
         limit_page_length=100,
     )
@@ -1355,7 +1386,7 @@ def save_price_book(payload):
     else:
         _require("POS Price Book", "create")
         doc = erpnext_compat.new_doc("POS Price Book")
-    for field in ("title", "status", "priority", "valid_from", "valid_to"):
+    for field in ("title", "status", "priority", "valid_from", "valid_to", "company"):
         if field in payload:
             doc.set(field, payload[field] or None)
     doc.pos_profiles = []
@@ -1837,8 +1868,16 @@ def create_price_list(price_list_name):
 
 @frappe.whitelist()
 def list_loyalty_programs():
+    _require("Loyalty Program", "read")
+    from lumenpos.api.permissions import allowed_companies
+
+    filters = {}
+    companies = allowed_companies()
+    if companies is not None:
+        filters["company"] = ["in", list(companies)]
     programs = frappe.get_all(
         "Loyalty Program",
+        filters=filters,
         fields=[
             "name", "loyalty_program_name", "conversion_factor",
             "expiry_duration", "auto_opt_in", "company",
@@ -1869,13 +1908,24 @@ def create_loyalty_program(payload):
     name = (payload.get("name") or "").strip()
     if not name:
         frappe.throw(_("Give the loyalty program a name"))
-    company = payload.get("company")
+    # ERPNext keeps a loyalty program to one company: its points are earned
+    # anywhere but redeemed only at that company's outlets.
+    from lumenpos.api.permissions import allowed_companies
+
+    company = payload.get("company") or frappe.defaults.get_user_default("Company")
+    if not company or not frappe.db.exists("Company", company):
+        frappe.throw(_("Choose the company this program belongs to"))
+    companies = allowed_companies()
+    if companies is not None and company not in companies:
+        frappe.throw(_("You are not permitted to work with {0}").format(company), frappe.PermissionError)
     spend_per_point = flt(payload.get("spend_per_point"))
     point_value = flt(payload.get("point_value"))
     if spend_per_point <= 0 or point_value <= 0:
         frappe.throw(_("Earning and redemption rates must be greater than zero"))
 
     expense_account = payload.get("expense_account") or _loyalty_expense_account(company)
+    if frappe.db.get_value("Account", expense_account, "company") != company:
+        frappe.throw(_("Account {0} does not belong to {1}").format(expense_account, company))
 
     doc = frappe.get_doc(
         {
@@ -1932,7 +1982,15 @@ def _loyalty_expense_account(company):
 
 @frappe.whitelist()
 def list_gift_cards(search="", limit=50):
+    # Balances and customers of every card: whoever may read gift cards, and
+    # only the companies ERPNext's User Permissions allow them.
+    _require("POS Gift Card", "read")
+    from lumenpos.api.permissions import allowed_companies
+
     filters = {}
+    companies = allowed_companies()
+    if companies is not None:
+        filters["company"] = ["in", list(companies)]
     or_filters = None
     if search:
         or_filters = {
@@ -1943,7 +2001,7 @@ def list_gift_cards(search="", limit=50):
         "POS Gift Card",
         filters=filters,
         or_filters=or_filters,
-        fields=["card_no", "status", "initial_amount", "balance", "expiry_date", "customer"],
+        fields=["card_no", "status", "initial_amount", "balance", "expiry_date", "customer", "company"],
         order_by="creation desc",
         limit_page_length=min(int(limit), 100),
     )
@@ -1952,6 +2010,12 @@ def list_gift_cards(search="", limit=50):
 @frappe.whitelist()
 def disable_gift_card(card_no):
     _require("POS Gift Card", "write")
+    from lumenpos.api.permissions import allowed_companies
+
+    companies = allowed_companies()
+    company = frappe.db.get_value("POS Gift Card", card_no, "company")
+    if companies is not None and company and company not in companies:
+        frappe.throw(_("You are not permitted to work with {0}").format(company), frappe.PermissionError)
     frappe.db.set_value("POS Gift Card", card_no, "status", "Disabled")
 
 
