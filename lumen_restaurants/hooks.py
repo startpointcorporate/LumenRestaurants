@@ -16,7 +16,29 @@ required_apps = ["erpnext"]
 before_install = "lumen_restaurants.site_guard.before_install"
 before_app_install = "lumen_restaurants.site_guard.before_app_install"
 
-after_install = "lumen_restaurants.install.after_install"
+after_install = [
+    "lumen_restaurants.install.after_install",
+    # Lumen Restaurants: the logo in the desk bar and on the login page.
+    "lumen_restaurants.branding.after_install",
+]
+
+# Lumen Restaurants: the logo on ERPNext's own screens (see branding.py). The
+# browser tab and the loading screen here, Website Settings still override
+# both. Frappe v15 also lists the till on its apps screen, for users who may
+# sell at one outlet at least.
+website_context = {
+    "favicon": "/assets/lumen_restaurants/images/svg/favicon.svg",
+    "splash_image": "/assets/lumen_restaurants/images/svg/app-icon.svg",
+}
+add_to_apps_screen = [
+    {
+        "name": "lumen_restaurants",
+        "logo": "/assets/lumen_restaurants/images/svg/app-icon.svg",
+        "title": "Lumen Restaurants",
+        "route": "/pos",
+        "has_permission": "lumen_restaurants.branding.can_open_till",
+    }
+]
 # Runs on every app update (Frappe Cloud deploy), keeps the LumenPOS roles and
 # custom fields in place on existing sites without shell access.
 after_migrate = "lumen_restaurants.install.ensure_setup"
