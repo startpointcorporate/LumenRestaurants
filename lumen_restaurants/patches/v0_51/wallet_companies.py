@@ -30,20 +30,28 @@ def execute():
             continue
         for row in frappe.get_all(
             ledger,
-            filters={"company": ["in", ["", None]]},
+            # "is not set" matches NULL as well as "": an "in" list never
+            # matches NULL, which is exactly what older entries hold.
+            filters={"company": ["is", "not set"]},
             fields=["name", "reference_doctype", "reference_invoice"],
         ):
             company = _company_of(row.reference_doctype, row.reference_invoice) or only
             if company:
                 frappe.db.set_value(ledger, row.name, "company", company, update_modified=False)
     if frappe.db.exists("DocType", "POS Gift Card"):
-        for card in frappe.get_all("POS Gift Card", filters={"company": ["in", ["", None]]}, pluck="name"):
-            sold_on = frappe.db.get_value(
-                "POS Gift Card Entry", {"card": card, "invoice": ["is", "set"]}, "invoice", order_by="creation asc"
-            ) if frappe.db.exists("DocType", "POS Gift Card Entry") else None
+        for card in frappe.get_all(
+            "POS Gift Card", filters={"company": ["is", "not set"]}, fields=["name", "issued_invoice"]
+        ):
+            sold_on = card.issued_invoice or (
+                frappe.db.get_value(
+                    "POS Gift Card Entry", {"card": card.name, "invoice": ["is", "set"]}, "invoice", order_by="creation asc"
+                )
+                if frappe.db.exists("DocType", "POS Gift Card Entry")
+                else None
+            )
             company = None
             for doctype in ("POS Invoice", "Sales Invoice"):
                 company = company or _company_of(doctype, sold_on)
             company = company or only
             if company:
-                frappe.db.set_value("POS Gift Card", card, "company", company, update_modified=False)
+                frappe.db.set_value("POS Gift Card", card.name, "company", company, update_modified=False)

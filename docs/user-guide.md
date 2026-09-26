@@ -1,6 +1,6 @@
 # Lumen Restaurants: Complete User Guide
 
-*Applies to Lumen Restaurants v0.1.0-r2, built from LumenPOS v0.51.0. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r3, built from LumenPOS v0.51.0 with its updates up to 2026-09-26. This document is updated with every feature change.*
 
 **Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
 own.** Everything this guide says about LumenPOS applies to it: the till is the
@@ -336,7 +336,10 @@ here without listing every group/brand). All picked from a validating dropdown
 - No dates and no times = runs **all the time**.
 - Date range, days of week, and a daily time window (wraps midnight for
   happy hours). Equal start/end times mean "all day".
-- Outlets (none ticked = all) and customer groups (empty = everyone).
+- Outlets (none ticked = all) and customer groups (empty = everyone). On a
+  site with several companies the outlets become **Whole group / One company /
+  Chosen outlets**: one company means every outlet it has, including outlets
+  opened later (see *Several companies on one site* in section 15).
 - **Requires Coupon Code** gates the promo behind a code at the till. Use the
   single code field for one shared code, or open a saved coupon promo and
   **Generate** / **Import (Excel/CSV)** a whole batch of unique codes. Each batch
@@ -366,7 +369,11 @@ matches in the basket, items missing a price, and the final savings.
 **fixed bundle price**, component items with quantities, outlets, and an
 optional **Valid From / Valid To** window. Past **Valid To** the bundle is
 **expired**, it stops being offered at the till and shows an *Expired* badge in
-the Settings list. Serialized items can't be bundled.
+the Settings list. Serialized items can't be bundled. On a site with several
+companies a bundle is offered to the whole group, one company or chosen
+outlets, like a promotion. The server checks the dates and the outlet again at
+the sale, so a cart kept past the end date, a queued sale or another company's
+till cannot ring it up.
 
 On the sell screen the **🎁 Bundles** chip shows bundle cards; **Add** puts
 every component in the cart as **separate lines** (each individually
@@ -402,7 +409,9 @@ book itself, so your Standard Selling master is never changed.
   optional rounding step (nearest 0.05 / 0.25 / 0.50 / 1 / 5). Reopen the book
   any time and the items are right there.
 - **How it applies at the till**: while the book is active (date window +
-  outlet + customer group match), its items sell at the book price; everything
+  outlet + customer group match; on a site with several companies the outlet
+  side is the whole group, one company or chosen outlets), its items sell at
+  the book price; everything
   else keeps the normal selling price. When several active books list the same
   item, the **highest-priority** book wins for that item.
 
@@ -441,6 +450,10 @@ field blank to auto-provision the defaults (Gift Card / Gift Cards / GIFT-CARD).
   and history, disable a card.
 - Gift cards require a connection (no offline redemption), and a gift card
   can't pay for a gift card.
+- **Several companies**: a card belongs to the company that sold it. Whether
+  the outlets of the other companies take it is set in **Settings, General,
+  Companies** (see *Several companies on one site* in section 15). Scanning a
+  card shows the company that issued it.
 
 ---
 
@@ -454,6 +467,12 @@ Uses ERPNext's native **Loyalty Program**. LumenPOS adds the setup and till UX:
 - **Redeeming** appears in the payment screen when the customer has points;
   capped at their real balance, validated server-side.
 - The receipt shows points earned and redeemed.
+
+**Several companies:** ERPNext ties a loyalty program to one company. Points
+are earned at any outlet but redeemed only at the outlets of the program's
+company, and only points earned there, so the till offers points to spend only
+there. Choose the company when you create the program. For a reward that every
+company of the group honours, use cashback, which follows the Companies setting.
 
 **Store credit** (related but separate): refunds can go to store credit
 (per-customer balance on a liability account); it appears next to the
@@ -781,7 +800,9 @@ site's `online_order` field (falls back to `custom_online_order` /
 Each row shows the **cashier who made the sale**, a clean date/time, the
 **payment method(s)** next to the total, the mobile/order info, and badges:
 channel/ONLINE, DRAFT/CANCELLED, and **REFUND**. Click → receipt → reprint or
-refund.
+refund. On a site with several companies the list can be narrowed to one
+company, a list that spans outlets names each row's outlet and company, and a user held to some
+companies (ERPNext User Permissions) sees only theirs.
 
 ---
 
@@ -845,7 +866,7 @@ behaviour: it sells offline as long as the tab stays open.)
 | **Bundles** | Fixed-price bundles: components, price, outlets. |
 | **Price Books** | Items with special prices for a period (validity + priority + outlets/customer groups); add items or **Excel/CSV import**. No ERPNext price list created, the master is never changed. |
 | **Loyalty & Gift Cards** | Create/view loyalty programs; search/disable gift cards. |
-| **General** | Split into groups, one at a time, each saying what it is for: **Features** (what the till offers, plus the one-tap favourites), **Register and shifts** (shift ownership, variance and overdue alerts, offline cache), **Payments and delivery** (delivery apps with their price lists and per-method rules), **Other currencies** (the switch, the currencies the till sells in, their rates), **Customers** (what the new-customer form asks, field by field), **Returns and refunds** (return window, return reasons, **what cannot be returned**, and the refund method rules), **Receipt**, **Accounts and gift cards** (per-company accounts, gift card expiry), **Approvals and access** (discount limit and over-limit method, master passcode, approver PINs, the shared Approver Role, permissions, audit log). One Save button covers them all. |
+| **General** | Split into groups, one at a time, each saying what it is for: **Features** (what the till offers, plus the one-tap favourites), **Register and shifts** (shift ownership, variance and overdue alerts, offline cache), **Payments and delivery** (delivery apps with their price lists and per-method rules), **Other currencies** (the switch, the currencies the till sells in, their rates), **Customers** (what the new-customer form asks, field by field), **Companies** (whether gift cards, cashback and store credit are shared by the group or kept per company, what waits to be booked between companies and **Book now**), **Returns and refunds** (return window, return reasons, **what cannot be returned**, and the refund method rules), **Receipt**, **Accounts and gift cards** (per-company accounts, including the two that carry balances spent across the group, gift card expiry), **Approvals and access** (discount limit and over-limit method, master passcode, approver PINs, the shared Approver Role, permissions, audit log). One Save button covers them all. |
 | **Status** | Version, outlet, price list, connection, cache size, queue, printer, register state. |
 | **Approvals** | (Approvers only) Live tray of pending **discount and return** requests to Approve / Reject, shown in the left rail when discount requests are enabled or returns are window-limited. |
 
@@ -853,6 +874,59 @@ Each tab is shown only to users with permission for it (see **Roles** below),
 and each action (create / edit / delete) is gated separately. Store-level
 config (price list, warehouse, payments, taxes, printer, print format) stays
 on the **POS Profile**, the single source of truth.
+
+### Several companies on one site
+
+One ERPNext site can hold several companies, a group. LumenPOS keeps each
+company's sales, shifts and books apart, and lets the group decide what they
+share.
+
+**Customer balances (Settings, General, Companies).** Gift cards, cashback and
+store credit are either:
+- **Shared by the group** (the default, and how LumenPOS always behaved): a
+  customer spends their balance at any outlet of any company that keeps its
+  books in the same currency. The till spends the balance its own company
+  issued first.
+- **Separate per company**: a balance is spent only at the company that issued
+  it. Another company's card is refused when it is scanned, with the name of
+  the company that issued it.
+
+Companies in different currencies never share a balance, whatever the setting.
+
+**The books stay right.** When a balance issued by company A is spent at
+company B, B's sale is paid from B's own liability account as always, and the
+amount is recorded to be settled. Once a day, and whenever a manager presses
+**Book now** on the Companies card, LumenPOS books ERPNext's own **Inter
+Company Journal Entry**, one pair per day, pair of companies and kind of
+balance:
+- at B: debit *Due from Group Companies*, credit B's balance account;
+- at A: debit A's balance account, credit *Due to Group Companies*.
+
+B's liability is back to what its own customers hold, A's goes down by what its
+customer spent, and A owes B for the goods B handed over. The two accounts are
+created beside each company's receivable and payable accounts the first time
+they are needed, or choose your own per company under **Accounts and gift
+cards** (an asset and a liability that take no party). The Companies card shows
+what is waiting, with the reason when an entry could not be booked, and links
+to the latest entry pairs.
+
+**Where rules apply.** Promotions, cashback rules, bundles and price books
+apply to the **whole group**, **one company** (every outlet it has, including
+outlets opened later) or **chosen outlets**.
+
+**Who sees what.** LumenPOS follows ERPNext's **User Permissions**: a user
+allowed only some companies (a User Permission on Company) sees and opens only
+their outlets, their sales in History, their customers' figures, their gift
+cards and holds, and the entries between their companies, and receives the cash
+difference and overdue shift emails of those companies only. With several
+companies the till names the company beside the outlet, and a manager switches
+outlets from the top bar.
+
+**Holds and returns.** A hold takes instalments and refunds at any outlet of
+its own company, and hands the goods over at the outlet that keeps them. A
+return is taken by a till of the sale's own company.
+
+**Loyalty.** ERPNext ties a loyalty program to one company: see section 8.
 
 ---
 
@@ -868,7 +942,7 @@ LumenPOS ships two ready-made roles (assign them in the user's **Roles**):
 
 | Role | Can |
 |---|---|
-| **LumenPOS Cashier** | Open the POS, sell, park, return, open/close & retry the register; read promotions/bundles/price books |
+| **LumenPOS Cashier** | Open the POS, sell, park, return, open/close & retry the register; read promotions/bundles/price books; find and add customers and open the Customers screen |
 | **LumenPOS Manager** | Everything a cashier can, **plus** manage promotions, bundles, price books, delivery-app prices, settings, gift cards and loyalty |
 | **Sales User / Sales Manager / System Manager** | The native ERPNext roles still work exactly as before (Sales User ≈ cashier, Sales Manager ≈ manager) |
 
@@ -887,8 +961,13 @@ What each capability maps to (so you can build your own custom roles):
 
 > The **LumenPOS Cashier** role is granted the needed rights on POS Invoice, the
 > opening/closing entries and Sales-Invoice consolidation automatically on
-> install/update, so assigning it is enough to run a till. Tighten or widen any
-> of it afterwards in Role Permissions Manager.
+> install/update, and read and create on **Customer**, **Contact** and **Address**
+> (ERPNext keeps a new customer's mobile as a Contact and its address as an
+> Address) plus read on **Customer Group** and **Territory** (ERPNext reads them
+> to enrol a new customer in a loyalty program), so assigning it is enough to run
+> a till, adding customers included.
+> Editing or deleting customers stays with the roles ERPNext gives it to. Tighten
+> or widen any of it afterwards in Role Permissions Manager.
 
 Discounts above the limit still need approval regardless of role, a manager
 **passcode/PIN** at the till and/or an approved **discount request** (Settings →
@@ -960,7 +1039,9 @@ POS activity in one place.
   by **customer group**. The list is server-paginated (**Load more**).
 - Open a customer for their **profile** (phone, email, tax ID, type, member
   since, last purchase), **balances** (loyalty points, store credit) and
-  **lifetime stats** (sales count, net spent, returns count).
+  **lifetime stats** (sales count, net spent, returns count). On a site with
+  several companies the balances and stats are those of one company, the
+  till's own by default, with a picker to see another.
 - Their **transactions** list shows every till sale and return (POS Invoices,
   including consolidated ones, or Sales Invoices in direct mode), filterable by
   **type** and **date range**, paginated. Click a row to view / print the receipt.
@@ -968,7 +1049,8 @@ POS activity in one place.
 **Performance:** every query is server-paginated and scoped to indexed columns,
 and per-customer totals are computed only when you open a customer, never for
 the whole list. The screen runs queries only while it's open, so it has no
-effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise).
+effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise),
+which both LumenPOS roles are given.
 
 ---
 
@@ -982,6 +1064,7 @@ effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise).
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r3 | **The latest LumenPOS updates, brought in.** Invoice statuses in History and the weekday chips now show in Arabic, entries between companies show as a table with links readable in dark mode, and saving Settings keeps every approver's PIN. A cashier or manager can add a customer with their contact and address, and enrol a new customer in a loyalty program. With several companies on one site, customer figures and history leave out consolidated invoices, and the settlement card and **Book now** cover only the user's own companies. The settlement card no longer fails to load. |
 | 0.1.0-r2 | **Lumen Restaurants and LumenPOS can share a server.** The module that holds the app's records is now called **Lumen Restaurants** instead of LumenPOS, because Frappe matches module names to apps across the whole server, so two apps with one module name could not sit side by side (Frappe Cloud puts many apps on one server). The records themselves keep their names. **One of the two per site:** installing Lumen Restaurants on a site that runs LumenPOS, or LumenPOS on a site that runs Lumen Restaurants, is refused before anything changes, with a message in English and Arabic (the second direction needs Frappe v14 or later). |
 | 0.1.0-r1 | **Lumen Restaurants becomes an app of its own.** It is built from LumenPOS 0.51.0 with the restaurant (tables and open orders, the kitchen screen, takeaway order numbers, bookings and the public booking page) and carries everything LumenPOS does, so it no longer needs LumenPOS installed. Its name, page title, installable app, top bar and booking page footer say Lumen Restaurants, and the POS Profile sections are called **Lumen Restaurants** and **Lumen Restaurants Receipt Printer**. At a restaurant outlet holds and deposits and the exchange flow are now switched off (a shop outlet keeps them). The restaurant screens show ready, done and confirmed states in the Lumen blue instead of green. The logo is a placeholder until the Lumen Restaurants logo kit is ready. |
 
@@ -989,7 +1072,7 @@ effect on the Sell flow. The tab needs **Customer → read** (hidden otherwise).
 | Version | Highlights |
 |---|---|
 | 0.51.0 | **Restaurant mode.** A per-outlet switch turns the till into a restaurant: a sell screen built for food (order type first, big menu tiles, line notes), tables and a floor screen, and payment through the same sale path as every shop till. Takeaway pays first and gets a **short daily order number**, printed big on the receipt, stamped on the invoice and carried by a **kitchen ticket**; the new **Kitchen screen** works the tickets (new, preparing, ready) with real timing, notes highlighted, and an optional ESC/POS kitchen printer per outlet. **Ready** flashes a call strip on the till so the cashier shouts the number. **Bookings**: a clear day book (arrived, no show, cancel), reservations that open the table in one press, and a **public booking page** per outlet (`/book/<outlet>`) the owner designs with a live preview: ready-made styles, colours, backgrounds, fonts, their own questions, packages like a buffet priced per guest, booking rules and slot capacity. The page runs on the restaurant's clock and never offers a time that has passed. Requests wait in a tray until staff confirm, or confirm themselves if the owner wants. |
-| 0.51.0 | **Sell in other currencies.** A customer billed in dollars (ERPNext, Customer, Billing Currency) now buys in dollars: the sale, its receipt and its books are in dollars at the rate of the shift, and ERPNext's shift close merges it in that currency and balances. A walk-in paying in dollars is switched to dollars in one tap, on the cart or on the payment screen. Prices, offers and discounts stay in the outlet's currency and convert; a customer's own list in their currency is used as is. Each payment is typed in the money handed over, so a tourist can pay part in dollars and part in riyals, and change always comes back in local money from the main drawer. Every drawer in another currency keeps its own float, cash in and out and count, and the X-report lists the rates. Switched on and set up (accounts, a *Cash USD* drawer on every outlet, a *Walk-in USD* customer, the rates) in Settings, General, Other currencies. Gift cards, store credit, cashback, loyalty redemption, holds and exchanges stay in the outlet's currency. **After an outage every till refreshes its stock**, once on reconnecting and once a minute later, so the tiles include what the other tills sold meanwhile. **Refunds:** the refund screen fills in its refund line by itself again (since 0.36.0 it stayed empty until the cashier pressed Split), one refund line takes the whole refund ERPNext computes, tax included, instead of the screen's estimate, and the internal *Exchange* tender is no longer offered as a refund method. **The new-customer form is the shop's own:** every field hidden, optional or required, for individuals and companies apart, and any Customer field can be added, so a shop outside Saudi Arabia is no longer held to the national address (Settings, General, Customers; out of the box it is the form it always was). On Frappe v15 a new customer no longer fails with "Cannot select a Group type Customer Group" on a site whose default customer group is a group, and the company address no longer spills out of the window in Arabic. **New fields can be added to Sales Invoice again.** Since 0.49.0 LumenPOS marked the customer name on Sales Invoice as an indexed field, to keep History's search fast. Frappe does not allow that marking on that kind of field, so from then on adding any field to Sales Invoice failed, from Customize Form or from another app, with "Fieldtype Small Text for Customer Name cannot be indexed". The marking is removed on update and is never set on such a field again. Nothing gets slower: the index itself stays, because Frappe never removes an index on that kind of column. LumenPOS's own fields were never affected. |
+| 0.51.0 | **Sell in other currencies.** A customer billed in dollars (ERPNext, Customer, Billing Currency) now buys in dollars: the sale, its receipt and its books are in dollars at the rate of the shift, and ERPNext's shift close merges it in that currency and balances. A walk-in paying in dollars is switched to dollars in one tap, on the cart or on the payment screen. Prices, offers and discounts stay in the outlet's currency and convert; a customer's own list in their currency is used as is. Each payment is typed in the money handed over, so a tourist can pay part in dollars and part in riyals, and change always comes back in local money from the main drawer. Every drawer in another currency keeps its own float, cash in and out and count, and the X-report lists the rates. Switched on and set up (accounts, a *Cash USD* drawer on every outlet, a *Walk-in USD* customer, the rates) in Settings, General, Other currencies. Gift cards, store credit, cashback, loyalty redemption, holds and exchanges stay in the outlet's currency. **After an outage every till refreshes its stock**, once on reconnecting and once a minute later, so the tiles include what the other tills sold meanwhile. **Refunds:** the refund screen fills in its refund line by itself again (since 0.36.0 it stayed empty until the cashier pressed Split), one refund line takes the whole refund ERPNext computes, tax included, instead of the screen's estimate, and the internal *Exchange* tender is no longer offered as a refund method. **The new-customer form is the shop's own:** every field hidden, optional or required, for individuals and companies apart, and any Customer field can be added, so a shop outside Saudi Arabia is no longer held to the national address (Settings, General, Customers; out of the box it is the form it always was). On Frappe v15 a new customer no longer fails with "Cannot select a Group type Customer Group" on a site whose default customer group is a group, and the company address no longer spills out of the window in Arabic. **New fields can be added to Sales Invoice again.** Since 0.49.0 LumenPOS marked the customer name on Sales Invoice as an indexed field, to keep History's search fast. Frappe does not allow that marking on that kind of field, so from then on adding any field to Sales Invoice failed, from Customize Form or from another app, with "Fieldtype Small Text for Customer Name cannot be indexed". The marking is removed on update and is never set on such a field again. Nothing gets slower: the index itself stays, because Frappe never removes an index on that kind of column. LumenPOS's own fields were never affected. **Several companies on one site.** Gift cards, cashback and store credit are shared by the group or kept per company, chosen in Settings, General, Companies (shared is the default and how LumenPOS always behaved). A balance spent at another company is settled with ERPNext's own Inter Company Journal Entry, once a day or on demand, so each company's books stay right, and companies in different currencies never share. Promotions, cashback rules, bundles and price books apply to the whole group, one company or chosen outlets, and a bundle is checked again at the sale. ERPNext User Permissions on Company now hold a user to their companies' outlets, history, customer figures, gift cards, holds, entries and alert emails. A hold is served at any outlet of its company. A loyalty program is created for the company you choose. **The LumenPOS Cashier role is enough on its own for customers:** a cashier holding only that role was refused a new customer at the till and never saw the Customers screen; the role (and LumenPOS Manager) now gets read and create on Customer, Contact and Address, and read on Customer Group and Territory, on update, like its POS Invoice rights, still adjustable in Role Permissions Manager (editing and deleting customers is not included). **Fixes found on the way:** saving the settings no longer erases the PIN of every named discount approver (any save did, even one that changed nothing, so approval by PIN stopped working until the PINs were typed again), nor a per-company deposit account set in Desk; the receipt printed right after a sale no longer counts as a reprint (and a copy printed later from History does); a Sales Invoice outlet prints to its receipt printer; and a sale paid by gift card or cashback is no longer refunded back onto that tender, which credited the account without restoring the balance: that part is refunded as store credit. |
 | 0.50.1 | **A hold now quotes the price with tax on it.** At an outlet that adds VAT at the till, a hold used to total the shelf prices and nothing else, so a customer who had paid it "in full" was short by exactly the tax and handing the goods over failed with a mismatch. The tax is worked out on the day of the hold and frozen on it, so the balance on the screen is the money the till will actually take. Open holds are re-costed on update. **Holds are also switched off by default now** (Settings, General, Holds and deposits): a shop that never puts goods aside sees no button and no screen. And the Holds and deposits settings card, which rendered as a wall of run-on text, is laid out like the rest of them. |
 | 0.50.0 | **Holds and deposits.** A customer can leave a deposit and have the goods kept for them. Ring the items up, press **Hold**, take what they are paying today: the goods are reserved with a Sales Order so no other till sells the last one, and the money goes to a **liability** account, not revenue, because the shop is holding it. The new **Holds** screen shows what is held, for whom, paid and still to pay, flags anything past its date, and takes the next instalment, hands the goods over, or cancels and refunds. Handing over sells at the price agreed the day of the hold and collects only the balance. Tax follows the shop: by default the deposit is untaxed and the goods are taxed in full at hand-over, or switch on taxable deposits (as Saudi Arabia requires for an advance against a known supply) and the tax declared on the deposit is deducted at hand-over instead of charged twice. |
 | 0.49.0 | **The till opens with no connection at all, and installs like an app.** Until now an outage was survivable only as long as nobody reloaded the tab: the page itself came from the server, so a reload or a reboot meant a till that could not sell. The app now keeps itself on the device (a service worker holds the page, its script, styles and fonts), so /pos opens offline and the shift carries on with the cached catalogue and the offline queue. Settings → Status shows **Opens without a connection**. It can also be installed from Chrome or Edge, own window, own icon, starting at the till. Nothing about the data changed: no API answer is ever served from a cache, and opening or closing a shift still needs the server. |
