@@ -44,10 +44,11 @@ other, before anything is written.
      (the logo kit itself), and the version in `lumen_restaurants/__init__.py`.
    - Delete again if a merge brings them back: `scripts/make_icons.mjs` and
      `frontend/public/icon-192.png` / `icon-512.png` (LumenPOS's icons).
-   - Keep both sides: `lumen_restaurants/hooks.py` (the title, the description,
-     the two `site_guard` hooks, and the logo hooks: the `after_install` list,
-     `website_context`, `add_to_apps_screen`), `lumen_restaurants/patches.txt`
-     (our own patches live in `patches/lr_*` folders), `lumen_restaurants/api/session.py` (the
+   - Keep both sides: `lumen_restaurants/hooks.py` (the title, the description
+     and the two `site_guard` hooks), `lumen_restaurants/api/sales.py` (the
+     emailed receipt attaches with our mark, `attach_with_mark`),
+     `frontend/src/components/ReceiptModal.vue` (an outlet's own Print Format
+     prints through `receipt_print.print_html`, our mark at the foot), `lumen_restaurants/api/session.py` (the
      restaurant switches at the end of `get_bootstrap`), `lumen_restaurants/install.py` (the section
      labels), `lumen_restaurants/www/pos.html` (the title and the icon links) and
      `book.html` (the title, the favicon and the footer mark),
@@ -65,8 +66,9 @@ other, before anything is written.
    - A doctype file LumenPOS changed: take its change. Should a conflict land on
      the `"module"` line, the rename script sets it back to Lumen Restaurants.
    - The restaurant's own files (its screens, doctypes and APIs) and
-     `site_guard.py`, `branding.py` and `receipt_images.py` do not exist in
-     LumenPOS, so they never conflict.
+     `site_guard.py`, `receipt_images.py` and `receipt_print.py` do not exist
+     in LumenPOS, so they never conflict. Our own patches, when there are any,
+     go in `patches/lr_*` folders, apart from LumenPOS's `patches/v0_*`.
 5. **Rebuild the till.** `cd frontend && npm ci && npx vite build`, and commit the
    build in `lumen_restaurants/public/pos`. The build is what the sites run.
 6. **Check.**

@@ -162,16 +162,25 @@ async function print() {
     }
   }
   if (session.printFormat && !props.receipt.offline && !session.offline) {
-    // Use the sale's ACTUAL doctype (POS Invoice or Sales Invoice, per the
-    // profile's mode), hardcoding "POS Invoice" broke custom Print Formats in
-    // Sales-Invoice mode.
-    const doctype = props.receipt.doctype || session.invoiceMode || 'POS Invoice'
-    const url =
-      `/printview?doctype=${encodeURIComponent(doctype)}` +
-      `&name=${encodeURIComponent(props.receipt.name)}` +
-      `&format=${encodeURIComponent(session.printFormat)}` +
-      `&no_letterhead=0&trigger_print=1`
-    window.open(url, '_blank')
+    // Lumen Restaurants: the outlet's own Print Format, rendered by the server
+    // for the sale's actual doctype (POS or Sales Invoice) with our mark and
+    // name at the foot, which every receipt carries (receipt_print.py). The
+    // tab opens inside the tap, so no popup blocker stops it.
+    const win = window.open('', '_blank')
+    try {
+      const html = await call('lumen_restaurants.receipt_print.print_html', { invoice: props.receipt.name })
+      const printOnLoad = '<script>window.addEventListener("load",function(){window.focus();window.print()})<' + '/script>'
+      win.document.open()
+      win.document.write(
+        html
+          .replace(/<head[^>]*>/i, (head) => `${head}<base href="${location.origin}/">`)
+          .replace(/<\/body>/i, (end) => printOnLoad + end)
+      )
+      win.document.close()
+    } catch (e) {
+      win?.close()
+      session.notify(e.message, true)
+    }
     return
   }
   window.print()

@@ -3,4 +3,3 @@ lumen_restaurants.patches.v0_4.setup
 lumen_restaurants.patches.v0_48.capability_rules
 lumen_restaurants.patches.v0_50.unindexable_index_marks
 lumen_restaurants.patches.v0_51.wallet_companies
-lumen_restaurants.patches.lr_0_1.desk_logo

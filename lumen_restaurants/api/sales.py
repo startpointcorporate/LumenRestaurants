@@ -1569,7 +1569,11 @@ def email_receipt(invoice, email=None):
     print_format = frappe.db.get_value("POS Profile", doc.get("pos_profile"), "print_format")
     attachment = None
     try:
-        attachment = frappe.attach_print(doctype, invoice, print_format=print_format or None)
+        # Lumen Restaurants: our mark and name at the foot of the attached
+        # receipt too, it is on every receipt (receipt_print.py).
+        from lumen_restaurants.receipt_print import attach_with_mark
+
+        attachment = attach_with_mark(doctype, invoice, doc, print_format=print_format or None)
     except Exception:
         # Fall back to a plain-text message if the print format can't render.
         frappe.clear_last_message()
