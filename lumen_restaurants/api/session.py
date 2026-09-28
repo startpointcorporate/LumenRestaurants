@@ -204,6 +204,8 @@ def get_user_permissions():
         "can_open_table": caps_mod.can_open_table(),
         "can_move_tables": caps_mod.can_move_tables(),
         "can_cancel_order": caps_mod.can_cancel_order(),
+        # Lumen Restaurants: the Menu page (api/menu.py re-checks it).
+        "can_edit_menu": caps_mod.can_edit_menu(),
         # ERPNext's document permission AND the shop's own rule, both must pass.
         "open_register": bool(has("POS Opening Entry", "create")) and caps_mod.can_open_register(),
         "close_register": bool(has("POS Closing Entry", "create")) and caps_mod.can_close_register(),

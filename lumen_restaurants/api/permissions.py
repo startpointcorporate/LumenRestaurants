@@ -37,6 +37,8 @@ HOLD_GOODS = "Hold goods for a customer"
 OPEN_TABLE = "Open a table order"
 MOVE_TABLE = "Move or merge tables"
 CANCEL_ORDER = "Cancel a table order"
+# Lumen Restaurants: the Menu page, dishes, their prices and their add-ons.
+EDIT_MENU = "Edit the menu"
 
 LEGACY_FIELD = {
     PRICE_EDIT: "price_edit_role",
@@ -47,7 +49,8 @@ LEGACY_FIELD = {
 
 # Capabilities nobody holds until someone is named. Everything else is open
 # until a shop decides otherwise, so installing LumenPOS never locks a till.
-CLOSED_BY_DEFAULT = {RETURN_EXCEED}
+# Editing the menu changes prices, so it starts closed too (Lumen Restaurants).
+CLOSED_BY_DEFAULT = {RETURN_EXCEED, EDIT_MENU}
 
 
 def _roles(user=None):
@@ -186,6 +189,12 @@ def can_cancel_order(user=None):
     """Throw away an order nobody paid for. The classic way to make a table's
     food walk out of a restaurant, which is why a shop can name who may."""
     return allowed(CANCEL_ORDER, user)
+
+
+def can_edit_menu(user=None):
+    """Lumen Restaurants: add and change dishes, their prices and their add-ons
+    on the till's Menu page. Managers, and whoever a restaurant names."""
+    return allowed(EDIT_MENU, user)
 
 
 def can_move_cash(user=None):

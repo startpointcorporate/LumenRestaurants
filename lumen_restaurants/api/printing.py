@@ -100,9 +100,16 @@ def build_receipt_bytes(receipt, open_drawer=0):
     out += ALIGN_LEFT + _line() + b"\n"
 
     for item in receipt["items"]:
+        # Lumen Restaurants: a paid add-on prints under its dish, the dish's
+        # free choices under its price (modifiers.py).
+        if item.get("addon_of"):
+            out += _text(_pad(f"  + {item['item_name']}"[: WIDTH - 12], _num(item["amount"]))) + b"\n"
+            continue
         out += _text(item["item_name"][:WIDTH]) + b"\n"
         qty_part = f"  {_num(item['qty'])} x {_num(item['rate'])}"
         out += _text(_pad(qty_part, _num(item["amount"]))) + b"\n"
+        if item.get("choices_text"):
+            out += _text(f"  ({item['choices_text']})"[: WIDTH * 2]) + b"\n"
 
     out += _line() + b"\n"
     if receipt.get("discount_amount"):
@@ -171,9 +178,16 @@ def build_kitchen_bytes(ticket):
     out += _text(ticket.order_type or "") + b"\n"
     out += _text(str(ticket.created_at)[:16]) + b"\n"
     out += ALIGN_LEFT + _line() + b"\n" + BOLD_ON
+    from lumen_restaurants import modifiers
+
     for row in ticket.items:
         qty = _num(row.qty).rstrip("0").rstrip(".")
         out += _text(f"{qty} x {row.item_name}"[:WIDTH]) + b"\n"
+        # The guest's choices under the dish: a minus for a without, a plus for
+        # a paid extra (modifiers.py).
+        for choice in modifiers.clean_choices(row.get("modifiers")) if row.get("modifiers") else []:
+            mark = "+" if choice["p"] else ("-" if choice["s"] == "no" else "*")
+            out += BOLD_OFF + _text(f"   {mark} {choice['t']}"[:WIDTH]) + b"\n" + BOLD_ON
         if row.note:
             out += BOLD_OFF + _text(f"   >> {row.note}"[:WIDTH]) + b"\n" + BOLD_ON
     out += BOLD_OFF

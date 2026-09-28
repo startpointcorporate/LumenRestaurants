@@ -37,21 +37,33 @@ FLOW = {
 
 
 def _clean_items(items):
+    from lumen_restaurants import modifiers
+
     rows = []
     for row in items or []:
         qty = flt(row.get("qty"))
         name = (row.get("item_name") or "").strip()
         if not name or qty <= 0:
             continue
+        choices = modifiers.clean_choices(row.get("modifiers"))
         rows.append(
             {
                 "item_name": name,
                 "qty": qty,
                 "note": (row.get("note") or "").strip()[:400] or None,
                 "item_code": row.get("item_code"),
+                # The guest's choices, shown under the dish (modifiers.py).
+                "modifiers": json.dumps(choices, ensure_ascii=False) if choices else None,
             }
         )
     return rows
+
+
+def _choices(raw):
+    """A ticket line's choices, as the screen and the slip show them."""
+    from lumen_restaurants import modifiers
+
+    return modifiers.clean_choices(raw) if raw else []
 
 
 def _make_ticket(profile_name, order_type, items, order_no=None, table_label=None,
@@ -83,8 +95,11 @@ def after_sale(invoice, profile, meta):
 
     `meta` is the payload's `restaurant` block: {order_type, items?}. The
     items for the ticket come from the INVOICE (names the kitchen knows and
-    the quantities that were actually paid for), with the cart's notes laid
-    over them by item code."""
+    the quantities that were actually paid for). A dish carries its own
+    choices and note on its line (modifiers.py), a paid add-on rides on its
+    dish instead of being a line of its own; lines from before carry the
+    cart's notes, laid over them by item code."""
+    from lumen_restaurants import modifiers
     from lumen_restaurants.lumen_restaurants.doctype.pos_daily_counter.pos_daily_counter import next_order_no
 
     order_type = meta.get("order_type") or "Takeaway"
@@ -94,15 +109,20 @@ def after_sale(invoice, profile, meta):
             notes[line["item_code"]] = line["note"].strip()
 
     order_no = next_order_no(profile.name)
-    items = [
-        {
-            "item_name": row.item_name,
-            "qty": row.qty,
-            "item_code": row.item_code,
-            "note": notes.get(row.item_code),
-        }
-        for row in invoice.items
-    ]
+    items = []
+    for row in invoice.items:
+        if row.get("lr_addon_of"):
+            continue
+        data = modifiers.row_data(row)
+        items.append(
+            {
+                "item_name": row.item_name,
+                "qty": row.qty,
+                "item_code": row.item_code,
+                "note": data["n"] if row.get("lr_modifiers") else notes.get(row.item_code),
+                "modifiers": data["c"],
+            }
+        )
     ticket = _make_ticket(
         profile.name, order_type, items, order_no=order_no, invoice=invoice.name
     )
@@ -175,13 +195,18 @@ def board(pos_profile):
         rows = frappe.get_all(
             "POS Kitchen Ticket Item",
             filters={"parent": ("in", [t.name for t in tickets])},
-            fields=["parent", "item_name", "qty", "note"],
+            fields=["parent", "item_name", "qty", "note", "modifiers"],
             order_by="idx asc",
             limit_page_length=0,
         )
         for row in rows:
             items.setdefault(row.parent, []).append(
-                {"item_name": row.item_name, "qty": flt(row.qty), "note": row.note}
+                {
+                    "item_name": row.item_name,
+                    "qty": flt(row.qty),
+                    "note": row.note,
+                    "modifiers": _choices(row.modifiers),
+                }
             )
     for ticket in tickets:
         ticket["items"] = items.get(ticket.name, [])

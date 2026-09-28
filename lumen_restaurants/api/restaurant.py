@@ -244,10 +244,13 @@ def _derive_items(doc, cart):
     Indicative, not accounting. Promotions and the basket discount are resolved
     by the server at payment, so the figure on the floor screen can be a little
     above what the guest finally pays. The invoice is the authority, always."""
+    from lumen_restaurants import modifiers
+
     doc.set("items", [])
     for line in cart.get("lines") or []:
         qty = flt(line.get("qty"))
         rate = flt(line.get("price")) * (1 - flt(line.get("manual_discount_percent")) / 100.0)
+        choices = modifiers.clean_choices(line.get("lr_mods"))
         doc.append(
             "items",
             {
@@ -257,6 +260,10 @@ def _derive_items(doc, cart):
                 "rate": flt(rate, 2),
                 "amount": flt(qty * rate, 2),
                 "note": ((line.get("note") or "").strip())[:500] or None,
+                # The guest's choices, and a paid add-on's dish (modifiers.py).
+                "modifiers": json.dumps(choices, ensure_ascii=False) if choices else None,
+                "line_id": str(line.get("lr_line") or "")[:40] or None,
+                "addon_of": str(line.get("lr_addon_of") or "")[:40] or None,
             },
         )
 

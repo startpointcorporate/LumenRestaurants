@@ -286,6 +286,12 @@ def _build_sale_invoice(
             item_row.discount_percentage = 0
         item_row.discount_amount = 0
 
+    # Lumen Restaurants: a dish's choices and note, and its paid add-ons tied
+    # to it (lumen_restaurants/modifiers.py).
+    from lumen_restaurants import modifiers
+
+    modifiers.apply_to_invoice(invoice, payload["items"])
+
     _apply_service_charge(invoice, profile, lines, per_unit_discounts)
 
     invoice.run_method("calculate_taxes_and_totals")
@@ -1682,6 +1688,9 @@ def get_receipt(invoice):
     receipt_settings = effective_receipt(doc.get("pos_profile")) if doc.get("pos_profile") else {}
     if not receipt_settings.get("receipt_tax_id"):
         receipt_settings["receipt_tax_id"] = frappe.get_cached_value("Company", doc.company, "tax_id") or ""
+    # Lumen Restaurants: a paid add-on under its dish, the dish's free choices
+    # under it (modifiers.py).
+    from lumen_restaurants import modifiers
 
     return {
         "name": doc.name,
@@ -1722,6 +1731,7 @@ def get_receipt(invoice):
                 "discount_amount": row.discount_amount,
                 "barcode": barcode_map.get(row.item_code),
                 "serial_no": (row.get("serial_no") or "").strip() or None,
+                **modifiers.receipt_item(row, doc.get("pos_profile")),
             }
             for row in doc.items
         ],
