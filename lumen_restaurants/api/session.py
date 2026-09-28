@@ -66,9 +66,12 @@ def get_bootstrap(pos_profile=None):
 
     item_groups = [row.item_group for row in (profile.item_groups or [])]
     if not item_groups:
+        from lumen_restaurants import modifiers
+
         item_groups = frappe.get_all(
             "Item Group",
-            filters={"is_group": 0},
+            # Lumen Restaurants: not the section of the add-on items (modifiers.py).
+            filters={"is_group": 0, "name": ["!=", modifiers.addon_group() or ""]},
             order_by="name",
             limit_page_length=50,
             pluck="name",

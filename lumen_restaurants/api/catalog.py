@@ -125,6 +125,14 @@ def get_items(pos_profile, search="", item_group="", start=0, limit=60, price_li
         filters["item_group"] = item_group
     elif profile.item_groups:
         filters["item_group"] = ["in", [r.item_group for r in profile.item_groups]]
+    else:
+        # Lumen Restaurants: the items of paid add-on choices are sold under
+        # their dish, never tapped on their own (modifiers.py).
+        from lumen_restaurants import modifiers
+
+        hidden = modifiers.addon_group()
+        if hidden:
+            filters["item_group"] = ["!=", hidden]
 
     wf = warranty_field()
     fields = [
