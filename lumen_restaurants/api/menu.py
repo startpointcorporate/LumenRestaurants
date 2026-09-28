@@ -390,7 +390,7 @@ def _addon_item(title, uom):
 def save_group(pos_profile, group):
     """Add an add-on group or change one: its name, its rules, its choices and
     their prices at this outlet. A choice given a price is billed as an item
-    (made here on first use); a choice at 0 is a free instruction."""
+    (made here on first use), a choice at 0 is a free instruction."""
     profile = _guard(pos_profile)
     data = _load(group, {})
     name = data.get("name")
@@ -453,7 +453,7 @@ def delete_group(pos_profile, name):
 
 def _promote(doc):
     """A section whose every dish is tied one by one becomes a whole-section
-    tie, which also covers the dishes added to it later; and a whole section
+    tie, which also covers the dishes added to it later. And a whole section
     keeps no single ties of its own dishes."""
     singles = {row.item for row in doc.items}
     sections = {row.item_group for row in doc.item_groups}

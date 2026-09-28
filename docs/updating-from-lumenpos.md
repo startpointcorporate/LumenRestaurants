@@ -70,6 +70,23 @@ items, test, then fill in the entry's last column (our commit and the date).
      outlet switch, the restaurant screens sent back to the till at a shop
      outlet), `components/OpenRegisterOverlay.vue` (the same table order rule),
      and `SettingsView.vue` and `messages.js` (the product name).
+   - Keep both, the add-ons on dishes (0.1.0-r9): `api/sales.py` (the call to
+     `modifiers.apply_to_invoice` before the service charge, and
+     `modifiers.receipt_item` in `get_receipt`), `api/catalog.py` (the add-ons
+     section kept off the grid), `api/session.py` (`can_edit_menu`, and the
+     add-ons section kept off the section list), `api/permissions.py`
+     (`EDIT_MENU`, closed by default), `api/printing.py` (add-on lines on the
+     receipt, choices on the kitchen slip), `hooks.py` (`after_install` and
+     `after_migrate` are lists with `modifiers.ensure_setup`), the capability
+     Select of `pos_capability_rule.json` (Edit the menu), `stores/cart.js`
+     (`addItem` never merges into a dish or its add-on, `_basePayload` sends
+     the `lr_*` keys, `sendToKitchen` skips add-on lines and sends the
+     choices), `components/ReceiptView.vue` (add-on rows, the free choices),
+     `NavRail.vue` (the Menu item), `main.js` (the /menu route), `App.vue`
+     (/menu is restaurant-only), `SettingsView.vue` (`AddonSettings` in the
+     Restaurant section, the restaurant's actions in `capabilityOptions`),
+     `messages.js` (the import and spread of `messages-restaurant.js`) and
+     `translations/ar.csv` (the add-ons' server messages).
    - `docs/user-guide.md`: keep our header and the *Lumen Restaurants releases*
      table, take LumenPOS's new sections and rows.
    - A doctype file LumenPOS changed: take its change. Should a conflict land on
@@ -80,8 +97,12 @@ items, test, then fill in the entry's last column (our commit and the date).
    - LumenPOS's built till files land under `lumen_restaurants/public/pos/`
      (`pos.js`, `pos.css`, `chunk-*.js`): delete them, step 5 builds our own.
    - The restaurant's own files (its screens, doctypes and APIs) and
-     `site_guard.py`, `receipt_images.py` and `receipt_print.py` do not exist
-     in LumenPOS, so they never conflict. Our own patches, when there are any,
+     `site_guard.py`, `receipt_images.py`, `receipt_print.py` and
+     `modifiers.py` do not exist in LumenPOS, so they never conflict. Nor do the
+     add-ons' own: `api/menu.py`, the `pos_modifier_*` doctypes, and in the
+     frontend `addons.js`, `stores/modifiers.js`, `messages-restaurant.js`,
+     `components/ModifierSheet.vue`, `components/AddonSettings.vue` and
+     `views/MenuView.vue`. Our own patches, when there are any,
      go in `patches/lr_*` folders, apart from LumenPOS's `patches/v0_*`.
 5. **Rebuild the till.** `cd frontend && npm ci && npx vite build`, and commit the
    build in `lumen_restaurants/public/pos`. The build is what the sites run.

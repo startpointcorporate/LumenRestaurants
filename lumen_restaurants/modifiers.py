@@ -9,13 +9,13 @@ whole sections (Item Groups, their sub-sections and the dishes added to them
 later) and single dishes. At the till a choice is one of two things:
 
 - free (no item, or an item with no price at the outlet): an instruction for
-  the kitchen, carried on the dish's own line and printed under it;
+  the kitchen, carried on the dish's own line and printed under it.
 - paid (its item has a price in the outlet's price list): a line of its own
   right under the dish, priced by the server like any other line, so VAT, the
   reports and the stock (when the item keeps stock) come out right.
 
 The till tags the lines it sends: a dish carries lr_line (its id), lr_mods
-(the choices) and lr_note; a paid add-on carries lr_addon_of (its dish's id).
+(the choices) and lr_note, a paid add-on carries lr_addon_of (its dish's id).
 apply_to_invoice turns that into the invoice's own fields. Everything here is
 ours, next to LumenPOS's files: sales.py only calls apply_to_invoice.
 """
@@ -250,7 +250,7 @@ def groups_for_item(item_code, item_group=None):
 def clean_choices(raw):
     """The choices the kitchen and the receipt show for a dish, from what the
     till sent: a title, the group's look, and whether it is a paid add-on. Only
-    ever text for people to read; the money is on the add-on lines."""
+    ever text for people to read, the money is on the add-on lines."""
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)

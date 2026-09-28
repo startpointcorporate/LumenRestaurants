@@ -1,6 +1,6 @@
 # Lumen Restaurants: Complete User Guide
 
-*Applies to Lumen Restaurants v0.1.0-r8, built from LumenPOS v0.54.0. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r9, built from LumenPOS v0.54.0. This document is updated with every feature change.*
 
 **Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
 own.** Everything this guide says about LumenPOS applies to it: the till is the
@@ -689,6 +689,64 @@ ticket also prints (ESC/POS, no prices, the number huge). That works when
 the server can reach the printer, an on-premise install; on Frappe Cloud
 use the kitchen screen, or its per-ticket print button.
 
+### The Menu page and add-ons on dishes
+
+A guest wants the burger without pickles, medium hot, with extra mayo. Each of
+those is a **choice** in an **add-on group** (Heat level, Without, Sauces), and
+the **Menu** page on the rail is where the restaurant sets them up, together
+with the dishes themselves, without going into ERPNext's own screens.
+
+- **Dishes.** Search, filter by section, add a dish (its name, its price as the
+  till shows it and its section) or change one by tapping it. A dish is an
+  ERPNext item with its price in the outlet's price list, and a section is an
+  item group. A new section can be made from the dish form. Tick several
+  dishes, or everything shown, to tie an add-on group to all of them at once,
+  untie it, or take them off sale (and back). Off sale is ERPNext's own switch
+  on the item, so a dish off sale is off at every outlet.
+- **Add-on groups.** One choice (Heat level) or several (Without, Sauces),
+  required or not, with a limit when several, a default choice, and how the
+  kitchen screen shows them: Without in red, Heat in amber, Doneness in violet.
+  A choice **at 0 is a free instruction** for the kitchen. A choice **with a
+  price is billed on its own line** under the dish: the page makes an ERPNext
+  item for it the first time (in the section **Add-ons**, which never shows on
+  a till's menu) with its price in the outlet's price list, so the sale, the
+  VAT and the reports count it like any other line.
+- **Tying a group to dishes.** **Tie to dishes** opens a list of every section
+  with its dishes and a search. Tick a whole section, which also covers the
+  dishes added to it later, or single dishes of it. A new group opens this list
+  as soon as it is saved.
+
+**At the till** a dish with add-ons shows *Has add-ons*. A tap opens its window:
+the groups as buttons, a note for the kitchen and the quantity, and the button
+shows the price with the paid choices. A required group with no default has to
+be chosen before the dish can be added. On the order the free choices show under
+the dish and each paid one as a line of its own with its price. **Add-ons** on
+the line changes them. The same dish with the same choices adds to its line.
+Once the kitchen has a dish its choices stay as they are (the kitchen already
+started on them): change the quantity, or add it again with other choices.
+
+**In the kitchen** the ticket and the kitchen screen show each dish with its
+choices and the paid extras (with a plus), in their colours, and the printed
+kitchen slip lists them under the dish. **On the receipt** a paid add-on prints
+under its dish with its price, and the free choices print under the dish in
+small type unless the outlet switches that off. ERPNext's own invoice shows the
+free choices in the line's description.
+
+**Switches**, per outlet, in Settings, General, Restaurant (a manager's): add-ons
+on or off (off, a line takes a free note only, as before), open the window when
+a dish is tapped (off, a tap adds the dish with its defaults straight away and
+its line opens the window, and a dish with a required group always opens it), and
+print the free choices on the customer receipt. They are on the POS Profile too
+(section Lumen Restaurants).
+
+**Who sees the Menu page:** only the people allowed to **Edit the menu**
+(section 17). Nobody but a manager is, until the restaurant names a role or a
+person, because the page changes prices. Every call the page makes is checked
+again on the server.
+
+A return counts items as it always has: a dish and its paid add-on are two
+lines, each returned on its own.
+
 ### Reservations
 
 The **Bookings** screen is the day book: big time, name and phone, guests,
@@ -1067,11 +1125,16 @@ plus Fatima" is two rows rather than a role invented for one person.
 | **Reprint a receipt** | Printing a receipt again later (and with it, kicking the drawer). The receipt for the sale just made always prints |
 | **Open the register** | Starting a shift |
 | **Close the register** | Counting the drawer and closing |
+| **Open a table order** | Starting to serve a table, a takeaway or a delivery (restaurant outlets) |
+| **Move or merge tables** | Moving an order to another table, or pouring two together |
+| **Cancel a table order** | Throwing away an order nobody paid for |
+| **Edit the menu** | The Menu page: dishes, their prices and their add-ons. Closed until somebody is named, managers always pass |
 
 Rules for the same action are an OR: any row that matches lets the person
 through. **An action with no row is open to everyone**, so nothing locks up the
-day you update. The single exception is *Return past the window*, which stays
-shut until somebody is named, everyone else sends an approval request.
+day you update. The exceptions are *Return past the window*, which stays
+shut until somebody is named (everyone else sends an approval request), and
+*Edit the menu*, which only managers have until somebody is named.
 System and LumenPOS Managers always pass.
 
 The till hides what a person may not do (the cash in/out panel, the reprint
@@ -1141,6 +1204,7 @@ which both LumenPOS roles are given.
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r9 | **Add-ons on dishes, and the Menu page.** A guest's choices about a dish (no pickles, medium heat, extra mayo) are set up as add-on groups on the new **Menu** page, together with the dishes, their prices and their sections, without going into ERPNext's screens, and for a big menu: search everywhere, many dishes tied at once, a group tied to a whole section or to single dishes. At the till a dish opens its add-ons window, a free choice goes to the kitchen as an instruction and a paid one is billed on its own line under the dish. The kitchen screen, the kitchen slip and the receipt show them under their dish, in colour in the kitchen. The Menu page is for the people allowed to **Edit the menu**, a new permission only managers have until somebody is named. Three switches per outlet in Settings, Restaurant. The Permissions list in Settings now also offers the restaurant's own actions (open, move or merge, and cancel a table order). |
 | 0.1.0-r8 | **LumenPOS 0.51.1 to 0.54.0, brought in.** Everything LumenPOS added up to 0.54.0 is in Lumen Restaurants too (see the LumenPOS releases below): automatic exchange rates and change given in the sale's currency, the till in nine languages, a customer's own price list in another currency priced right, held serials refused, the cart keeping its room for the goods, one open shift per person when the restaurant wants it, a close that always goes through, a manager closing anyone's open shift, and the permissions a cashier-only user needs to sell on ERPNext 15 and 16. **The floor screen on ERPNext 16** no longer fails as soon as a table has an order. The restaurant screens (the floor, the kitchen, bookings, the booking designer and the public booking page) are in English and Arabic so far: in the seven new languages they still show English. |
 | 0.1.0-r7 | **ERPNext looks like ERPNext again.** The Lumen Restaurants logo stays in the Lumen Restaurants screens only: the till, the booking page, the icon of the installed app and the receipts. The ERPNext desk bar, the login page, the loading screen and the browser tab show ERPNext's logo as before, and Frappe v15 opens as before after signing in, with no Lumen Restaurants tile on its apps screen. **Our mark and name on every receipt, always.** Every receipt the till gives out ends with the Lumen Restaurants mark and name, and no setting takes them off: the built-in receipt, the receipt printer, an outlet's own Print Format (the till now prints it with our mark added at the foot) and the emailed receipt. |
 | 0.1.0-r6 | **The Lumen Restaurants mark on receipts.** Every receipt ends with the Lumen Restaurants mark and name, small, below the thank you line: in the brand blue on screen, in black on paper (12 mm, the size the logo kit sets for receipts). The restaurant's own logo (Settings, Receipt, Logo) stays at the top, and now prints on a receipt printer too, where until now only the restaurant's name printed: it is shrunk to fit the roll and turned into black and white for thermal paper. A logo has to be kept on the site (a file uploaded to it), a logo on another website is not fetched for the printer. Kitchen tickets stay as they were, short and fast. |
