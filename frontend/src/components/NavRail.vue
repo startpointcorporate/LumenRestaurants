@@ -39,6 +39,11 @@
       <svg viewBox="0 0 24 24"><path d="M5 11a7 7 0 0 1 14 0v1H5zM4 15h16M7 19h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>{{ t('Kitchen') }}</span>
     </router-link>
+    <!-- Lumen Restaurants: the Menu page, for whoever may edit the menu. -->
+    <router-link v-if="session.restaurantMode && session.permissions.can_edit_menu" to="/menu" class="rail-item" active-class="active">
+      <svg viewBox="0 0 24 24"><path d="M5 3.5h11.5A2.5 2.5 0 0 1 19 6v14.5H7.5A2.5 2.5 0 0 1 5 18V3.5zM9 8.5h6M9 12h6M9 15.5h3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span :class="fit(t('Menu'))">{{ t('Menu') }}</span>
+    </router-link>
     <router-link v-if="session.permissions.view_history !== false" to="/history" class="rail-item" active-class="active">
       <svg viewBox="0 0 24 24"><path d="M12 8v5l3.5 2M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span :class="fit(t('History'))">{{ t('History') }}</span>

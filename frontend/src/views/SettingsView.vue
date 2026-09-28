@@ -1098,6 +1098,8 @@
         <p class="muted hint-row" style="margin-top: 10px">
           {{ t('A table that is out of service keeps its history and disappears from the floor screen.') }}
         </p>
+        <!-- Lumen Restaurants: the outlet's add-on switches. -->
+        <AddonSettings v-if="session.restaurantMode && generalSection === 'restaurant'" />
 
         <div class="sub-label">{{ t('Public booking page') }}</div>
         <p class="muted hint-row">
@@ -2232,6 +2234,7 @@
 
 <script setup>
 import Icon from '../components/Icon.vue'
+import AddonSettings from '../components/AddonSettings.vue'
 import OfflineLogModal from '../components/OfflineLogModal.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { call } from '../api'
@@ -2342,6 +2345,11 @@ const capabilityOptions = [
   'Reprint a receipt',
   'Open the register',
   'Close the register',
+  // Lumen Restaurants: the restaurant's own actions.
+  'Open a table order',
+  'Move or merge tables',
+  'Cancel a table order',
+  'Edit the menu',
 ]
 
 function addCapabilityRule() {

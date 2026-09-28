@@ -360,9 +360,10 @@ export const useCartStore = defineStore('cart', {
     // the number of serials on the line.
     addItem(item, serial = null) {
       if (item.has_serial_no && !serial) return false // strict: no serial, no sale
-      // never merge into a bundle line, bundle pricing is per-instance
+      // never merge into a bundle line, bundle pricing is per-instance, nor
+      // into a restaurant dish or its add-on (Lumen Restaurants, addons.js)
       const existing = this.lines.find(
-        (l) => l.item_code === item.item_code && !l.bundle_key
+        (l) => l.item_code === item.item_code && !l.bundle_key && !l.lr_line && !l.lr_addon_of
       )
       if (existing) {
         if (item.has_serial_no) {
@@ -612,6 +613,9 @@ export const useCartStore = defineStore('cart', {
           manual_discount_percent: l.manual_discount_percent || 0,
           serial_nos: l.serial_nos || [],
           bundle_key: l.bundle_key || null,
+          // Lumen Restaurants: a dish's choices and note, a paid add-on's dish.
+          ...(l.lr_line ? { lr_line: l.lr_line, lr_mods: l.lr_mods || [], lr_note: l.note || '' } : {}),
+          ...(l.lr_addon_of ? { lr_addon_of: l.lr_addon_of } : {}),
         })),
         coupon_codes: this.couponCodes,
         sales_person: this.salesPerson,
@@ -879,6 +883,8 @@ export const useCartStore = defineStore('cart', {
       if (!this.order) throw new Error('No table order is open')
       const delta = []
       for (const line of this.lines) {
+        // A paid add-on reaches the kitchen with its dish, among its choices.
+        if (line.lr_addon_of) continue
         const sent = line.sent_qty || 0
         if (line.qty > sent) {
           delta.push({
@@ -886,6 +892,7 @@ export const useCartStore = defineStore('cart', {
             item_name: line.item_name,
             qty: line.qty - sent,
             note: (line.note || '').trim() || null,
+            modifiers: line.lr_mods || [],
           })
         }
       }

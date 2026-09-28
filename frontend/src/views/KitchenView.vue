@@ -36,6 +36,16 @@
               <li v-for="(row, i) in ticket.items" :key="i">
                 <b>×{{ row.qty }}</b> {{ row.item_name }}
                 <span v-if="row.note" class="knote">{{ row.note }}</span>
+                <!-- Lumen Restaurants: the guest's choices, a without in red, heat in
+                     amber, doneness in violet, a paid extra in blue. -->
+                <span v-if="(row.modifiers || []).length" class="kmods">
+                  <span
+                    v-for="(choice, c) in row.modifiers"
+                    :key="c"
+                    class="kmod"
+                    :class="choice.p ? 'add' : choice.s || 'plain'"
+                  >{{ choice.p ? '+ ' : '' }}{{ choice.t }}</span>
+                </span>
               </li>
             </ul>
             <div v-if="ticket.note" class="kfree muted small">{{ ticket.note }}</div>
@@ -191,6 +201,12 @@ onUnmounted(() => {
 .kitems li:last-child { border: 0; }
 .kitems b { display: inline-block; min-width: 32px; }
 .knote { display: inline-block; background: rgba(201, 130, 27, 0.14); color: var(--amber); border-radius: 6px; padding: 0 8px; font-size: 12px; margin-inline-start: 6px; }
+.kmods { display: flex; flex-wrap: wrap; gap: 4px; margin: 5px 0 2px; padding-inline-start: 32px; }
+.kmod { border-radius: 7px; padding: 2px 8px; font-size: 12.5px; font-weight: 700; background: var(--surface-2); color: var(--text); }
+.kmod.no { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red); }
+.kmod.heat { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber); }
+.kmod.cook { background: color-mix(in srgb, var(--promo) 14%, transparent); color: var(--promo); }
+.kmod.add { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand-dark); }
 .kfree { margin-top: 4px; }
 .kbtns { display: flex; gap: 8px; margin-top: 9px; }
 .kbtn { flex: 1; border: 0; border-radius: 10px; padding: 10px; font: inherit; font-weight: 700; font-size: 13.5px; cursor: pointer; }

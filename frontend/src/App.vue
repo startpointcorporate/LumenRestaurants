@@ -192,7 +192,7 @@ const isDisplay = computed(() => route.path === '/display')
 
 // Lumen Restaurants: the restaurant screens belong to restaurant outlets. At a
 // shop outlet (after a switch, or from an old link) they go back to the till.
-const RESTAURANT_ONLY = ['/tables', '/kitchen', '/reservations', '/booking-designer']
+const RESTAURANT_ONLY = ['/tables', '/kitchen', '/reservations', '/booking-designer', '/menu']
 watch(
   () => [session.loaded, session.restaurantMode, route.path],
   ([loaded, restaurant, path]) => {

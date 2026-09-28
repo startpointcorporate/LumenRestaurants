@@ -55,25 +55,34 @@
         <div v-if="!cart.lines.length" class="rempty muted">
           {{ t('Tap the menu to start the order') }}
         </div>
-        <div v-for="(line, i) in cart.lines" :key="line.item_code + '-' + i" class="rline">
+        <template v-for="(line, i) in cart.lines" :key="(line.lr_line || line.item_code) + '-' + i">
+        <div v-if="!line.lr_addon_of" class="rline">
           <div class="rl-main">
             <div class="rl-name">
               <b>{{ line.item_name }}</b>
+              <!-- Lumen Restaurants: the dish's free choices, then its paid lines. -->
+              <span v-if="freeChoices(line).length" class="rl-choices">{{ freeChoices(line).join(listSep) }}</span>
               <span v-if="line.note" class="rl-note">{{ line.note }}</span>
               <span v-if="line.sent_qty" class="rl-sent"><Icon name="check" /> {{ t('sent {n}', { n: line.sent_qty }) }}</span>
             </div>
             <div class="rl-price">{{ money(line.price * line.qty) }}</div>
           </div>
+          <div v-for="addon in addonsOf(cart, line.lr_line)" :key="addon.item_code" class="rl-addon">
+            <span>+ {{ addon.item_name }}</span><span>{{ money(addon.price * addon.qty) }}</span>
+          </div>
           <div class="rl-tools">
             <div class="stepper">
-              <button @click="cart.setQty(i, line.qty - 1)">-</button>
+              <button @click="stepQty(i, line, -1)">-</button>
               <b>{{ line.qty }}</b>
-              <button @click="cart.setQty(i, line.qty + 1)">+</button>
+              <button @click="stepQty(i, line, 1)">+</button>
             </div>
+            <button v-if="groupsOf(line).length" class="rl-tool" @click="editDish(line)">
+              {{ t('Add-ons') }}
+            </button>
             <button class="rl-tool" :class="{ on: noteFor === i }" @click="noteFor = noteFor === i ? null : i">
               {{ t('Note') }}
             </button>
-            <button class="rl-tool danger" @click="cart.removeLine(i)"><Icon name="close" /></button>
+            <button class="rl-tool danger" @click="removeLine(i, line)"><Icon name="close" /></button>
           </div>
           <input
             v-if="noteFor === i"
@@ -84,6 +93,7 @@
             @keyup.enter="$event.target.blur()"
           />
         </div>
+        </template>
       </div>
 
       <div class="rtotals">
@@ -142,7 +152,7 @@
             {{ t('All') }}
           </button>
           <button
-            v-for="group in session.itemGroups"
+            v-for="group in menuGroups"
             :key="group"
             class="rcat"
             :class="{ active: catalog.itemGroup === group }"
@@ -152,19 +162,33 @@
           </button>
         </div>
         <div class="rgrid">
-          <button v-for="item in catalog.items" :key="item.item_code" class="ritem" @click="add(item)">
+          <button v-for="item in menuItems" :key="item.item_code" class="ritem" @click="add(item)">
             <span class="ri-ph" :style="phStyle(item)">
               <img v-if="item.image" :src="item.image" loading="lazy" />
               <template v-else>{{ initial(item) }}</template>
             </span>
             <b>{{ item.item_name }}</b>
             <span class="ri-price">{{ money(item.price) }}</span>
+            <span v-if="groupsOf(item).length" class="ri-mods">{{ t('Has add-ons') }}</span>
           </button>
-          <div v-if="!catalog.items.length" class="rempty muted">{{ t('Nothing here yet') }}</div>
+          <div v-if="!menuItems.length" class="rempty muted">{{ t('Nothing here yet') }}</div>
         </div>
       </div>
     </main>
 
+    <ModifierSheet
+      v-if="sheet"
+      :item="sheet.item"
+      :groups="sheet.groups"
+      :initial-picks="sheet.picks"
+      :initial-qty="sheet.qty"
+      :initial-note="sheet.note"
+      :editing="Boolean(sheet.lineId)"
+      :locked="sheet.locked"
+      @save="saveSheet"
+      @remove="removeFromSheet"
+      @close="sheet = null"
+    />
     <CustomerModal v-if="customerOpen" @close="customerOpen = false" />
     <PaymentOverlay v-if="paymentOpen" @close="paymentOpen = false" @done="onSaleDone" />
     <ReceiptModal v-if="receipt" :receipt="receipt" @close="closeReceipt" />
@@ -178,17 +202,23 @@ import Icon from '../components/Icon.vue'
 import CustomerModal from '../components/CustomerModal.vue'
 import PaymentOverlay from '../components/PaymentOverlay.vue'
 import ReceiptModal from '../components/ReceiptModal.vue'
+import ModifierSheet from '../components/ModifierSheet.vue'
+import { useModifierStore } from '../stores/modifiers'
+import {
+  addDish, updateDish, setDishQty, removeDish, addonsOf, freeChoices, picksFrom, defaultPicks, missingGroups,
+} from '../addons'
 import { call } from '../api'
 import { useSessionStore } from '../stores/session'
 import { useCatalogStore } from '../stores/catalog'
 import { useCartStore } from '../stores/cart'
 import { money } from '../format'
-import { t } from '../i18n'
+import { t, locale } from '../i18n'
 
 const router = useRouter()
 const session = useSessionStore()
 const catalog = useCatalogStore()
 const cart = useCartStore()
+const modifiers = useModifierStore()
 
 const customerOpen = ref(false)
 const paymentOpen = ref(false)
@@ -198,9 +228,63 @@ const firing = ref(false)
 const readyCalls = ref([])
 let readyTimer = null
 
+// A paid add-on goes to the kitchen with its dish, it is not counted apart.
 const unsentCount = computed(() =>
-  cart.lines.reduce((sum, line) => sum + Math.max(0, line.qty - (line.sent_qty || 0)), 0)
+  cart.lines.reduce(
+    (sum, line) => (line.lr_addon_of ? sum : sum + Math.max(0, line.qty - (line.sent_qty || 0))),
+    0
+  )
 )
+
+// --- Lumen Restaurants: add-ons -------------------------------------------
+const sheet = ref(null)
+const listSep = computed(() => (locale.value === 'ar' ? '، ' : ', '))
+const menuItems = computed(() => catalog.items.filter((item) => !modifiers.isAddonItem(item)))
+const menuGroups = computed(() => session.itemGroups.filter((group) => group !== modifiers.hiddenGroup))
+
+function groupsOf(item) {
+  return modifiers.groupsFor(item)
+}
+
+function openSheet(item, line = null) {
+  const groups = groupsOf(item)
+  sheet.value = {
+    item: line ? { ...item, price: line.price } : item,
+    groups,
+    lineId: line?.lr_line || null,
+    picks: line ? picksFrom(line) : defaultPicks(groups),
+    qty: line ? line.qty : 1,
+    note: line ? line.note || '' : '',
+    // what the kitchen already has keeps its choices
+    locked: Boolean(line && line.sent_qty),
+  }
+}
+
+function editDish(line) {
+  openSheet(line, line)
+}
+
+function saveSheet({ picks, qty, note }) {
+  const s = sheet.value
+  if (s.lineId) updateDish(cart, s.lineId, s.groups, picks, qty, note, modifiers.hiddenGroup)
+  else addDish(cart, s.item, s.groups, picks, qty, note, modifiers.hiddenGroup)
+  sheet.value = null
+}
+
+function removeFromSheet() {
+  if (sheet.value?.lineId) removeDish(cart, sheet.value.lineId)
+  sheet.value = null
+}
+
+function stepQty(i, line, step) {
+  if (line.lr_line) setDishQty(cart, line.lr_line, line.qty + step)
+  else cart.setQty(i, line.qty + step)
+}
+
+function removeLine(i, line) {
+  if (line.lr_line) removeDish(cart, line.lr_line)
+  else cart.removeLine(i)
+}
 
 function setType(type) {
   cart.serviceType = type
@@ -236,7 +320,12 @@ function add(item) {
       return session.notify(t('{item}: only {qty} in stock', { item: item.item_name, qty: item.actual_qty || 0 }), true)
     }
   }
-  cart.addItem(item)
+  const groups = groupsOf(item)
+  if (groups.length && (modifiers.openOnTap || missingGroups(groups, defaultPicks(groups)).length)) {
+    return openSheet(item)
+  }
+  addDish(cart, item, groups, defaultPicks(groups), 1, '', modifiers.hiddenGroup)
+  if (groups.length) session.notify(t('Added. Tap its line for the add-ons.'))
 }
 
 // Put the table down and go back to the floor, saving first.
@@ -317,6 +406,7 @@ cart.$subscribe(() => cart.touchOrder())
 
 onMounted(() => {
   catalog.fetch()
+  modifiers.load()
   loadReady()
   readyTimer = setInterval(loadReady, 8000)
 })
@@ -354,6 +444,9 @@ onUnmounted(() => clearInterval(readyTimer))
 .rl-note { display: inline-block; background: var(--amber-soft, #fdf3e2); color: #9a6a0a; border-radius: 6px; padding: 0 8px; font-size: 11.5px; margin-top: 3px; }
 .rl-sent { display: inline-flex; align-items: center; gap: 3px; color: var(--brand); font-size: 11.5px; margin-inline-start: 6px; }
 .rl-price { font-weight: 700; font-size: 14px; white-space: nowrap; }
+.rl-choices { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+.rl-addon { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--brand-dark); font-weight: 600; margin-top: 3px; }
+.ri-mods { font-size: 11px; font-weight: 700; color: var(--brand-dark); }
 .rl-tools { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
 .stepper { display: flex; align-items: center; gap: 2px; border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; }
 .stepper button { width: 34px; height: 32px; border: 0; background: transparent; font-size: 18px; font-weight: 600; cursor: pointer; color: var(--text); }

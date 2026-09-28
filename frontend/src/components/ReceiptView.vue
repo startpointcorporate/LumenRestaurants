@@ -37,9 +37,12 @@
 
     <table class="receipt-table">
       <tbody>
-        <tr v-for="(item, i) in receipt.items" :key="i">
-          <td>
+        <!-- Lumen Restaurants: a paid add-on sits under its dish. -->
+        <tr v-for="(item, i) in receipt.items" :key="i" :class="{ 'ritem-addon': item.addon_of }">
+          <td v-if="item.addon_of" class="ritem-addon-name">+ {{ item.item_name }}</td>
+          <td v-else>
             <div class="ritem-name">{{ item.item_name }}</div>
+            <div v-if="item.choices_text" class="muted small ritem-choices">{{ item.choices_text }}</div>
             <div
               v-if="(s.receipt_show_item_code && item.item_code) || (s.receipt_show_barcode && item.barcode)"
               class="muted small ritem-meta"
@@ -222,6 +225,8 @@ function asImg(value) {
 }
 .ritem-name { font-weight: 600; }
 .ritem-meta { font-family: var(--mono); }
+.ritem-choices { font-size: 12px; }
+.ritem-addon-name { padding-inline-start: 14px; font-size: 13px; }
 .receipt-totals { margin-top: 10px; }
 .row { display: flex; justify-content: space-between; padding: 2.5px 0; }
 .row.total { font-weight: 800; font-size: 15px; padding: 6px 0; }
