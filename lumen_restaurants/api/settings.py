@@ -14,7 +14,7 @@ from frappe.utils.password import get_decrypted_password
 from lumen_restaurants import __version__
 from lumen_restaurants import erpnext_compat
 from lumen_restaurants.api import insights
-from lumen_restaurants import cashback_rules, scope
+from lumen_restaurants import cashback_rules, languages, scope
 
 def _can_manage():
     """Can the user change LumenPOS-wide settings (the General tab)?"""
@@ -83,6 +83,7 @@ def get_settings():
         "protected_price_lists": sorted(_protected_price_lists()),
         "offline_stock_only": doc.get("offline_stock_only") or 0,
         "shift_scope": doc.get("shift_scope") or "Per outlet",
+        "one_shift_per_user": 1 if doc.get("one_shift_per_user") else 0,
         "variance_alert_enabled": 1 if doc.get("variance_alert_enabled") else 0,
         "variance_alert_threshold": flt(doc.get("variance_alert_threshold")),
         "variance_alert_role": doc.get("variance_alert_role") or "",
@@ -110,6 +111,9 @@ def get_settings():
             {"item_code": r.item_code, "label": r.label or ""}
             for r in (doc.get("quick_keys") or [])
         ],
+        # [] = every language LumenPOS ships (lumen_restaurants.languages).
+        "till_languages": languages.offered(doc),
+        "shipped_languages": languages.shipped(),
         "receipt_template": doc.get("receipt_template") or "Standard",
         "receipt_logo": doc.get("receipt_logo") or "",
         "receipt_header": doc.get("receipt_header") or "",
@@ -211,11 +215,21 @@ def get_settings():
         "enable_multi_currency": 1 if doc.get("enable_multi_currency") else 0,
         # Customer balances across the companies of a group (lumen_restaurants.inter_company).
         "balances_across_companies": doc.get("balances_across_companies") or "Shared by the group",
+        # Automatic exchange rates (lumen_restaurants.currency) and the credit their
+        # source asks for wherever they are shown.
+        "auto_rates_enabled": 1 if doc.get("auto_rates_enabled") else 0,
+        "rates_credit": _rates_credit(),
         "sale_currencies": _sale_currencies(doc),
         # The new-customer form (lumen_restaurants.customer_form): every field, built-in
         # ones first, with its state for individuals and for companies.
         "customer_form_fields": _customer_form_fields(),
     }
+
+
+def _rates_credit():
+    from lumen_restaurants import currency
+
+    return currency.RATES_CREDIT
 
 
 def _customer_form_fields():
@@ -239,17 +253,26 @@ def _sale_currencies(doc):
 
     rates = {}
     try:
-        for row in currency.get_rates():
+        for row in currency.rates():
             rates.setdefault(row["currency"], []).append(row)
     except Exception:
         rates = {}
+    problems = currency.setup_errors()
     return [
         {
             "currency": row.currency,
             "walk_in_customer": row.walk_in_customer or "",
             "cash_mode": row.cash_mode or "",
             "show_equivalent": 1 if row.show_equivalent else 0,
+            # Change in this currency, from its own drawer (0.52.0).
+            "change_in_currency": 1 if row.get("change_in_currency") else 0,
             "rates": rates.get(row.currency, []),
+            # Why the last setup of this currency failed, if it did.
+            "setup_error": problems.get(row.currency) or "",
+            # Fixed (the shop sets the rate) or Automatic (updated daily).
+            "rate_source": row.get("rate_source") or "Fixed",
+            "rate_margin": flt(row.get("rate_margin")),
+            "auto_status": currency.auto_status(row),
         }
         for row in (doc.get("sale_currencies") or [])
     ]
@@ -263,6 +286,9 @@ def save_settings(payload):
     doc = frappe.get_doc("LumenPOS Settings")
     doc.offline_stock_only = 1 if payload.get("offline_stock_only") else 0
     doc.shift_scope = payload.get("shift_scope") or "Per outlet"
+    # A screen from before 0.54.0 sends no such key: leave the choice alone.
+    if "one_shift_per_user" in payload:
+        doc.one_shift_per_user = 1 if payload.get("one_shift_per_user") else 0
     doc.variance_alert_enabled = 1 if payload.get("variance_alert_enabled") else 0
     doc.variance_alert_threshold = flt(payload.get("variance_alert_threshold"))
     doc.variance_alert_role = payload.get("variance_alert_role") or None
@@ -286,6 +312,9 @@ def save_settings(payload):
     doc.enable_till_lock = 1 if payload.get("enable_till_lock") else 0
     doc.auto_lock_minutes = cint(payload.get("auto_lock_minutes")) or 0
     doc.enable_quick_keys = 1 if payload.get("enable_quick_keys") else 0
+    # A screen from before 0.53.0 sends no languages: leave the choice alone.
+    if "till_languages" in payload:
+        doc.till_languages = languages.store(payload.get("till_languages"))
     doc.set("quick_keys", [])
     for row in payload.get("quick_keys") or []:
         code = (row.get("item_code") or "").strip()
@@ -470,6 +499,8 @@ def save_settings(payload):
         doc.balances_across_companies = payload["balances_across_companies"]
     if "enable_multi_currency" in payload:
         doc.enable_multi_currency = 1 if payload.get("enable_multi_currency") else 0
+    if "auto_rates_enabled" in payload:
+        doc.auto_rates_enabled = 1 if payload.get("auto_rates_enabled") else 0
     if "sale_currencies" in payload:
         kept = {r.currency: r for r in (doc.get("sale_currencies") or [])}
         doc.sale_currencies = []
@@ -480,6 +511,9 @@ def save_settings(payload):
                 continue
             seen.add(code)
             old = kept.get(code)
+            margin = flt(row.get("rate_margin"))
+            if margin < 0 or margin >= 100:
+                frappe.throw(_("The margin for {0} must be from 0 to less than 100%.").format(code))
             doc.append(
                 "sale_currencies",
                 {
@@ -487,6 +521,11 @@ def save_settings(payload):
                     "walk_in_customer": (old.walk_in_customer if old else None) or row.get("walk_in_customer") or None,
                     "cash_mode": (old.cash_mode if old else None) or row.get("cash_mode") or None,
                     "show_equivalent": 1 if row.get("show_equivalent") else 0,
+                    "change_in_currency": 1 if row.get("change_in_currency") else 0,
+                    "rate_source": "Automatic" if row.get("rate_source") == "Automatic" else "Fixed",
+                    "rate_margin": margin,
+                    # What the daily update did stays with the currency.
+                    "auto_status": old.get("auto_status") if old else None,
                 },
             )
             frappe.db.set_value("Currency", code, "enabled", 1)
@@ -519,6 +558,12 @@ def save_settings(payload):
         from lumen_restaurants import currency
 
         currency.ensure_setup()
+        # A currency just switched to Automatic gets today's rate at once (a
+        # rate typed for today stays). A failure shows under the currency.
+        try:
+            currency.refresh_auto_rates()
+        except Exception:
+            frappe.log_error(title="LumenPOS: exchange rates update failed", message=frappe.get_traceback())
     from lumen_restaurants.api import audit
 
     audit.log(audit.SETTINGS_CHANGE, detail="LumenPOS Settings updated")

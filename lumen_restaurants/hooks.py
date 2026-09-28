@@ -49,6 +49,11 @@ scheduler_events = {
         "45 0 * * *": [
             "lumen_restaurants.inter_company.nightly",
         ],
+        # Other currencies set to Automatic: the day's published rate, less the
+        # shop's margin, saved as ERPNext Currency Exchange.
+        "15 0 * * *": [
+            "lumen_restaurants.currency.daily_rates",
+        ],
     },
 }
 
@@ -57,7 +62,11 @@ scheduler_events = {
 # runtime. It returns at once unless a demo run has set
 # frappe.flags.lumenpos_demo_stamp, so a real sale is never touched.
 doc_events = {
-    "POS Invoice": {"before_insert": "lumen_restaurants.demo_data.apply_demo_stamp"},
+    "POS Invoice": {
+        "before_insert": "lumen_restaurants.demo_data.apply_demo_stamp",
+        # ERPNext 16 leaves loyalty points owing on a POS Invoice (see there).
+        "before_submit": "lumen_restaurants.erpnext_compat.settle_points_outstanding",
+    },
     "Sales Invoice": {"before_insert": "lumen_restaurants.demo_data.apply_demo_stamp"},
     "Stock Entry": {"before_insert": "lumen_restaurants.demo_data.apply_demo_stamp"},
     "POS Opening Entry": {"before_insert": "lumen_restaurants.demo_data.apply_demo_stamp"},

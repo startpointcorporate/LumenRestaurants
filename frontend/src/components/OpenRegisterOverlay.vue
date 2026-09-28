@@ -77,12 +77,45 @@
       <!-- Step 1: float entry -->
       <template v-else>
         <div class="modal-body">
-          <div v-if="session.otherOpenRegisters.length" class="shift-banner warn oe-warn">
-            <div><Icon name="warning" /> {{ t('You still have another register open:') }}</div>
-            <div v-for="r in session.otherOpenRegisters" :key="r.session" class="oe-item">
-              {{ r.pos_profile }} <span class="oe-sess">({{ r.session }})</span>
+          <!-- Shifts this person still holds at other outlets. A reminder, or,
+               when the shop allows one open shift per person, the reason this
+               one cannot open yet, with a way to get to the open one. -->
+          <div v-if="others.length" class="shift-banner warn oe-warn" :class="{ 'oe-block': oneShiftBlocked }">
+            <div>
+              <Icon name="warning" />
+              {{
+                oneShiftBlocked
+                  ? t('Close your open shift first')
+                  : others.length > 1
+                    ? t('You still have {n} other registers open:', { n: others.length })
+                    : t('You still have another register open:')
+              }}
             </div>
-            <div class="choice-hint">{{ t('Remember to close it when its shift ends.') }}</div>
+            <div v-for="r in others" :key="r.session" class="oe-item">
+              {{ r.pos_profile }} <span class="oe-sess">({{ r.session }})</span>
+              <button
+                v-if="r.reachable !== false && session.availableProfiles.includes(r.pos_profile)"
+                type="button"
+                class="oe-go"
+                :disabled="busy"
+                @click="goClose(r.pos_profile)"
+              >
+                {{ t('Go to its Register page') }}
+              </button>
+              <span v-else class="oe-ask">{{ t('Not open to you any more: ask a manager to close it.') }}</span>
+            </div>
+            <div v-if="oneShiftBlocked || anyReachable" class="choice-hint">
+              {{
+                oneShiftBlocked
+                  ? t('This shop allows one open shift per person at a time. Close it, then open this one.')
+                  : others.length > 1
+                    ? t('Remember to close each one when its shift ends.')
+                    : t('Remember to close it when its shift ends.')
+              }}
+            </div>
+            <div v-if="oneShiftBlocked" class="choice-hint">
+              {{ t("If you cannot close it, a manager can close it for you from that outlet's Register page.") }}
+            </div>
           </div>
           <template v-if="session.availableProfiles.length > 1">
             <label class="field-label">{{ t('Outlet') }}</label>
@@ -108,7 +141,7 @@
             inputmode="decimal"
             v-model="openingFloat"
             style="width: 100%"
-            :disabled="!canOpen"
+            :disabled="!canOpen || oneShiftBlocked"
             @keydown.enter="open"
           />
           <!-- A drawer in another currency (Settings, General, Other
@@ -129,7 +162,7 @@
           <button
             class="btn btn-primary btn-lg"
             style="width: 100%"
-            :disabled="busy || !canOpen"
+            :disabled="busy || !canOpen || oneShiftBlocked"
             @click="open"
           >
             {{ busy ? t('Opening…') : t('Open Register') }}
@@ -147,6 +180,7 @@
 <script setup>
 import Icon from './Icon.vue'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSessionStore } from '../stores/session'
 import { useCatalogStore } from '../stores/catalog'
 import { useCartStore } from '../stores/cart'
@@ -164,10 +198,14 @@ const pending = ref(session.pendingClosing)
 let poll = null
 
 // Cash drawers in another currency ("Cash USD"): each counts its own money.
+// None while selling in other currencies is off, though the drawers stay on
+// the outlet (the server ignores such a float too).
 const foreignDrawers = computed(() =>
-  (session.paymentModes || []).filter(
-    (m) => m.type === 'Cash' && m.account_currency && m.account_currency !== session.localCurrency
-  )
+  session.multiCurrency?.enabled
+    ? (session.paymentModes || []).filter(
+        (m) => m.type === 'Cash' && m.account_currency && m.account_currency !== session.localCurrency
+      )
+    : []
 )
 const floats = ref({})
 
@@ -182,6 +220,20 @@ function foreignFloats() {
 }
 
 const canOpen = computed(() => session.permissions.open_register !== false)
+
+// Shifts this person still holds at other outlets, and whether the shop's
+// "one open shift per person" setting stops this one until they are closed
+// (the server refuses it too, lumen_restaurants.api.register).
+const router = useRouter()
+const others = computed(() => session.otherOpenRegisters || [])
+// Only a shift this person can still reach blocks; one at an outlet they
+// cannot reach any more is for a manager, and never locks them out.
+const anyReachable = computed(() => others.value.some((r) => r.reachable !== false))
+const oneShiftBlocked = computed(() => !!session.settings?.one_shift_per_user && anyReachable.value)
+async function goClose(profile) {
+  await onSwitchOutlet(profile)
+  router.push('/register')
+}
 const canClose = computed(() => session.permissions.close_register !== false)
 
 onMounted(() => {
@@ -343,6 +395,21 @@ function startPoll(sessionName) {
 .oe-warn { text-align: start; }
 .oe-item { font-weight: 800; margin-top: 4px; }
 .oe-sess { font-weight: 500; opacity: 0.7; font-size: 12px; }
+.oe-item { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.oe-go {
+  margin-inline-start: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-dark);
+  background: rgba(20, 99, 255, 0.08);
+  border: 1px solid rgba(20, 99, 255, 0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+html[data-theme='dark'] .oe-go { color: #9fc0ff; background: rgba(47, 123, 255, 0.16); }
+.oe-block { border-color: var(--red); }
+.oe-ask { flex-basis: 100%; font-size: 12px; font-weight: 600; opacity: 0.85; }
 .outlet-select {
   width: 100%;
   padding: 11px 12px;

@@ -413,6 +413,7 @@ export const useCartStore = defineStore('cart', {
             item_codes: codes,
             customer_group: this.customer?.customer_group || null,
             app_type: this.appType,
+            customer: this.customer?.name || null,
           })
           for (const [code, price] of Object.entries(data.prices || {})) {
             info[code] = { ...(info[code] || {}), price }
@@ -483,11 +484,14 @@ export const useCartStore = defineStore('cart', {
       const session = useSessionStore()
       if (session.offline || !this.lines.length) return
       try {
+        // The customer too: one billed in another currency may have their
+        // own price list in it (lumen_restaurants.currency).
         const data = await call('lumen_restaurants.api.catalog.get_prices', {
           pos_profile: session.posProfile,
           item_codes: this.lines.map((l) => l.item_code),
           customer_group: this.customer?.customer_group || null,
           app_type: this.appType,
+          customer: this.customer?.name || null,
         })
         this.activePriceList = data.price_list
         for (const line of this.lines) {

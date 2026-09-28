@@ -5,6 +5,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from lumen_restaurants import erpnext_compat
 from lumen_restaurants.price_books import effective_prices, resolve_price_list, standard_prices
 
 
@@ -234,6 +235,9 @@ def resolve_scan(pos_profile, code, customer_group=None, app_type=None):
         if sn and sn.status == "Active" and (
             not profile.warehouse or sn.warehouse == profile.warehouse
         ):
+            held = serials_held(sn.item_code, profile.warehouse).get(sn.name)
+            if held:
+                return {"found": False, "message": _held_message(sn.name, held)}
             item_code = sn.item_code
             serial = sn.name
     if not item_code:
@@ -280,9 +284,12 @@ def resolve_scan(pos_profile, code, customer_group=None, app_type=None):
 
 
 @frappe.whitelist()
-def get_prices(pos_profile, item_codes, customer_group=None, app_type=None):
+def get_prices(pos_profile, item_codes, customer_group=None, app_type=None, customer=None):
     """Batch reprice for the cart when the active price list changes
-    (customer with a price book, or a delivery-app channel)."""
+    (customer with a price book, or a delivery-app channel). With a customer
+    billed in another currency who has their own price list in it, the items
+    that list prices come in the outlet's terms, exactly as the sale will
+    charge them, so the cart and the payment screen agree."""
     if isinstance(item_codes, str):
         import json
 
@@ -296,9 +303,19 @@ def get_prices(pos_profile, item_codes, customer_group=None, app_type=None):
             "Item", filters={"name": ["in", item_codes]}, fields=["name", "stock_uom"]
         )
     }
+    prices = effective_prices(profile, item_codes, customer_group, app_price_list, uom_map)
+    if customer and frappe.db.exists("Customer", customer):
+        from lumen_restaurants import currency
+        from lumen_restaurants.api.sales import _quote_session
+
+        try:
+            ctx = currency.sale_context(profile, customer, price_list, _quote_session(profile.name))
+        except frappe.ValidationError:
+            ctx = None  # a customer this till cannot sell to: the sale says why
+        prices.update(currency.own_list_prices(ctx, item_codes, uom_map))
     return {
         "price_list": price_list,
-        "prices": effective_prices(profile, item_codes, customer_group, app_price_list, uom_map),
+        "prices": prices,
         "standard_prices": standard_prices(profile, item_codes, uom_map),
     }
 
@@ -562,24 +579,87 @@ def validate_serial(pos_profile, item_code, serial_no):
 
 
 def _check_serial(item_code, serial_no, warehouse):
+    # The cashier reads these at the till, so they go through _() like every
+    # other message and come back in the till's language.
     serial_no = (serial_no or "").strip()
     if not serial_no:
-        return {"valid": False, "message": "Scan or type a serial number"}
+        return {"valid": False, "message": _("Scan or type a serial number")}
     sn = frappe.db.get_value(
         "Serial No", serial_no, ["name", "item_code", "status", "warehouse"], as_dict=True
     )
     if not sn:
-        return {"valid": False, "message": f"Serial {serial_no} does not exist"}
+        return {"valid": False, "message": _("Serial {0} does not exist").format(serial_no)}
     if sn.item_code != item_code:
-        return {"valid": False, "message": f"Serial {serial_no} belongs to {sn.item_code}"}
+        return {"valid": False, "message": _("Serial {0} belongs to {1}").format(serial_no, sn.item_code)}
     if sn.status != "Active":
-        return {"valid": False, "message": f"Serial {serial_no} is not in stock ({sn.status})"}
+        return {
+            "valid": False,
+            "message": _("Serial {0} is not in stock ({1})").format(serial_no, _(sn.status or "")),
+        }
     if warehouse and sn.warehouse != warehouse:
         return {
             "valid": False,
-            "message": f"Serial {serial_no} is in {sn.warehouse}, not this register's warehouse",
+            "message": _("Serial {0} is in {1}, not this register's warehouse").format(serial_no, sn.warehouse),
         }
+    held = serials_held(item_code, warehouse).get(sn.name)
+    if held:
+        return {"valid": False, "message": _held_message(sn.name, held)}
     return {"valid": True, "message": "OK", "serial_no": sn.name}
+
+
+def serials_held(item_code, warehouse=None):
+    """Serials the till must not sell now, as {serial: (invoice, came_back)}.
+
+    ERPNext moves no stock until the shift close consolidates a POS Invoice, so
+    a serial sold on one still reads Active in the warehouse. Two readings are
+    joined:
+
+    1. The unconsolidated window, read from the serial_no text LumenPOS writes
+       on every line: a sale holds the serial, a later POS return frees it.
+       ERPNext 13 and 14 do not see this themselves: get_pos_reserved_serial_nos
+       subtracts the SET of every serial ever returned, so once a serial came
+       back in any old return, a second sale of it went through and failed only
+       at the close.
+    2. What ERPNext itself holds by its rule for the version
+       (erpnext_compat.pos_reserved_serials), so the till is never looser than
+       the submit that follows. ERPNext 15 and 16 keep a serial even after a
+       same-shift return (came_back), until the close books the sale.
+    """
+    rows = frappe.db.sql(
+        """select pi.name, pi.is_return, pii.serial_no
+            from `tabPOS Invoice` pi
+            join `tabPOS Invoice Item` pii on pii.parent = pi.name
+            where pi.docstatus = 1 and ifnull(pi.consolidated_invoice, '') = ''
+              and pii.item_code = %(item)s and ifnull(pii.serial_no, '') != ''
+              and (%(warehouse)s is null or pii.warehouse = %(warehouse)s)
+            order by pi.posting_date, pi.posting_time, pi.creation""",
+        {"item": item_code, "warehouse": warehouse or None},
+        as_dict=True,
+    )
+    window = {}
+    for row in rows:
+        for serial in (row.serial_no or "").splitlines():
+            serial = serial.strip()
+            if serial:
+                window[serial] = (row.name, bool(row.is_return))
+    held = {serial: last for serial, last in window.items() if not last[1]}
+    for serial in erpnext_compat.pos_reserved_serials(item_code, warehouse):
+        if serial not in held:
+            held[serial] = window.get(serial) or (None, False)
+    return held
+
+
+def _held_message(serial_no, held):
+    invoice, came_back = held
+    if not invoice:
+        return _("Serial {0} is held by a sale the shift close has not booked yet").format(serial_no)
+    if came_back:
+        return _("Serial {0} came back on {1}, and ERPNext holds it until the shift close books that sale").format(
+            serial_no, invoice
+        )
+    return _("Serial {0} is already sold on {1}, which the shift close has not booked yet").format(
+        serial_no, invoice
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -600,15 +680,22 @@ def recent_customers(pos_profile, limit=2000):
     sale_doctype = _table_doctype(pos_profile)
 
     ordered, seen = [], set()
-    # 1) recently transacted with this company (the customers you actually serve)
-    for r in frappe.get_all(
-        sale_doctype,
-        filters={"company": company, "docstatus": 1, "customer": ["is", "set"]},
-        fields=["customer", "max(posting_date) as last"],
-        group_by="customer",
-        order_by="last desc",
-        limit_page_length=limit,
-    ):
+    # 1) recently transacted with this company (the customers you actually
+    # serve). Plain SQL: Frappe 16 refuses max() written as text in get_all
+    # fields. `sale_doctype` is a fixed doctype name (_table_doctype).
+    recent = frappe.db.sql(  # nosemgrep
+        f"""
+        select customer, max(posting_date) as last
+        from `tab{sale_doctype}`
+        where company = %s and docstatus = 1 and ifnull(customer, '') != ''
+        group by customer
+        order by last desc
+        limit {int(limit)}
+        """,
+        company,
+        as_dict=True,
+    )
+    for r in recent:
         if r.customer and r.customer not in seen:
             seen.add(r.customer)
             ordered.append(r.customer)

@@ -121,9 +121,15 @@ def _foreign_floats(session_doc):
 
 
 def _clean_floats(pos_profile, floats):
-    """{mode: amount} for this outlet's drawers in another currency only."""
+    """{mode: amount} for this outlet's drawers in another currency only, and
+    none while selling in other currencies is off: the drawers stay on the
+    outlet after the switch, but a new shift has no use for them."""
+    from lumen_restaurants import currency
+
     if isinstance(floats, str):
         floats = json.loads(floats or "{}")
+    if not currency.enabled():
+        return {}
     foreign = _foreign_drawers(pos_profile)
     return {mode: flt(amount) for mode, amount in (floats or {}).items() if mode in foreign and flt(amount) > 0}
 
@@ -155,6 +161,32 @@ def _assert_owner_or_manager(session_doc):
 # ---------------------------------------------------------------------------
 # Opening
 # ---------------------------------------------------------------------------
+
+def _assert_no_other_open_shift(pos_profile):
+    """LumenPOS Settings.one_shift_per_user on: refuse a new shift while this
+    user still has one Open at another outlet they can reach, naming it. Off
+    (the default), a person may hold shifts at several outlets at once (a
+    manager covering branches) and the Open Register dialog only reminds them.
+
+    Nobody is ever locked out by it: a shift whose close was started is
+    Closing, not Open, even when that close failed; and an open shift at an
+    outlet the user can no longer reach (disabled, access removed) does not
+    count, since they could not close it themselves (a manager does)."""
+    if not cint(frappe.db.get_single_value("LumenPOS Settings", "one_shift_per_user") or 0):
+        return
+    from lumen_restaurants.api.session import _other_open_registers
+
+    others = [r for r in _other_open_registers(pos_profile) if r.get("reachable")]
+    if others:
+        frappe.throw(
+            _("Close your open shift first: {0}. This shop allows one open shift per person at a time.").format(
+                ", ".join("{0} ({1})".format(r["pos_profile"], r["session"]) for r in others)
+            )
+            + " "
+            + _("If you cannot close it, a manager can close it for you from that outlet's Register page."),
+            title=_("Shift already open"),
+        )
+
 
 @frappe.whitelist()
 def open_register(pos_profile, opening_float=0, resume_opening_entry=None, force_new=0, floats=None):
@@ -192,6 +224,10 @@ def open_register(pos_profile, opening_float=0, resume_opening_entry=None, force
 
     if not permissions.can_open_register():
         frappe.throw(_("You are not allowed to open a register"), frappe.PermissionError)
+    # 0) A shop may hold every person to one open shift at a time (Settings,
+    # General, Register and shifts): one still open at another outlet is
+    # closed first.
+    _assert_no_other_open_shift(profile.name)
 
     # 1) This register must have no live shift (Open or still-finalising Closing).
     # In "Per cashier" scope the shift belongs to the individual, so the check is
@@ -217,6 +253,11 @@ def open_register(pos_profile, opening_float=0, resume_opening_entry=None, force
         # must NEVER block the store from opening the next shift, no matter the
         # closing_status (Pending / Queued / Failed). Open a fresh shift now; the
         # stuck close keeps retrying independently, so no invoice is lost.
+        # ERPNext 16 is the exception: it refuses every sale while the outlet
+        # still has the old shift's entry open, so that close is finished first.
+        if not lightweight and erpnext_compat.one_open_shift_per_outlet():
+            _assert_outlet_free(profile, closing_session=existing.name)
+            return _create_fresh_session(profile, opening_float, floats=floats)
         return _force_new_after_failure(profile, opening_float, existing.name, floats)
 
     # Lightweight Sales Invoice cash shift, just the float, no ERPNext POS
@@ -241,8 +282,70 @@ def open_register(pos_profile, opening_float=0, resume_opening_entry=None, force
 
     # 2) Nothing live on this register -> always a brand-new shift. Any stale
     # native "Open" POS Opening Entry left behind by a failed close or by the
-    # stock POS is ignored on purpose (see the docstring).
+    # stock POS is ignored on purpose (see the docstring), except on ERPNext
+    # 16, which refuses every sale of an outlet that has one (see
+    # _assert_outlet_free).
+    if erpnext_compat.one_open_shift_per_outlet():
+        _assert_outlet_free(profile)
     return _create_fresh_session(profile, opening_float, floats=floats)
+
+
+def _assert_outlet_free(profile, closing_session=None):
+    """ERPNext 16 only: before a new shift adds its POS Opening Entry, the
+    outlet must have none open, or ERPNext refuses every one of its sales
+    ("has multiple open POS Opening Entries"). A previous shift of ours still
+    closing is finished now when it can be (it normally finishes in the
+    background within seconds); whatever stays open is named, with what to do,
+    instead of opening a shift that cannot sell. Also refuses when ERPNext is
+    set to make Sales Invoices from the POS and this outlet makes POS Invoices."""
+    refused = erpnext_compat.pos_invoice_refused()
+    if refused and profile.get("lumenpos_invoice_mode") != "Sales Invoice":
+        frappe.throw(refused, title=_("Invoice type"))
+    if closing_session:
+        try:
+            build_closing_entry(closing_session)
+        except Exception:
+            frappe.log_error(title="LumenPOS: finishing a close before opening", message=frappe.get_traceback())
+    still_open = frappe.get_all(
+        "POS Opening Entry",
+        filters={"pos_profile": profile.name, "status": "Open", "docstatus": 1},
+        fields=["name", "user", "period_start_date"],
+        order_by="period_start_date asc",
+    )
+    if not still_open:
+        return
+    lines = []
+    for entry in still_open:
+        who = frappe.utils.get_fullname(entry.user) if entry.user else ""
+        since = frappe.utils.format_datetime(entry.period_start_date, "yyyy-MM-dd HH:mm")
+        ours = frappe.db.get_value(
+            "POS Register Session",
+            {"pos_opening_entry": entry.name},
+            ["name", "status", "closing_error"],
+            as_dict=True,
+        )
+        if ours and ours.status == "Closing":
+            lines.append(
+                _("Shift {0} is still being closed ({1}): retry its close from the Register screen.").format(
+                    ours.name, ours.closing_error or _("the close has not finished")
+                )
+            )
+        elif ours and ours.status == "Open":
+            lines.append(_("{0} has shift {1} open since {2}: close it first.").format(who, ours.name, since))
+        else:
+            lines.append(
+                _("POS Opening Entry {0} (by {1}, since {2}) is open outside LumenPOS: close or cancel it in ERPNext.").format(
+                    entry.name, who, since
+                )
+            )
+    frappe.throw(
+        _("ERPNext 16 lets an outlet sell with only one open shift, and {0} still has one:").format(profile.name)
+        + "<br>"
+        + "<br>".join(lines)
+        + "<br>"
+        + _("Several cashiers on one outlet each need their own POS Profile on ERPNext 16."),
+        title=_("Outlet already open"),
+    )
 
 
 def _create_fresh_session(profile, opening_float, bypass_live_guard=False, floats=None):
@@ -514,30 +617,7 @@ def get_session_summary(session):
                 }
             )
 
-    # Totals in the company currency, so a shift that sold in dollars and in
-    # dirhams adds up to one figure the books agree with.
-    totals = frappe.get_all(
-        sale_doctype,
-        filters={"lumenpos_session": doc.name, "docstatus": 1},
-        fields=[
-            "count(name) as sales_count",
-            "sum(base_grand_total) as total_sales",
-            "sum(base_discount_amount) as invoice_discounts",
-        ],
-    )
-    # `sale_doctype` is a fixed doctype name (POS Invoice / Sales Invoice from
-    # _table_doctype), not user input, and a table identifier can't be a bound
-    # param; the session filter is parameterized. Safe despite the f-string.
-    line_discounts = frappe.db.sql(  # nosemgrep
-        f"""
-        select coalesce(sum(pii.discount_amount * pii.qty * pi.conversion_rate), 0)
-        from `tab{sale_doctype} Item` pii
-        join `tab{sale_doctype}` pi on pi.name = pii.parent
-        where pi.lumenpos_session = %s and pi.docstatus = 1
-        """,
-        doc.name,
-    )[0][0]
-    total_discounts = flt(line_discounts) + flt(totals[0].invoice_discounts if totals else 0)
+    totals = _session_totals(doc.name, sale_doctype)
 
     return {
         "session": doc.name,
@@ -562,10 +642,66 @@ def get_session_summary(session):
             for m in (doc.cash_movements or [])
         ],
         "expected": expected,
-        "sales_count": totals[0].sales_count if totals else 0,
+        **totals,
+    }
+
+
+def _session_totals(session_name, sale_doctype):
+    """How many sales a shift made, what they took and what they gave away in
+    discounts, in the company currency, so a shift that sold in dollars and in
+    dirhams adds up to one figure the books agree with. Plain SQL: Frappe 16
+    refuses SQL functions written as text in get_all fields (the X-report
+    failed with "SQL functions are not allowed as strings in SELECT"), and v13
+    has no other way to write them. `sale_doctype` is a fixed doctype name
+    (_table_doctype), not user input."""
+    totals = frappe.db.sql(  # nosemgrep
+        f"""
+        select count(name) as sales_count, sum(base_grand_total) as total_sales,
+               sum(base_discount_amount) as invoice_discounts
+        from `tab{sale_doctype}`
+        where lumenpos_session = %s and docstatus = 1
+        """,
+        session_name,
+        as_dict=True,
+    )
+    # `sale_doctype` is a fixed doctype name (POS Invoice / Sales Invoice from
+    # _table_doctype), not user input, and a table identifier can't be a bound
+    # param; the session filter is parameterized. Safe despite the f-string.
+    line_discounts = frappe.db.sql(  # nosemgrep
+        f"""
+        select coalesce(sum(pii.discount_amount * pii.qty * pi.conversion_rate), 0)
+        from `tab{sale_doctype} Item` pii
+        join `tab{sale_doctype}` pi on pi.name = pii.parent
+        where pi.lumenpos_session = %s and pi.docstatus = 1
+        """,
+        session_name,
+    )[0][0]
+    total_discounts = flt(line_discounts) + flt(totals[0].invoice_discounts if totals else 0)
+    return {
+        "sales_count": cint(totals[0].sales_count) if totals else 0,
         "total_sales": flt(totals[0].total_sales, 2) if totals else 0,
         "total_discounts": flt(total_discounts, 2),
     }
+
+
+def _count_currency(session_doc, mode, summary):
+    """The money a counted drawer is in when the shift's figures do not say:
+    the company's with them, the payment method's own account otherwise."""
+    if summary:
+        return summary.get("company_currency")
+    company = frappe.get_cached_value("POS Profile", session_doc.pos_profile, "company")
+    try:
+        from lumen_restaurants import currency
+
+        return currency.mode_currency(mode, company)
+    except Exception:
+        return frappe.get_cached_value("Company", company, "default_currency")
+
+
+def _has_expected_pending():
+    """Sites updated without a migrate lack the field (see the Frappe Cloud
+    "Update Site Pull" trap): reading it there must not break the history."""
+    return frappe.get_meta("POS Register Session").has_field("expected_pending")
 
 
 # ---------------------------------------------------------------------------
@@ -624,8 +760,20 @@ def close_register(session, counted, closing_note=None, expected_invoice_count=N
                 title=_("Closing figures out of date"),
             )
 
-    summary = get_session_summary(session)
-    expected_map = {r["mode_of_payment"]: r for r in summary["expected"]}
+    # What each drawer should hold. Working it out must never keep a shift
+    # open: with 0.52.0 on ERPNext 16 it failed right here on every shift, so
+    # none could close, and each one held its outlet (and, with one open shift
+    # per person, its cashier). When it fails, the counts are kept and the
+    # shift closes all the same; its expected figures then come from its own
+    # POS Closing Entry at consolidation (_fill_pending_figures).
+    try:
+        summary = get_session_summary(session)
+    except frappe.PermissionError:
+        raise
+    except Exception:
+        frappe.log_error(title="LumenPOS: shift figures failed at close", message=frappe.get_traceback())
+        summary = None
+    expected_map = {r["mode_of_payment"]: r for r in (summary or {}).get("expected") or []}
 
     modes = sorted(set(expected_map) | set(counted or {}))
     doc.payment_counts = []
@@ -638,10 +786,11 @@ def close_register(session, counted, closing_note=None, expected_invoice_count=N
             {
                 "mode_of_payment": mode,
                 # Each drawer is counted in its own money (lumen_restaurants.currency).
-                "currency": row.get("currency") or summary.get("company_currency"),
+                "currency": row.get("currency") or _count_currency(doc, mode, summary),
                 "expected_amount": expected_amount,
                 "counted_amount": counted_amount,
-                "difference": flt(counted_amount - expected_amount, 2),
+                # Without the figures no difference is claimed yet.
+                "difference": flt(counted_amount - expected_amount, 2) if summary else 0,
             },
         )
 
@@ -661,9 +810,20 @@ def close_register(session, counted, closing_note=None, expected_invoice_count=N
     doc.closing_status = "Pending"
     doc.closing_error = None
     doc.closing_note = closing_note
-    doc.total_sales = summary["total_sales"]
-    doc.total_discounts = summary["total_discounts"]
-    doc.sales_count = summary["sales_count"]
+    doc.expected_pending = 0 if summary else 1
+    totals = summary
+    if not summary:
+        # The sales themselves are counted on their own, so the history never
+        # says "0 sales" for a shift that sold while its drawers wait.
+        try:
+            from lumen_restaurants.api.sales import _table_doctype
+
+            totals = _session_totals(doc.name, _table_doctype(doc.pos_profile))
+        except Exception:
+            totals = {}
+    doc.total_sales = flt(totals.get("total_sales"))
+    doc.total_discounts = flt(totals.get("total_discounts"))
+    doc.sales_count = cint(totals.get("sales_count"))
     doc.save()
     # Persist the "Closing" state NOW: from here the shift is neither sellable
     # nor resumable, whatever happens to the consolidation next. Intentional, 
@@ -671,7 +831,10 @@ def close_register(session, counted, closing_note=None, expected_invoice_count=N
     frappe.db.commit()  # nosemgrep
 
     # AFTER the flip is committed: an email hiccup must never undo a close.
-    _maybe_alert_variance(doc)
+    # Without the figures there is no difference to report yet: the alert
+    # goes out once they are filled in (_fill_pending_figures).
+    if summary:
+        _maybe_alert_variance(doc)
 
     if doc.get("pos_opening_entry"):
         _enqueue_consolidation(doc.name, counted)
@@ -714,6 +877,9 @@ def _close_result(doc, queued):
         "name": doc.name,
         "status": doc.status,
         "closing_entry_queued": queued,
+        # The expected takings could not be worked out at the close; they come
+        # from the POS Closing Entry at consolidation.
+        "expected_pending": cint(doc.get("expected_pending")),
         "counts": [
             {
                 "mode_of_payment": r.mode_of_payment,
@@ -835,6 +1001,8 @@ def _reconcile_session(session_name, counted):
             return _reconcile_session(session_name, counted)
 
     closing = frappe.get_doc("POS Closing Entry", closing_name)
+    if session.get("expected_pending"):
+        _fill_pending_figures(session.name, closing)
     if closing.status == "Submitted" and _opening_closed(opening_name):
         _mark_closed(session.name, closing_name)
         return closing_name
@@ -849,6 +1017,79 @@ def _reconcile_session(session_name, counted):
     return closing_name
 
 
+def _fill_pending_figures(session_name, closing=None, quiet=False):
+    """A shift closed while its figures could not be worked out (close_register)
+    gets them now: from its POS Closing Entry, which is built from the shift's
+    own invoices, float and cash movements, or, for a shift without one (a
+    Sales Invoice outlet's cash shift), from its own figures once they can be
+    worked out again. What each drawer should have held, the difference from
+    what was counted, the shift's totals, then the variance alert the close
+    could not send. Best effort: until it succeeds the shift keeps saying its
+    figures are pending, and the self-healer tries again (fill_pending_figures).
+    `quiet` keeps that periodic retry out of the Error Log."""
+    from lumen_restaurants.api.sales import _table_doctype
+
+    try:
+        doc = frappe.get_doc("POS Register Session", session_name)
+        if closing:
+            recon = {r.mode_of_payment: flt(r.expected_amount) for r in closing.get("payment_reconciliation") or []}
+        else:
+            recon = {r["mode_of_payment"]: flt(r["expected_amount"]) for r in get_session_summary(session_name)["expected"]}
+        counted_modes = set()
+        for row in doc.get("payment_counts") or []:
+            counted_modes.add(row.mode_of_payment)
+            row.expected_amount = recon.get(row.mode_of_payment, 0)
+            row.difference = flt(flt(row.counted_amount) - row.expected_amount, 2)
+        for mode, expected in recon.items():
+            if mode not in counted_modes and expected:
+                doc.append(
+                    "payment_counts",
+                    {
+                        "mode_of_payment": mode,
+                        "currency": _count_currency(doc, mode, None),
+                        "expected_amount": expected,
+                        "counted_amount": 0,
+                        "difference": flt(-expected, 2),
+                    },
+                )
+        doc.update(_session_totals(doc.name, _table_doctype(doc.pos_profile)))
+        doc.expected_pending = 0
+        doc.flags.ignore_permissions = True
+        doc.save()
+        # Enqueued consolidation job, like every other step here.
+        frappe.db.commit()  # nosemgrep
+    except Exception:
+        frappe.db.rollback()
+        if not quiet:
+            frappe.log_error(title="LumenPOS: filling in a closed shift's figures", message=frappe.get_traceback())
+        return
+    _maybe_alert_variance(doc)
+
+
+def fill_pending_figures():
+    """Scheduled with the self-healer: shifts of the last week that closed with
+    their figures still pending get another try (see _fill_pending_figures)."""
+    if not _has_expected_pending():
+        return
+    rows = frappe.get_all(
+        "POS Register Session",
+        filters={
+            "status": "Closed",
+            "expected_pending": 1,
+            "closed_at": [">=", frappe.utils.add_days(now_datetime(), -7)],
+        },
+        fields=["name", "pos_closing_entry"],
+        limit_page_length=20,
+    )
+    for row in rows:
+        closing = None
+        if row.pos_closing_entry:
+            closing = frappe.get_doc("POS Closing Entry", row.pos_closing_entry)
+            if closing.docstatus != 1:
+                continue
+        _fill_pending_figures(row.name, closing, quiet=True)
+
+
 def _consolidate_now(closing):
     """Run consolidation SYNCHRONOUSLY (never via ERPNext's >=10 enqueue) so it
     stays inside our global lock and concurrent shifts can't deadlock. Returns
@@ -861,7 +1102,7 @@ def _consolidate_now(closing):
     # Only feed invoices that aren't already consolidated, so a retry after a
     # partial/odd state can't double-post.
     pending = []
-    for row in closing.get("pos_transactions") or []:
+    for row in closing.get(erpnext_compat.closing_invoice_table()) or []:
         state = frappe.db.get_value(
             "POS Invoice", row.pos_invoice, ["status", "consolidated_invoice"], as_dict=True
         )
@@ -928,14 +1169,17 @@ def _make_closing_entry(session_doc, counted):
 
     grand_total = net_total = qty_total = 0.0
     si_rows = []
+    # ERPNext's table of the shift's POS Invoices (pos_transactions, renamed
+    # pos_invoices in v16).
+    invoice_table = erpnext_compat.closing_invoice_table()
     for inv in invoices:
-        # pos_transactions links POS Invoices only. A Sales-Invoice-mode shift
+        # That table links POS Invoices only. A Sales-Invoice-mode shift
         # leaves it empty (so _consolidate_now finds nothing to merge and just
         # finalizes), but its takings still roll into the payment reconciliation
         # and the Z-report totals below, the cash-control point of the entry.
         if sale_doctype == "POS Invoice":
             closing.append(
-                "pos_transactions",
+                invoice_table,
                 {
                     "pos_invoice": inv.name,
                     "customer": inv.customer,
@@ -1153,6 +1397,10 @@ def reconcile_stuck_closings():
             frappe.log_error(
                 title="LumenPOS closing reconcile failed", message=frappe.get_traceback()
             )
+    try:
+        fill_pending_figures()
+    except Exception:
+        frappe.db.rollback()
     _alert_orphan_invoices()
 
 
@@ -1227,6 +1475,37 @@ def closing_entry_status(session):
 
 
 @frappe.whitelist()
+def list_open_shifts(pos_profile):
+    """For a manager: the shifts still open at this outlet that the Register
+    page does not already show them, so one can be closed from there. In "Per
+    cashier" scope each cashier holds their own, and a manager had no way to
+    reach one from the till: a cashier who went home, who may not close a
+    register, or who is held back at another outlet by "One open shift per
+    person" left it open. Anyone else gets an empty list."""
+    from lumen_restaurants.api import permissions
+
+    if not permissions.is_manager() or not permissions.can_use_outlet(pos_profile):
+        return []
+    shown = (get_open_session(pos_profile) or {}).get("name")
+    rows = frappe.get_all(
+        "POS Register Session",
+        filters={"pos_profile": pos_profile, "status": "Open", "name": ["!=", shown or ""]},
+        fields=["name", "opened_by", "opened_at", "opening_float"],
+        order_by="opened_at asc",
+    )
+    return [
+        {
+            "session": r.name,
+            "opened_by": r.opened_by,
+            "opened_by_name": frappe.utils.get_fullname(r.opened_by) if r.opened_by else "",
+            "opened_at": str(r.opened_at) if r.opened_at else None,
+            "opening_float": r.opening_float,
+        }
+        for r in rows
+    ]
+
+
+@frappe.whitelist()
 def list_sessions(pos_profile, limit=20):
     """Closed + still-finalising register sessions for the history panel, with
     their native POS Opening/Closing Entry links and count differences."""
@@ -1244,7 +1523,7 @@ def list_sessions(pos_profile, limit=20):
             "total_sales", "total_discounts", "sales_count", "status",
             "closing_status", "closing_error",
             "pos_opening_entry", "pos_closing_entry",
-        ],
+        ] + (["expected_pending"] if _has_expected_pending() else []),
         order_by="closed_at desc",
         limit_page_length=min(int(limit), 50),
     )

@@ -24,6 +24,15 @@ Because the record names are shared, a site runs one of the two apps.
 `lumen_restaurants/site_guard.py` refuses either app on a site that runs the
 other, before anything is written.
 
+## Start from the inbox
+
+The LumenPOS conversation writes every batch of LumenPOS work, and every
+problem it finds that Lumen Restaurants must fix, to `inbox-from-lumenpos/` in
+the project folder (next to this repository). Read its `INDEX.md` first: each
+open entry names the LumenPOS commits, new fields, the files that will
+conflict and the **MUST FIX** items in our own code. Merge as below, fix those
+items, test, then fill in the entry's last column (our commit and the date).
+
 ## The steps
 
 1. **Fetch LumenPOS.** `git fetch lumenpos`. The `lumenpos` remote points at the
@@ -65,6 +74,11 @@ other, before anything is written.
      table, take LumenPOS's new sections and rows.
    - A doctype file LumenPOS changed: take its change. Should a conflict land on
      the `"module"` line, the rename script sets it back to Lumen Restaurants.
+   - Most conflicts are LumenPOS's new text against our renamed copy of its old
+     text: take theirs, the rename script (step 3, run it again) puts our names
+     back. Look for our own lines inside a block before taking theirs.
+   - LumenPOS's built till files land under `lumen_restaurants/public/pos/`
+     (`pos.js`, `pos.css`, `chunk-*.js`): delete them, step 5 builds our own.
    - The restaurant's own files (its screens, doctypes and APIs) and
      `site_guard.py`, `receipt_images.py` and `receipt_print.py` do not exist
      in LumenPOS, so they never conflict. Our own patches, when there are any,

@@ -114,13 +114,18 @@ def get_floor(pos_profile):
     # polls this every few seconds from every device in the place.
     counts = {}
     if orders:
-        rows = frappe.get_all(
-            "POS Restaurant Order Item",
-            filters={"parent": ("in", [o.name for o in orders])},
-            # NOT "as lines": lines is a reserved word in MariaDB and the
-            # whole floor screen dies with a syntax error.
-            fields=["parent", "count(name) as line_count"],
-            group_by="parent",
+        # Plain SQL: Frappe 16 refuses an SQL function written as text in
+        # get_all fields, so "count(name)" there killed the floor screen on
+        # v16 as soon as one table had an order (LumenPOS inbox, 2026-09-28).
+        # NOT "as lines": lines is a reserved word in MariaDB and the whole
+        # floor screen dies with a syntax error.
+        rows = frappe.db.sql(
+            """select parent, count(name) as line_count
+            from `tabPOS Restaurant Order Item`
+            where parent in %(orders)s
+            group by parent""",
+            {"orders": [o.name for o in orders]},
+            as_dict=True,
         )
         counts = {row["parent"]: row["line_count"] for row in rows}
     for order in orders:

@@ -119,18 +119,21 @@ def _build_sale_invoice(
         _check_price_edit_permission(payload)
     discount_approver = _check_discount_passcode(payload) if check_passcode else None
 
-    # A customer with their own list in the sale's currency is priced from it
-    # (ERPNext honours it too), brought into the outlet's terms so the offers,
-    # bundles and discounts below keep working on one currency.
     lines = _build_lines(
         payload["items"],
         profile,
         customer_group,
-        ctx.own_list or (app.get("price_list") if app else None),
+        app.get("price_list") if app else None,
     )
-    if ctx.own_list:
-        for line in lines:
-            line["price"] = flt(line["price"]) / ctx.factor
+    # A customer with their own list in the sale's currency is priced from it
+    # (ERPNext honours it too) for every item it lists; the rest keep the
+    # outlet's price, converted like any other (lumen_restaurants.currency).
+    own = currency.own_list_prices(
+        ctx, [line["item_code"] for line in lines], {line["item_code"]: line["stock_uom"] for line in lines}
+    )
+    for line in lines:
+        if line["item_code"] in own:
+            line["price"] = own[line["item_code"]]
     bundle_discounts, bundle_applied = _apply_bundles(payload["items"], lines, profile.name)
 
     # Promotions never touch bundle lines, bundle pricing is final.
@@ -491,11 +494,13 @@ def submit_sale(payload):
 
     _reconcile_payment(invoice, profile)
     _drop_empty_payments(invoice)
-    # Change always comes back in local money, from the outlet's change account
-    # (the main drawer), on a sale in another currency too. ERPNext merges a
-    # customer's shift into one invoice and books ALL its change from the last
-    # invoice's account, so a change account that varied per sale would split
-    # the cash accounts wrong at the close (lumen_restaurants.currency).
+    # Change comes from ONE account per sale currency and shift, never per
+    # tender: local money from the company's cash, or the sale's own currency
+    # from its drawer when the shop gives change in it (set by
+    # currency.apply_to_invoice), or the outlet's own Account for Change Amount.
+    # ERPNext merges a customer's shift into one invoice and books ALL its
+    # change from the last invoice's account, so a change account that varied
+    # per sale would split the cash accounts wrong at the close.
     # Shop rules on HOW this basket may be paid, re-checked server-side so a
     # stale tab, a queued offline sale or a direct API call can't bypass them.
     from lumen_restaurants import payment_restrictions
@@ -525,6 +530,8 @@ def submit_sale(payload):
     t_build = _perf_now()
     invoice.insert()
     t_insert = _perf_now()
+    # The change account ERPNext settled on must be one this sale can book.
+    currency.check_change(invoice)
     invoice.submit()
     t_submit = _perf_now()
 
@@ -689,6 +696,7 @@ def sell_gift_card(payload):
 
     _lock_open_session(session["name"])
     invoice.insert()
+    currency.check_change(invoice)
     invoice.submit()
 
     expiry_days = frappe.db.get_single_value("LumenPOS Settings", "gift_card_expiry_days") or 0
@@ -752,6 +760,31 @@ def _lock_open_session(session_name):
         )
 
 
+def _assert_erpnext_accepts_sale(pos_profile, session):
+    """ERPNext 16's rules for every POS Invoice, said plainly before the sale
+    is built rather than as ERPNext's own error at the end: the site must make
+    POS Invoices from the POS (POS Settings), and the shift must have been
+    opened today (one open shift per outlet is kept by open_register)."""
+    from lumen_restaurants import erpnext_compat
+
+    if frappe.db.get_value("POS Profile", pos_profile, "lumenpos_invoice_mode") == "Sales Invoice":
+        return
+    refused = erpnext_compat.pos_invoice_refused()
+    if refused:
+        frappe.throw(refused, title=_("Invoice type"))
+    if not erpnext_compat.one_open_shift_per_outlet() or not session.get("pos_opening_entry"):
+        return
+    started = frappe.db.get_value("POS Opening Entry", session["pos_opening_entry"], "period_start_date")
+    if started and frappe.utils.getdate(started) != frappe.utils.getdate(frappe.utils.today()):
+        frappe.throw(
+            _(
+                "This shift was opened on {0}. ERPNext 16 accepts sales only on a shift opened today: "
+                "close this shift on the Register screen and open a new one."
+            ).format(frappe.utils.formatdate(started)),
+            title=_("Shift from an earlier day"),
+        )
+
+
 def _open_session(pos_profile):
     """THE chokepoint for every sale, return and gift-card sale, so the
     shift-ownership rule is enforced here once, for all of them."""
@@ -760,6 +793,7 @@ def _open_session(pos_profile):
     session = get_open_session(pos_profile)
     if not session:
         frappe.throw(_("No open register session. Open the register first."))
+    _assert_erpnext_accepts_sale(pos_profile, session)
     # "Per cashier" scope: the takings land in the drawer of whoever OPENED the
     # shift, so only that cashier may ring one up. Deliberately no manager
     # bypass, selling is operational, not supervisory (supervision, i.e. cash
@@ -1621,9 +1655,16 @@ def get_receipt(invoice):
 
     # A sale in another currency (lumen_restaurants.currency): the receipt is in it, and
     # also carries the local side, the rate, each tender in its own money and
-    # the change, which always comes back in local money.
+    # the change, in the money of the account it came from: local from the
+    # company's cash, or the sale's own from its drawer.
     company_currency = currency.company_currency(doc.company)
     foreign = bool(doc.currency and doc.currency != company_currency)
+    change_currency = doc.currency
+    if foreign:
+        change_account = doc.get("account_for_change_amount")
+        change_currency = (
+            change_account and frappe.get_cached_value("Account", change_account, "account_currency")
+        ) or company_currency
 
     def tender(p):
         row = {"mode_of_payment": p.mode_of_payment, "amount": p.amount}
@@ -1669,6 +1710,7 @@ def get_receipt(invoice):
         "conversion_rate": flt(doc.conversion_rate) if foreign else 1,
         "base_grand_total": doc.base_rounded_total or doc.base_grand_total if foreign else None,
         "base_change_amount": doc.get("base_change_amount") if foreign else None,
+        "change_currency": change_currency,
         "items": [
             {
                 "item_code": row.item_code,
@@ -2089,11 +2131,17 @@ def get_returnable(invoice, pos_profile=None):
         pluck="name",
     )
     if return_names:
-        for row in frappe.get_all(
-            f"{doctype} Item",
-            filters={"parent": ["in", return_names]},
-            fields=["item_code", "sum(qty) as qty"],
-            group_by="item_code",
+        # Plain SQL: Frappe 16 refuses sum() written as text in get_all
+        # fields. `doctype` is POS Invoice or Sales Invoice, not user input.
+        for row in frappe.db.sql(  # nosemgrep
+            f"""
+            select item_code, sum(qty) as qty
+            from `tab{doctype} Item`
+            where parent in %(parents)s
+            group by item_code
+            """,
+            {"parents": tuple(return_names)},
+            as_dict=True,
         ):
             returned[row.item_code] = abs(flt(row.qty))
 

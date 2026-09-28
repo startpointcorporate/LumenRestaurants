@@ -343,6 +343,7 @@ def _client_settings(profile_name=None):
 
     from frappe.utils import cint
 
+    from lumen_restaurants import languages
     from lumen_restaurants.api import approval_requests
 
     doc = frappe.get_cached_doc("LumenPOS Settings")
@@ -356,6 +357,7 @@ def _client_settings(profile_name=None):
         "show_out_of_stock": 1 if doc.get("show_out_of_stock") else 0,
         "serial_scan_only": 1 if doc.get("serial_scan_only") else 0,
         "shift_scope": doc.get("shift_scope") or "Per outlet",
+        "one_shift_per_user": 1 if doc.get("one_shift_per_user") else 0,
         "enable_order_discount": 1 if doc.get("enable_order_discount") else 0,
         "enable_service_charge": 1 if doc.get("enable_service_charge") else 0,
         "service_charge_percent": flt(doc.get("service_charge_percent")),
@@ -370,6 +372,8 @@ def _client_settings(profile_name=None):
         "enable_till_lock": 1 if doc.get("enable_till_lock") else 0,
         "auto_lock_minutes": cint(doc.get("auto_lock_minutes")) or 0,
         "enable_quick_keys": 1 if doc.get("enable_quick_keys") else 0,
+        # The languages the cashier may pick, [] = all (lumen_restaurants.languages).
+        "till_languages": languages.offered(doc),
         "receipt_template": doc.get("receipt_template") or "Standard",
         "receipt_logo": doc.get("receipt_logo") or "",
         "receipt_header": doc.get("receipt_header") or "",
@@ -534,7 +538,13 @@ def _default_pos_profile():
 def _other_open_registers(current_profile):
     """Open shifts this user still holds on OTHER outlets, so the Open Register
     dialog can remind them a drawer is open elsewhere (multi-outlet allows more
-    than one open at once, so a forgotten shift wouldn't otherwise surface)."""
+    than one open at once, so a forgotten shift wouldn't otherwise surface).
+
+    `reachable`: the outlet is one this user can still work on at the till
+    (enabled, and theirs), so they can go and close the shift there. Only such
+    a shift holds them back under "One open shift per person"; one they cannot
+    reach any more (outlet disabled, access removed) is for a manager to close
+    and must never lock them out."""
     rows = frappe.get_all(
         "POS Register Session",
         filters={
@@ -545,11 +555,13 @@ def _other_open_registers(current_profile):
         fields=["name", "pos_profile", "opened_at"],
         order_by="opened_at asc",
     )
+    reachable = set(_user_profiles()) if rows else set()
     return [
         {
             "session": r.name,
             "pos_profile": r.pos_profile,
             "opened_at": str(r.opened_at) if r.opened_at else None,
+            "reachable": r.pos_profile in reachable,
         }
         for r in rows
     ]

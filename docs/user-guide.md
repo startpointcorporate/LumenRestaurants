@@ -1,6 +1,6 @@
 # Lumen Restaurants: Complete User Guide
 
-*Applies to Lumen Restaurants v0.1.0-r7, built from LumenPOS v0.51.0 with its updates up to 2026-09-26. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r8, built from LumenPOS v0.54.0. This document is updated with every feature change.*
 
 **Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
 own.** Everything this guide says about LumenPOS applies to it: the till is the
@@ -33,15 +33,26 @@ appearance. The moment you use the in-POS toggle, that choice is remembered
 per device and overrides the ERPNext theme from then on. Printed receipts
 always come out black-on-white regardless of the screen theme.
 
-**Language (Arabic / English):** the top bar has a one-tap language switch
-(shows **العربية** when you're in English, **English** when you're in Arabic).
-Arabic flips the whole interface to **right-to-left** and translates every
-label, button, message and tooltip. **Master data is never translated**, item
-names, customer names, codes and barcodes always show exactly as entered in
-ERPNext, in whatever language they were typed. On first run LumenPOS follows the
-browser language (Arabic on a typically-Arabic device); your choice is then
-remembered per device. Return reasons and other configurable lists show the
-text you saved in Settings.
+**Languages:** the till speaks **English, Arabic, Spanish, German, Chinese (Simplified), French, Thai, Indonesian and Vietnamese**, the
+languages ERPNext is used in most after English, in that order (a study of
+public ERPNext sites and Frappe Cloud installs, September 2026). Portuguese
+(Brazil), Persian, Russian and Turkish come next. The language control sits in the top bar: with two languages it
+is a single tap (it shows the other one's name), with more it opens a short
+list, each language named in itself. Arabic flips the whole interface to
+**right-to-left**. Every label, button, message and tooltip is translated, and
+so are the **server's own messages**: the till sends its language with every
+request, so a refusal or a warning comes back in the language on the screen,
+ERPNext's own messages included, whatever the user's language in the desk.
+**Master data is never translated**: item names, customer names, codes and
+barcodes always show exactly as entered in ERPNext. On first run LumenPOS
+follows the browser's language (Arabic on a typically Arabic device, Spanish on
+a Mexican one). The choice is then remembered per device, and a customer
+display on the same device follows it. **Settings → General → Languages**
+chooses which languages cashiers may pick (English always stays: a text not
+translated yet shows in it). While every language is ticked, a language added by
+a later update is offered by itself. Return reasons and other configurable lists
+show the text you saved in Settings. The Insights dashboard stays in English or
+Arabic, the two languages Lumen Reports builds it in.
 
 LumenPOS is a professional Point of Sale for ERPNext / Frappe. Each **POS
 Profile** chooses how sales post (POS Profile → *Lumen Restaurants* → **Sale posts
@@ -105,7 +116,7 @@ The **LumenPOS workspace** in the desk has shortcuts to everything.
 | **Search bar** | Type to search name/code/barcode (instant, served from a local cache). Press **Enter** with a scanned barcode or serial number to add the item directly. |
 | **Category chips** | One scrollable row. **All** shows everything; **🎁 Bundles** appears when bundles exist. |
 | **Product grid** | Tap a tile to add to cart. Tiles show price, stock count and an **S/N** badge for serialized items. The stock number is what you can still sell here, so anything already sold on a shift that has not been consolidated is taken off it, and it moves the moment a sale or a return posts. A line running low is visible long before the till refuses it. |
-| **Cart (right panel)** | Customer, channel, salesperson, lines, coupons, totals, Pay. |
+| **Cart (right panel)** | Customer, channel, salesperson, the lines (always at least three lines high), then **Coupon**, **Discount** and **Note** as three small buttons that open their field on demand and stay lit while they hold something, the total with **Details** folding the subtotal, discounts, tax and service charge away (and what the customer saved beside it), other currencies on one line, and Pay. |
 
 ### Cart line controls
 Tap a line to expand it: quantity stepper, **Discount %** (manual), Remove.
@@ -243,29 +254,54 @@ with **Sell in** at the top of the payment screen; a named customer always buys
 in their own currency. The customer search shows the currency next to such a
 customer.
 
-**Prices.** Price books, bundles, offers and discounts stay in the outlet's
-currency and are converted at the shift's rate, so nothing has to be priced
-twice. A customer (or customer group) with their own price list in their
-currency is priced from that list. The cart shows the sale in its currency with
-its local value underneath; a local sale can also show its value in the
-currencies ticked *Show the equivalent at the till*.
+**Prices.** One price list, in the outlet's currency, is all a shop needs:
+price books, bundles, offers and discounts stay in that currency and are
+converted at the shift's rate, so nothing has to be priced twice. To fix prices
+in another currency instead (round ZWG prices, say), make a selling price list
+in that currency and set it as the *Default Price List* of that currency's
+walk-in customer (*Walk-in ZWG*), of a customer, or of their customer group.
+Every item that list prices sells at its own figure; an item it does not list
+keeps the outlet's price, converted at the shift's rate. The cart shows the sale
+in its currency with its local value underneath; a local sale can also show its
+value in the currencies ticked *Show the equivalent at the till*.
 
 **Rates.** Kept in ERPNext (*Currency Exchange*, selling). Set them in the same
 Settings card. A shift fixes the rate of a currency at its first sale in it and
 keeps it until it closes, because ERPNext merges each customer's shift into one
-invoice at one rate; a new rate applies from the next shift.
+invoice at one rate, and a new rate applies from the next shift.
+
+**Automatic rates (optional).** Tick *Update exchange rates automatically* and
+choose, for each currency, a **Fixed rate** (the one you set, as before) or an
+**Automatic rate**. Once a day, at a quarter past midnight, LumenPOS reads the
+published rates from ExchangeRate-API (free, about 160 currencies) and saves
+today's rate of every Automatic currency in ERPNext, exactly as if someone had
+typed it. **Update now** does it at once. An Automatic currency can carry a
+**margin**: the till values it that much below the published rate, the way a
+shop taking a volatile currency at the market rate does (a published 26.6 to
+the dollar with a 24% margin is 35 to the dollar). A rate typed for today in the
+same card always wins, for that day. If the rates service cannot be reached, the
+last rate stays in force and the reason shows under the currency.
 
 **Paying.** Each payment is typed in the money actually handed over: the
 payment screen asks **Amount in** dollars or riyals, converts at the shift's
-rate and shows what is left in both. Local cash and cards are always offered;
+rate and shows what is left in both. Local cash and cards are always offered,
 the *Cash USD* drawer only on a sale in dollars (ERPNext refuses a dollar
-account on a riyal invoice at the close). **Change always comes back in local
-money, from the main drawer**, the way ERPNext's own POS gives it: the close
-books all of a customer's change from one account, so a drawer in another
-currency takes money in and never pays change out.
+account on a riyal invoice at the close). **Change comes back in local money,
+from the main drawer**, the way ERPNext's own POS gives it, unless the currency
+is set to **Give change in USD** (same card): then the change of every sale in
+dollars comes back in dollars, from the *Cash USD* drawer, and the payment
+screen, the receipt and the close say so. The choice holds for the whole shift,
+like the rate, because the close books all of a customer's change from one
+account. An outlet whose POS Profile names its own *Account for Change Amount*
+keeps it (ERPNext uses it on every sale), the till shows the change in that
+account's money, and a sale whose change that account cannot take (one in a
+third currency) is refused at the till rather than failing the shift close.
+Selling in other currencies also turns on ERPNext's *Create Ledger Entries for
+Change Amount* (POS Settings on ERPNext 16, Accounts Settings before): change
+given from one drawer for money paid into another needs its own ledger entry.
 
 **The shift.** Each drawer in another currency keeps its own opening float,
-cash in and out, expected amount and count, in its own money; the takings,
+cash in and out, expected amount and count, in its own money. The takings,
 discounts and variance alerts are in the company currency. The X-report lists
 the rates. At the close ERPNext consolidates each customer's sales in their
 currency, and the books balance: a test sale in dollars paid with 20 dollars
@@ -713,6 +749,13 @@ A serialized item can never be sold without its exact serials:
 - Quantity is locked to the scanned serial count.
 - Scanning a serial in the search bar adds its item with the serial attached.
 - Returns require selecting exactly which sold serials come back.
+- A serial already sold on a sale the shift close has not booked yet is
+  refused, with that sale's number. ERPNext moves no stock until the close, so
+  such a serial still reads *Active* in the warehouse, and the till used to
+  offer it again only for ERPNext to refuse the sale. The till now asks
+  ERPNext's own question for the version. A return of that sale gives the
+  serial back at once on ERPNext 13 and 14. ERPNext 15 and 16 hold it until the
+  close books the sale, and the till says so.
 - Everything is re-validated at submit; serialized items can't be sold
   offline or inside bundles.
 - **Scan-only (optional).** Turn on *Require scanning for serial numbers*
@@ -733,6 +776,35 @@ A serialized item can never be sold without its exact serials:
   creates a **POS Opening Entry**. One live shift per register, if you
   already have one, you're offered **Continue that shift** or (only when the
   testing toggle in Settings → General is ON) **Open a new one anyway**.
+- **Shifts at other outlets.** One person may hold open shifts at several
+  outlets at once (a manager covering branches), and the Open Register screen
+  lists them as a reminder, each with a button to its Register page. A shop that
+  wants each person on one shift at a time ticks **One open shift per person**
+  (Settings, General, Register and shifts, off by default): a new shift is then
+  refused, by the server as well as on screen, until the open one is closed. On
+  ERPNext 16 this also keeps an outlet free for its own cashier, since ERPNext 16
+  sells on one open shift per outlet at a time.
+
+  Nobody is ever locked out by it. A shift whose close was started no longer
+  counts, even when that close failed (it keeps retrying on its own, see
+  below). A shift at an outlet the person can no longer reach (the outlet
+  disabled, or their access to it removed) does not hold them back either: the
+  screen lists it with "ask a manager to close it". And a person who cannot
+  close their shift themselves asks a manager, who closes it for them.
+- **Closing a shift for someone else.** A manager's Register page lists every
+  other shift still open at that outlet, with who opened it and when; **Close
+  this shift** loads its figures, the manager counts its drawers and closes it
+  like their own. For a cashier who went home, who may not close a register, or
+  whose shift will not close. In *Per cashier* scope, where each cashier holds
+  their own shift, this is the only way a manager reaches one from the till.
+- **A close always goes through.** If the expected takings cannot be worked out
+  when a shift is closed (with 0.52.0 on ERPNext 16 this failed on every shift,
+  so none could close and each one kept its outlet shut), the counts are kept
+  and the shift closes anyway. The close panel and Previous sessions say the
+  figures are pending; they are filled in from the shift's **POS Closing
+  Entry** when it consolidates (a Sales Invoice outlet's cash shift, which has
+  none, gets them once they can be worked out again), and the variance alert
+  goes out then.
 - **Cash in / out** during the day from the Register page (reason logged). Each
   movement is **netted into the expected cash** at close (expected = opening +
   cash sales + cash in − cash out) **and declared on the POS Closing Entry**
@@ -866,7 +938,7 @@ behaviour: it sells offline as long as the tab stays open.)
 | **Bundles** | Fixed-price bundles: components, price, outlets. |
 | **Price Books** | Items with special prices for a period (validity + priority + outlets/customer groups); add items or **Excel/CSV import**. No ERPNext price list created, the master is never changed. |
 | **Loyalty & Gift Cards** | Create/view loyalty programs; search/disable gift cards. |
-| **General** | Split into groups, one at a time, each saying what it is for: **Features** (what the till offers, plus the one-tap favourites), **Register and shifts** (shift ownership, variance and overdue alerts, offline cache), **Payments and delivery** (delivery apps with their price lists and per-method rules), **Other currencies** (the switch, the currencies the till sells in, their rates), **Customers** (what the new-customer form asks, field by field), **Companies** (whether gift cards, cashback and store credit are shared by the group or kept per company, what waits to be booked between companies and **Book now**), **Returns and refunds** (return window, return reasons, **what cannot be returned**, and the refund method rules), **Receipt**, **Accounts and gift cards** (per-company accounts, including the two that carry balances spent across the group, gift card expiry), **Approvals and access** (discount limit and over-limit method, master passcode, approver PINs, the shared Approver Role, permissions, audit log). One Save button covers them all. |
+| **General** | Split into groups, one at a time, each saying what it is for: **Features** (what the till offers, plus the one-tap favourites), **Register and shifts** (shift ownership, variance and overdue alerts, offline cache), **Payments and delivery** (delivery apps with their price lists and per-method rules), **Other currencies** (the switch, the currencies the till sells in, their rates), **Customers** (what the new-customer form asks, field by field), **Companies** (whether gift cards, cashback and store credit are shared by the group or kept per company, what waits to be booked between companies and **Book now**), **Returns and refunds** (return window, return reasons, **what cannot be returned**, and the refund method rules), **Receipt**, **Languages** (which languages cashiers may pick), **Accounts and gift cards** (per-company accounts, including the two that carry balances spent across the group, gift card expiry), **Approvals and access** (discount limit and over-limit method, master passcode, approver PINs, the shared Approver Role, permissions, audit log). One Save button covers them all. |
 | **Status** | Version, outlet, price list, connection, cache size, queue, printer, register state. |
 | **Approvals** | (Approvers only) Live tray of pending **discount and return** requests to Approve / Reject, shown in the left rail when discount requests are enabled or returns are window-limited. |
 
@@ -964,8 +1036,11 @@ What each capability maps to (so you can build your own custom roles):
 > install/update, and read and create on **Customer**, **Contact** and **Address**
 > (ERPNext keeps a new customer's mobile as a Contact and its address as an
 > Address) plus read on **Customer Group** and **Territory** (ERPNext reads them
-> to enrol a new customer in a loyalty program), so assigning it is enough to run
-> a till, adding customers included.
+> to enrol a new customer in a loyalty program), and what ERPNext 15 and 16 check
+> as the user while a sale is made: **select** on **Account** (the customer's
+> receivable account, by name only, never the account's record), and read on
+> **Item** and **POS Profile**. So assigning it is enough to run a till on every
+> version, adding customers included.
 > Editing or deleting customers stays with the roles ERPNext gives it to. Tighten
 > or widen any of it afterwards in Role Permissions Manager.
 
@@ -1020,6 +1095,8 @@ stays open.
 | "Already has an open entry" when opening register | You have an open POS Opening Entry, continue that shift, or cancel the entry in the desk. The choice dialog handles it. |
 | "Previous shift not finished / Retry closing" when opening | The last shift's closing hasn't finished consolidating (or failed). Click **↻ Retry closing**, it's safe to retry repeatedly. It also self-heals every ~10 min. You can't open a fresh shift until it completes (this is what prevents selling on a stale shift). |
 | Closing shows **Failed** with an error | Read the error (usually a stuck invoice or a transient lock). Hit **↻ Retry closing**; nothing is double-posted. If it keeps failing, open the linked POS Closing Entry in the desk and retry there. |
+| "Close your open shift first" when opening a register | The shop has **One open shift per person** on and you still have a shift open at another outlet. Tap **Go to its Register page**, count and close it, then open this one. If you may not close registers, or the shift is at an outlet you can no longer open, a manager closes it from that outlet's Register page (**Other open shifts here**). An administrator can also turn the setting off. |
+| "difference pending" on a closed shift | The shift closed, but its expected takings could not be worked out at the time. They are filled in from its POS Closing Entry when it consolidates; nothing to do unless the close itself shows **Failed**. |
 | A close **keeps failing** and you need to keep selling | On a *Failed* close, a manager can click **"Start a new shift anyway"** (Sell prompt or Register page) to open a fresh shift now. The failed shift stays in the background and keeps retrying, its invoices still consolidate on their own. |
 | "You do not have access to the POS" | The user lacks **POS Invoice → read**. Grant the **LumenPOS Cashier** role (or POS Invoice access) in Role Permissions Manager. |
 | A tab or the Pay button is missing for a user | That's the new permission gating, grant the matching permission (see **Roles & permissions**). |
@@ -1064,6 +1141,7 @@ which both LumenPOS roles are given.
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r8 | **LumenPOS 0.51.1 to 0.54.0, brought in.** Everything LumenPOS added up to 0.54.0 is in Lumen Restaurants too (see the LumenPOS releases below): automatic exchange rates and change given in the sale's currency, the till in nine languages, a customer's own price list in another currency priced right, held serials refused, the cart keeping its room for the goods, one open shift per person when the restaurant wants it, a close that always goes through, a manager closing anyone's open shift, and the permissions a cashier-only user needs to sell on ERPNext 15 and 16. **The floor screen on ERPNext 16** no longer fails as soon as a table has an order. The restaurant screens (the floor, the kitchen, bookings, the booking designer and the public booking page) are in English and Arabic so far: in the seven new languages they still show English. |
 | 0.1.0-r7 | **ERPNext looks like ERPNext again.** The Lumen Restaurants logo stays in the Lumen Restaurants screens only: the till, the booking page, the icon of the installed app and the receipts. The ERPNext desk bar, the login page, the loading screen and the browser tab show ERPNext's logo as before, and Frappe v15 opens as before after signing in, with no Lumen Restaurants tile on its apps screen. **Our mark and name on every receipt, always.** Every receipt the till gives out ends with the Lumen Restaurants mark and name, and no setting takes them off: the built-in receipt, the receipt printer, an outlet's own Print Format (the till now prints it with our mark added at the foot) and the emailed receipt. |
 | 0.1.0-r6 | **The Lumen Restaurants mark on receipts.** Every receipt ends with the Lumen Restaurants mark and name, small, below the thank you line: in the brand blue on screen, in black on paper (12 mm, the size the logo kit sets for receipts). The restaurant's own logo (Settings, Receipt, Logo) stays at the top, and now prints on a receipt printer too, where until now only the restaurant's name printed: it is shrunk to fit the roll and turned into black and white for thermal paper. A logo has to be kept on the site (a file uploaded to it), a logo on another website is not fetched for the printer. Kitchen tickets stay as they were, short and fast. |
 | 0.1.0-r5 | **The Lumen Restaurants logo in ERPNext.** The ERPNext desk bar, the login page, the loading screen and the browser tab now show the Lumen Restaurants logo instead of ERPNext's. On Frappe v15 the apps screen and the app switcher in the sidebar list **Lumen Restaurants**, which opens the till, for every user who may sell at one outlet at least, so after signing in they choose between ERPNext and the till. An administrator keeps the say, the standard way: Navbar Settings, App Logo (the desk bar and the login page, clearing it brings ERPNext's logo back), Website Settings, Favicon and Splash Image, and on v15 a Default App in System Settings or on a user, to open the till straight after signing in. |
@@ -1075,6 +1153,11 @@ which both LumenPOS roles are given.
 ### LumenPOS releases
 | Version | Highlights |
 |---|---|
+| 0.54.0 | **One open shift per person, when a shop wants it.** Settings, General, Register and shifts: *One open shift per person* (off by default). On, nobody opens a new shift while they still have one open at another outlet: the server refuses it, naming the open shift, and the Open Register screen says so, with a button that goes straight to that outlet's Register page to close it. Off, a person may still hold shifts at several outlets (a manager covering branches), and the reminder now says how many are open (it said "another register" above a list of five). Asked by a shop in Zimbabwe whose one login held five shifts at five outlets: on ERPNext 16 each of those also kept that outlet's own cashier from opening a shift, since ERPNext 16 sells on one open shift per outlet at a time. **Nobody is locked out by it:** a shift whose close was started, even a failed one, does not count, nor does one at an outlet the person can no longer reach (listed with "ask a manager"). **A manager closes anyone's open shift** from the outlet's Register page (*Other open shifts here*), which in *Per cashier* scope was out of a manager's reach until now. **A close always goes through:** when the expected takings cannot be worked out (the 0.52.0 failure on ERPNext 16 that kept every shift of that shop open), the counts are kept, the shift closes, and its figures come from its POS Closing Entry at consolidation, with the variance alert sent then. **A user holding only the LumenPOS Cashier (or Manager) role can sell on ERPNext 15 and 16:** ERPNext checks, as the person selling, that they may select the customer's receivable account and read the Item (and, on 16, the POS Profile), so such a user was refused with "User don't have permissions to select/read this account" (then Item, then POS Profile). Both roles now get select on Account (the name only, not read) and read on Item and POS Profile on update; on ERPNext 13 and 14 nothing was missing. Found by this release's strict shift tests, which now open, sell, close and consolidate as a cashier holding nothing else. |
+| 0.53.0 | **The till in more languages, starting with the ones ERPNext is used in most.** A study of public ERPNext sites (their default language), Frappe Cloud installs of each country's app and traffic to Frappe's sites ranks the languages after English: Arabic, Spanish, German, Chinese, French, Thai, Indonesian, Vietnamese. **Spanish, German, Chinese (Simplified), French, Thai, Indonesian and Vietnamese** join English and Arabic, every screen and every message. Thai uses IBM Plex Sans Thai, the family of the Arabic font, and Chinese the system's own Chinese font. The top bar's language control becomes a short list when a shop offers more than two, and **Settings → General → Languages** chooses which ones cashiers may pick (all by default, English always). **The server now answers in the till's language.** Until now a refusal from the server (a PIN that is too short, a serial that cannot be sold, a shift that cannot close) came up in English even on an Arabic till, because LumenPOS carried no translations for its server messages. It now carries them for every language it speaks, and the till sends its language with each request, so ERPNext's own messages follow too, whatever the user's language in the desk. LumenPOS never renames a text that Frappe or ERPNext already translate, so the desk keeps its own wording. **A serial number cannot be offered twice.** A serial already sold on a sale the shift close has not booked yet still reads Active in ERPNext, because the stock moves only at the close, and the till used to offer it again, only for ERPNext to refuse the sale with a message about the warehouse. The serial check, the scanner and the sale now ask ERPNext's own question for the version and refuse it first, naming that sale. After a return of the sale, ERPNext 13 and 14 give the serial back at once, while ERPNext 15 and 16 hold it until the close books the sale, and the till says so. **The cart keeps its room for the goods** (asked by the owner: with coupons, a bundle, VAT and two other currencies on screen, only one line of the sale was left visible). Coupon, order discount and note are now three small buttons that open their field when tapped, the breakdown under the total folds away under *Details* (each device remembers whether it is open) with the saving shown beside it, and the other currencies share one line. On a 1554 by 874 window the lines went from about 100 to about 430 pixels, and they never shrink below three lines: what sits under them scrolls first. **Also:** the top bar no longer breaks onto two lines in a long language (below 1400 pixels the user's name makes room for the outlet), the title of every settings card sits beside its icon (it was pushed to the far end of the card), and a long label in the left rail (Configuración, Einstellungen) is set smaller instead of running under the page. |
+| 0.52.1 | **Tested on a real Frappe and ERPNext 16, and fixed where it differs.** LumenPOS has been offered for v16 since 0.37.0 but had only ever run on v13 to v15. A v16 installation (Frappe 16.35, ERPNext 16.36, Python 3.14) now runs every test, and this is what it found. **The X-report** stopped with "SQL functions are not allowed as strings in SELECT" (reported by a shop in Zimbabwe), because v16 no longer accepts a count or a sum written as text in a list query. That query and four more of the same kind (store credit balances, the customers kept for offline use, the quantities already returned on an invoice, and the order cashback is spent in) now use a form every version runs. **Closing a shift** failed, because v16 renamed the closing entry's table of invoices. **A sale paid partly with loyalty points** showed "Partly Paid" with the points still owing, though the books were right. It now shows paid, as on v13 to v15. **ERPNext 16's rules for every POS sale are said plainly before a sale fails.** An outlet sells with one open shift at a time: a previous shift still closing is finished first, and anything else still open (another cashier's shift, or one from ERPNext's own POS) is named with what to do, so on v16 cashiers who each keep their own shift need a POS Profile each. A shift sells only on the day it opened, so after midnight it is closed and a new one opened. A site set to make Sales Invoices from the POS (POS Settings, which is how a new v16 site starts) cannot take the POS Invoices an outlet makes, and the till says where to change it. **Change on a new v16 site.** A new v16 site does not record change as its own ledger entry, so it cannot take change from one drawer for money paid into another. Selling in other currencies now turns that on, and on every version a sale whose change the books could not take is refused with the reason. |
+| 0.52.0 | **Automatic exchange rates, when you want them.** In Settings, General, Other currencies, tick *Update exchange rates automatically*, then set each currency to a **fixed rate** (yours) or an **automatic** one: once a day LumenPOS reads the published rate from ExchangeRate-API (free, about 160 currencies, the Saudi riyal, UAE dirham and Zimbabwe gold included) and saves it in ERPNext as that day's rate, less the currency's **margin** when a shop sells a volatile currency at a market rate. A rate typed for the day always wins, **Update now** fetches at once, and when the service cannot be reached the last rate stays and the reason shows under the currency. Shifts keep the rate they started with, as before. **Change in the sale's currency, when you want it.** Tick *Give change in ZWG* on a currency and the change of a sale in it comes back in it, from its own drawer, instead of in local money from the main drawer. The payment screen, the receipt and the shift close follow, and the choice holds for the whole shift, like the rate (asked by a shop in Zimbabwe). The till now also shows change in the money of the account ERPNext really books it from, so an outlet whose POS Profile names its own change account no longer shows it in the wrong currency, and a change account in a third currency is refused at the sale instead of failing the close. **Also:** switching the outlet from the top bar refreshes the screen that is open. Register, History, Customers, Holds and Settings load their figures when they open, so after a switch they kept showing the previous outlet's until they were opened again. The open screen is now rebuilt for the new outlet at once (the same fix as in Lumen Restaurants). And the product grid no longer sticks on "Loading…" the first time a till opens on a new device. And with *Sell in other currencies* switched off, opening a shift no longer asks for a float in another currency's drawer (the drawers stay on the outlet for when it is switched back on). |
+| 0.51.1 | **An item missing from a customer's own price list is converted.** A customer billed in another currency with their own price list in it (on the customer, their group, or the currency's walk-in customer) paid the outlet's price as a number in their currency for every item that list did not price: a US$5 item was charged ZWG 5 instead of ZWG 175 (reported by a shop in Zimbabwe), and in the other direction a dearer currency was overcharged. Such an item now keeps the outlet's price and is converted at the shift's rate, and the cart shows the prices of the customer's own list, so the cart and the payment screen always show the same total. **Setting up another currency works on Frappe v15.** On a v15 site whose outlets' default customer sits in a group customer group ("All Customer Groups"), saving Other currencies set nothing up: v15 refused the currency's walk-in customer, so each currency stayed "Set up when you save" while its cash drawer was created on its own. The walk-in customer now goes into a group ERPNext accepts, a currency is set up whole or not at all, and when it cannot be, the reason shows under it. The exchange rates show to anyone who may see the settings (they hid behind "Save the currencies first" for anyone who may not change them), without ERPNext's "Unable to find exchange rate" message box. A payment method the shop already had under the drawer's name ("CASH ZAR") whose account is in another currency is no longer taken as that currency's drawer, which counted rand in dollars: the setup says so and asks for a rand account or another name. And the setup runs on every save of the settings, not only the first, so an outlet or a company added later gets its drawer in each currency (ERPNext gives a new company's cash account to the first cash method it finds, which could be a currency drawer: the drawer gets its own account back). |
 | 0.51.0 | **Restaurant mode.** A per-outlet switch turns the till into a restaurant: a sell screen built for food (order type first, big menu tiles, line notes), tables and a floor screen, and payment through the same sale path as every shop till. Takeaway pays first and gets a **short daily order number**, printed big on the receipt, stamped on the invoice and carried by a **kitchen ticket**; the new **Kitchen screen** works the tickets (new, preparing, ready) with real timing, notes highlighted, and an optional ESC/POS kitchen printer per outlet. **Ready** flashes a call strip on the till so the cashier shouts the number. **Bookings**: a clear day book (arrived, no show, cancel), reservations that open the table in one press, and a **public booking page** per outlet (`/book/<outlet>`) the owner designs with a live preview: ready-made styles, colours, backgrounds, fonts, their own questions, packages like a buffet priced per guest, booking rules and slot capacity. The page runs on the restaurant's clock and never offers a time that has passed. Requests wait in a tray until staff confirm, or confirm themselves if the owner wants. |
 | 0.51.0 | **Sell in other currencies.** A customer billed in dollars (ERPNext, Customer, Billing Currency) now buys in dollars: the sale, its receipt and its books are in dollars at the rate of the shift, and ERPNext's shift close merges it in that currency and balances. A walk-in paying in dollars is switched to dollars in one tap, on the cart or on the payment screen. Prices, offers and discounts stay in the outlet's currency and convert; a customer's own list in their currency is used as is. Each payment is typed in the money handed over, so a tourist can pay part in dollars and part in riyals, and change always comes back in local money from the main drawer. Every drawer in another currency keeps its own float, cash in and out and count, and the X-report lists the rates. Switched on and set up (accounts, a *Cash USD* drawer on every outlet, a *Walk-in USD* customer, the rates) in Settings, General, Other currencies. Gift cards, store credit, cashback, loyalty redemption, holds and exchanges stay in the outlet's currency. **After an outage every till refreshes its stock**, once on reconnecting and once a minute later, so the tiles include what the other tills sold meanwhile. **Refunds:** the refund screen fills in its refund line by itself again (since 0.36.0 it stayed empty until the cashier pressed Split), one refund line takes the whole refund ERPNext computes, tax included, instead of the screen's estimate, and the internal *Exchange* tender is no longer offered as a refund method. **The new-customer form is the shop's own:** every field hidden, optional or required, for individuals and companies apart, and any Customer field can be added, so a shop outside Saudi Arabia is no longer held to the national address (Settings, General, Customers; out of the box it is the form it always was). On Frappe v15 a new customer no longer fails with "Cannot select a Group type Customer Group" on a site whose default customer group is a group, and the company address no longer spills out of the window in Arabic. **New fields can be added to Sales Invoice again.** Since 0.49.0 LumenPOS marked the customer name on Sales Invoice as an indexed field, to keep History's search fast. Frappe does not allow that marking on that kind of field, so from then on adding any field to Sales Invoice failed, from Customize Form or from another app, with "Fieldtype Small Text for Customer Name cannot be indexed". The marking is removed on update and is never set on such a field again. Nothing gets slower: the index itself stays, because Frappe never removes an index on that kind of column. LumenPOS's own fields were never affected. **Several companies on one site.** Gift cards, cashback and store credit are shared by the group or kept per company, chosen in Settings, General, Companies (shared is the default and how LumenPOS always behaved). A balance spent at another company is settled with ERPNext's own Inter Company Journal Entry, once a day or on demand, so each company's books stay right, and companies in different currencies never share. Promotions, cashback rules, bundles and price books apply to the whole group, one company or chosen outlets, and a bundle is checked again at the sale. ERPNext User Permissions on Company now hold a user to their companies' outlets, history, customer figures, gift cards, holds, entries and alert emails. A hold is served at any outlet of its company. A loyalty program is created for the company you choose. **The LumenPOS Cashier role is enough on its own for customers:** a cashier holding only that role was refused a new customer at the till and never saw the Customers screen; the role (and LumenPOS Manager) now gets read and create on Customer, Contact and Address, and read on Customer Group and Territory, on update, like its POS Invoice rights, still adjustable in Role Permissions Manager (editing and deleting customers is not included). **Fixes found on the way:** saving the settings no longer erases the PIN of every named discount approver (any save did, even one that changed nothing, so approval by PIN stopped working until the PINs were typed again), nor a per-company deposit account set in Desk; the receipt printed right after a sale no longer counts as a reprint (and a copy printed later from History does); a Sales Invoice outlet prints to its receipt printer; and a sale paid by gift card or cashback is no longer refunded back onto that tender, which credited the account without restoring the balance: that part is refunded as store credit. |
 | 0.50.1 | **A hold now quotes the price with tax on it.** At an outlet that adds VAT at the till, a hold used to total the shelf prices and nothing else, so a customer who had paid it "in full" was short by exactly the tax and handing the goods over failed with a mismatch. The tax is worked out on the day of the hold and frozen on it, so the balance on the screen is the money the till will actually take. Open holds are re-costed on update. **Holds are also switched off by default now** (Settings, General, Holds and deposits): a shop that never puts goods aside sees no button and no screen. And the Holds and deposits settings card, which rendered as a wall of run-on text, is laid out like the rest of them. |

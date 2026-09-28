@@ -27,11 +27,17 @@ before any of this was written):
   cash on a dollar sale) or in the sale's currency (Cash USD). ERPNext refuses
   a dollar account on a dirham invoice at the shift close, so the till never
   offers one.
-- Change always comes back in local money from the outlet's change account,
-  as in ERPNext's own POS: the close merges a customer's invoices and books
-  all their change from ONE account (the last invoice's), so a drawer in
-  another currency takes money in and never pays change out.
+- Change comes back in local money from the company's cash, as in ERPNext's
+  own POS, unless the currency is set to give change in itself (Settings, per
+  currency, since 0.52.0): then every sale in it gives its change from that
+  currency's own drawer ("Cash USD"). The choice is fixed for the shift with
+  the rate, because the close merges a customer's invoices and books all their
+  change from ONE account (the last invoice's). An outlet whose POS Profile
+  names its own Account for Change Amount keeps it: ERPNext puts it on every
+  sale. What the till shows follows the account really used.
 """
+
+import json
 
 import frappe
 from frappe import _
@@ -116,10 +122,68 @@ def shift_rate(session_name, currency, company, pin=False):
                 "idx": idx + 1,
                 "currency": currency,
                 "exchange_rate": rate,
+                # Change in this currency or not: fixed with the rate.
+                "change_in_currency": 1 if _change_setting(currency) else 0,
                 "pinned_at": now_datetime(),
             }
         ).db_insert()
     return rate
+
+
+def _change_setting(currency):
+    row = currency_rows().get(currency)
+    return bool(row and cint(row.get("change_in_currency")))
+
+
+def shift_gives_change(session_name, currency):
+    """Whether a sale in `currency` gives its change in it, from its own
+    drawer (Settings, per currency). Fixed with the shift's rate the first
+    time the shift sells in that currency, so every invoice ERPNext merges
+    for a customer at the close names the same change account; the setting
+    until then."""
+    if session_name:
+        pinned = frappe.db.get_value(
+            "POS Session Rate",
+            {"parent": session_name, "parenttype": "POS Register Session", "currency": currency},
+            "change_in_currency",
+        )
+        if pinned is not None:
+            return bool(cint(pinned))
+    return _change_setting(currency)
+
+
+def drawer_account(profile, currency):
+    """The account of this outlet's cash drawer in `currency` ("Cash USD"),
+    or None when the outlet has none."""
+    for row in profile.get("payments") or []:
+        if frappe.get_cached_value("Mode of Payment", row.mode_of_payment, "type") != "Cash":
+            continue
+        account = frappe.db.get_value(
+            "Mode of Payment Account", {"parent": row.mode_of_payment, "company": profile.company}, "default_account"
+        )
+        if account and frappe.get_cached_value("Account", account, "account_currency") == currency:
+            return account
+    return None
+
+
+def change_plan(profile, currency, session_name=None):
+    """Where the change of a sale in `currency` at this outlet comes from, as
+    ERPNext will book it: (the account LumenPOS sets on the invoice, or None,
+    and the currency the change is given in).
+
+    The outlet's own Account for Change Amount wins when its POS Profile names
+    one: ERPNext puts it on every sale, over anything else. Otherwise the
+    change comes from that currency's own drawer when the shop gives change in
+    it, else from the company's cash, in local money, as ERPNext does."""
+    ccy = company_currency(profile.company)
+    own = profile.get("account_for_change_amount")
+    if own:
+        return None, frappe.get_cached_value("Account", own, "account_currency") or ccy
+    if currency != ccy and shift_gives_change(session_name, currency):
+        drawer = drawer_account(profile, currency)
+        if drawer:
+            return drawer, currency
+    return None, ccy
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +207,21 @@ def own_price_list(customer, currency):
     return None
 
 
+def own_list_prices(ctx, item_codes, uom_map=None):
+    """{item_code: price in the OUTLET's terms} for the items the customer's own
+    price list (in the sale's currency) prices, so offers, bundles and
+    discounts keep working on one currency. An item that list does not price
+    is left out: it keeps the outlet's price and is converted like any other.
+    (Until 0.51.1 such an item fell back to its outlet NUMBER read as the
+    sale's currency: a US$5 item sold for ZWG 5 instead of ZWG 175.)"""
+    if not ctx or not ctx.get("own_list") or not item_codes:
+        return {}
+    from lumen_restaurants.price_books import get_price_map
+
+    own = get_price_map(item_codes, ctx.own_list, uom_map)
+    return {code: flt(rate) / ctx.factor for code, rate in own.items() if flt(rate) > 0}
+
+
 def sale_context(profile, customer, price_list, session_name=None, pin=False):
     """What a sale to `customer` at this outlet is in.
 
@@ -164,6 +243,8 @@ def sale_context(profile, customer, price_list, session_name=None, pin=False):
         foreign=False,
         price_list=price_list,
         own_list=None,
+        change_account=None,
+        change_currency=None,
     )
     if not billed or billed == outlet:
         return ctx
@@ -187,6 +268,8 @@ def sale_context(profile, customer, price_list, session_name=None, pin=False):
         )
     rate = shift_rate(session_name, billed, profile.company, pin)
     list_rate = shift_rate(session_name, outlet, profile.company, pin)
+    # After the rate: a pinned shift fixed the change rule with it.
+    change_account, change_currency = change_plan(profile, billed, session_name)
     # A plain dict: v13's frappe._dict.update takes no keyword arguments.
     ctx.update(
         {
@@ -196,6 +279,8 @@ def sale_context(profile, customer, price_list, session_name=None, pin=False):
             "factor": list_rate / rate,
             "foreign": True,
             "own_list": own_price_list(customer, billed),
+            "change_account": change_account,
+            "change_currency": change_currency,
         }
     )
     return ctx
@@ -210,6 +295,8 @@ def public(ctx):
         "rate": flt(ctx.rate or 1, 9),
         "factor": flt(ctx.factor, 12),
         "foreign": 1 if ctx.foreign else 0,
+        # The money the change is given in (a sale in another currency only).
+        "change_currency": ctx.get("change_currency"),
     }
 
 
@@ -232,6 +319,9 @@ def apply_to_invoice(invoice, ctx):
     receivable = invoice.get("debit_to")
     if not receivable or frappe.get_cached_value("Account", receivable, "account_currency") != ctx.currency:
         invoice.debit_to = receivable_account(invoice.company, ctx.currency)
+    # Change from the sale currency's own drawer, when the shop gives it so.
+    if ctx.get("change_account"):
+        invoice.account_for_change_amount = ctx.change_account
 
 
 def assert_local(ctx, what):
@@ -274,6 +364,52 @@ def check_tenders(ctx, company, payments):
             ),
             title=_("Payment"),
         )
+
+
+def check_change(invoice):
+    """After insert, when ERPNext has settled the change and its account (the
+    POS Profile's own Account for Change Amount when it names one): that
+    account must be in the company currency or the sale's. ERPNext refuses any
+    other when it books the change, which for a POS Invoice is at the shift
+    close, hours later. So such a sale is refused here, with the reason."""
+    account = invoice.get("account_for_change_amount")
+    # A POS Invoice gets its change_amount only at submit: work it out the way
+    # ERPNext will (validate_change_amount).
+    change = flt(invoice.get("change_amount")) or (
+        flt(invoice.get("paid_amount"))
+        - (flt(invoice.get("rounded_total")) or flt(invoice.get("grand_total")))
+        + flt(invoice.get("write_off_amount"))
+    )
+    if change <= 0.005 or not account:
+        return
+    account_currency = frappe.get_cached_value("Account", account, "account_currency")
+    ccy = company_currency(invoice.company)
+    from lumen_restaurants import erpnext_compat
+
+    if not erpnext_compat.change_gl_entries_on():
+        # ERPNext then takes change off the payment made into the change
+        # account, in local money only: anything else would leave the change
+        # out of the books.
+        paid_into = {row.account for row in invoice.get("payments") or [] if flt(row.amount)}
+        if account not in paid_into or account_currency != ccy:
+            frappe.throw(
+                _(
+                    "ERPNext is set not to record change as its own ledger entry (Create Ledger Entries for "
+                    "Change Amount, in POS Settings on ERPNext 16 and Accounts Settings before), so change can "
+                    "only come back in local money from the drawer the customer paid into. Turn that on, or take "
+                    "the exact amount."
+                ),
+                title=_("Change"),
+            )
+    if account_currency in (ccy, invoice.currency):
+        return
+    frappe.throw(
+        _(
+            "Change at this outlet comes from {0}, which is in {1}: a sale in {2} cannot give change from it. "
+            "Take the exact amount, or set the outlet's Account for Change Amount (POS Profile) to an account in {3}."
+        ).format(account, account_currency, invoice.currency, ccy),
+        title=_("Change"),
+    )
 
 
 def amount_in_account_currency(row, invoice, company):
@@ -377,10 +513,28 @@ def _ensure_cash_mode(currency, company, account):
     elif not row.default_account:
         row.default_account = account
     else:
-        return name
+        held = frappe.get_cached_value("Account", row.default_account, "account_currency")
+        if not held or held == currency:
+            return doc.name
+        if doc.name == name and row.default_account == frappe.get_cached_value(
+            "Company", company, "default_cash_account"
+        ):
+            # ERPNext gives a new company's cash account to the first Cash-type
+            # method it finds, which can be this drawer: it gets its own back.
+            row.default_account = account
+        else:
+            # A method the shop already had under this name ("CASH ZAR", names
+            # match whatever the case) with an account in another currency
+            # would count this currency's cash in that one. Say so instead.
+            frappe.throw(
+                _(
+                    "The payment method {0} already exists, and its account for {1} ({2}) is in {3}, not {4}. "
+                    "Give it a {4} account, or rename it, so the {4} cash drawer can be set up."
+                ).format(doc.name, company, row.default_account, held, currency)
+            )
     fill_required_custom_fields(doc, name)
     doc.save(ignore_permissions=True)
-    return name
+    return doc.name
 
 
 def _ensure_walk_in(currency, receivables):
@@ -401,20 +555,31 @@ def _ensure_walk_in(currency, receivables):
             if default_customer
             else (None, None)
         )
+        # A group v15 accepts: it refuses a group node ("Cannot select a Group
+        # type Customer Group"), and an outlet's default customer often sits in
+        # "All Customer Groups", so the currency was never set up there.
+        from lumen_restaurants.api.catalog import _customer_group
+
         doc = frappe.get_doc(
             {
                 "doctype": "Customer",
                 "customer_name": label,
                 "customer_type": "Individual",
-                "customer_group": group or frappe.db.get_single_value("Selling Settings", "customer_group"),
+                "customer_group": _customer_group(
+                    "Individual", group, frappe.db.get_single_value("Selling Settings", "customer_group")
+                ),
                 "territory": territory or frappe.db.get_single_value("Selling Settings", "territory"),
             }
         )
+    changed = doc.is_new() or doc.default_currency != currency
     doc.default_currency = currency
     have = {r.company for r in (doc.get("accounts") or [])}
     for company, account in receivables.items():
         if company not in have:
             doc.append("accounts", {"company": company, "account": account})
+            changed = True
+    if not changed:
+        return doc.name  # set up already: saved once, not on every run
     fill_required_custom_fields(doc, label)
     doc.flags.ignore_permissions = True
     if doc.is_new():
@@ -450,29 +615,65 @@ def setup_currency(currency):
     return {"walk_in_customer": walk_in, "cash_mode": mode}
 
 
+SETUP_ERRORS = "lumenpos_currency_setup_errors"
+
+
+def setup_errors():
+    """{currency: reason} of the currencies whose last setup failed."""
+    try:
+        found = frappe.cache().hgetall(SETUP_ERRORS) or {}
+    except Exception:
+        return {}
+    # Redis hands the field names back as bytes.
+    return {(k.decode() if isinstance(k, bytes) else k): v for k, v in found.items()}
+
+
 def ensure_setup():
-    """After a migrate, and after saving Settings: set up every currency row
-    that is not set up yet. Never blocks a migrate."""
+    """After a migrate, and after saving Settings: set up every currency row.
+    Every time, not only the first: an outlet or a company added later gets
+    the drawer and the receivable too (everything here is get-or-create).
+    Never blocks a migrate. A currency is set up whole or not at all (no
+    drawer without its walk-in customer), and why it failed is kept for the
+    Settings screen, which used to say "Set up when you save" forever.
+    Returns {currency: reason} for the ones that failed."""
     if not enabled():
-        return
+        return {}
+    # Change from one drawer for money paid into another, and change from a
+    # drawer in another currency, need change booked as its own ledger entry.
+    from lumen_restaurants import erpnext_compat
+
+    erpnext_compat.ensure_change_gl_entries()
     doc = frappe.get_single(SETTINGS)
     changed = False
+    failed = {}
     for row in doc.get("sale_currencies") or []:
-        if not row.currency or (row.walk_in_customer and row.cash_mode):
+        if not row.currency:
             continue
+        frappe.db.savepoint("lumenpos_currency_setup")
         try:
             made = setup_currency(row.currency)
-        except Exception:
+        except Exception as exc:
+            frappe.db.rollback(save_point="lumenpos_currency_setup")
+            failed[row.currency] = frappe.utils.strip_html(str(exc)).strip() or type(exc).__name__
             frappe.log_error(
                 title=f"LumenPOS: setting up {row.currency} failed", message=frappe.get_traceback()
             )
             continue
-        row.walk_in_customer = row.walk_in_customer or made["walk_in_customer"]
-        row.cash_mode = row.cash_mode or made["cash_mode"]
-        changed = True
+        if not (row.walk_in_customer and row.cash_mode):
+            row.walk_in_customer = row.walk_in_customer or made["walk_in_customer"]
+            row.cash_mode = row.cash_mode or made["cash_mode"]
+            changed = True
+    try:
+        cache = frappe.cache()
+        cache.delete_key(SETUP_ERRORS)
+        for code, reason in failed.items():
+            cache.hset(SETUP_ERRORS, code, reason)
+    except Exception:
+        pass
     if changed:
         doc.flags.ignore_permissions = True
         doc.save()
+    return failed
 
 
 # ---------------------------------------------------------------------------
@@ -505,6 +706,10 @@ def client_config(profile, session_name=None):
             rate = shift_rate(session_name, currency, profile.company)
         except Exception:
             rate = 0
+        try:
+            change_currency = change_plan(profile, currency, session_name)[1]
+        except Exception:
+            change_currency = ccy
         walk_in = (
             frappe.db.get_value(
                 "Customer", row.walk_in_customer, ["customer_name", "customer_group"], as_dict=True
@@ -522,6 +727,7 @@ def client_config(profile, session_name=None):
                 "cash_mode": row.cash_mode,
                 "show_equivalent": 1 if cint(row.show_equivalent) else 0,
                 "rate": rate,
+                "change_currency": change_currency,
             }
         )
     return out
@@ -556,12 +762,26 @@ def get_rates():
     """Today's selling rate of every currency the till sells in, to each
     company currency with a till."""
     _require_settings()
+    return rates()
+
+
+def rates():
+    """get_rates for the Settings screen: anyone who may see Settings sees the
+    rates (only changing one needs the right to manage them; they used to
+    vanish behind "Save the currencies first"). ERPNext's lookup can pop up
+    "Unable to find exchange rate" for a currency it cannot fetch, which is
+    exactly the one to set here, so its message is muted."""
     out = []
-    for currency in currency_rows():
-        for ccy in sorted({company_currency(c) for c in _companies()}):
-            if currency == ccy:
-                continue
-            out.append({"currency": currency, "company_currency": ccy, "rate": current_rate(currency, ccy)})
+    muted = frappe.flags.mute_messages
+    frappe.flags.mute_messages = True
+    try:
+        for currency in currency_rows():
+            for ccy in sorted({company_currency(c) for c in _companies()}):
+                if currency == ccy:
+                    continue
+                out.append({"currency": currency, "company_currency": ccy, "rate": current_rate(currency, ccy)})
+    finally:
+        frappe.flags.mute_messages = muted
     return out
 
 
@@ -591,3 +811,160 @@ def set_rate(currency, company_currency, rate):
             }
         ).insert(ignore_permissions=True)
     return {"currency": currency, "company_currency": company_currency, "rate": rate}
+
+
+# ---------------------------------------------------------------------------
+# Automatic rates (LumenPOS Settings, Other currencies)
+# ---------------------------------------------------------------------------
+# A currency is Fixed (the shop sets its rate, as before) or Automatic: once a
+# day the published rate, less the shop's margin, is saved as ERPNext's own
+# Currency Exchange, exactly what a person typing it would make, so the till,
+# the shift's fixed rate and ERPNext all keep working unchanged. A rate typed
+# for the day always wins. Volatile currencies are why the margin exists: a
+# shop in Zimbabwe sold at 35 ZWG to the dollar while the published rate was
+# 26.6, and would have lost a quarter of every sale on the published one.
+
+RATES_URL = "https://open.er-api.com/v6/latest/{base}"
+# ExchangeRate-API's free open access (no key, refreshed once a day,
+# commercial use allowed) asks for this credit wherever its rates are shown.
+RATES_CREDIT = {"text": "Rates By Exchange Rate API", "url": "https://www.exchangerate-api.com"}
+
+
+def auto_rates_on():
+    try:
+        return enabled() and bool(cint(frappe.db.get_single_value(SETTINGS, "auto_rates_enabled")))
+    except Exception:
+        return False  # a site that has not migrated yet
+
+
+def fetch_published(base):
+    """{currency: units of it per 1 `base`}, today's published rates."""
+    import requests
+
+    response = requests.get(RATES_URL.format(base=base), timeout=20)
+    response.raise_for_status()
+    data = response.json()
+    if data.get("result") != "success" or not data.get("rates"):
+        frappe.throw(_("The rates service answered: {0}").format(data.get("error-type") or data.get("result")))
+    return data["rates"]
+
+
+def auto_status(row):
+    """What the daily update last did for this currency, per company currency:
+    published, used, wrote (what it saved, None when a typed rate won), date,
+    at, error."""
+    try:
+        return json.loads(row.get("auto_status") or "{}") or {}
+    except Exception:
+        return {}
+
+
+def _write_rate(currency, base, rate, today, last, force):
+    """Today's selling Currency Exchange: written when there is none, when it
+    still holds what the update wrote earlier today, or when forced (Update
+    now). Otherwise someone typed it today and it stays. Returns (rate in
+    force, what was written or None)."""
+    filters = {"from_currency": currency, "to_currency": base, "date": today, "for_selling": 1}
+    found = frappe.db.get_value("Currency Exchange", filters, ["name", "exchange_rate"])
+    name, current = found if found else (None, None)
+    ours = (
+        last.get("date") == today
+        and last.get("wrote") is not None
+        and flt(last.get("wrote"), 9) == flt(current, 9)
+    )
+    if name and not (force or ours):
+        return flt(current, 9), None
+    if name:
+        frappe.db.set_value("Currency Exchange", name, "exchange_rate", rate)
+    else:
+        frappe.get_doc(
+            {
+                "doctype": "Currency Exchange",
+                "from_currency": currency,
+                "to_currency": base,
+                "date": today,
+                "exchange_rate": rate,
+                "for_selling": 1,
+                "for_buying": 0,
+            }
+        ).insert(ignore_permissions=True)
+    return rate, rate
+
+
+def refresh_auto_rates(fetch=None, force=False, commit=False):
+    """Today's rate of every Automatic currency, to each company currency with
+    a till. A failed fetch keeps the last rate (ERPNext uses the latest one on
+    record) and the reason is kept for the Settings screen. Returns
+    {currency: {company currency: status}}."""
+    if not auto_rates_on():
+        return {}
+    doc = frappe.get_single(SETTINGS)
+    rows = [r for r in doc.get("sale_currencies") or [] if r.currency and r.get("rate_source") == "Automatic"]
+    if not rows:
+        return {}
+    fetch = fetch or fetch_published
+    today = nowdate()
+    stamp = str(now_datetime())[:16]
+    out = {}
+    for base in sorted({company_currency(c) for c in _companies()}):
+        problem = None
+        try:
+            table = fetch(base) or {}
+        except Exception as exc:
+            table, problem = {}, (frappe.utils.strip_html(str(exc)).strip() or type(exc).__name__)[:300]
+            frappe.log_error(title="LumenPOS: exchange rates update failed", message=frappe.get_traceback())
+        for row in rows:
+            if row.currency == base:
+                continue
+            status = auto_status(row)
+            last = dict(status.get(base) or {})
+            per_base = flt(table.get(row.currency))
+            margin = flt(row.get("rate_margin"))
+            if problem or per_base <= 0:
+                last.update(
+                    {
+                        "error": problem or _("The rates service has no rate for {0}.").format(row.currency),
+                        "tried": stamp,
+                    }
+                )
+            else:
+                published = flt(1 / per_base, 9)
+                used, wrote = _write_rate(
+                    row.currency, base, flt(published * (1 - margin / 100), 9), today, last, force
+                )
+                last = {
+                    "published": published,
+                    "used": used,
+                    "wrote": wrote,
+                    "margin": margin,
+                    "date": today,
+                    "at": stamp,
+                    "error": None,
+                }
+            status[base] = last
+            row.auto_status = json.dumps(status)
+            out.setdefault(row.currency, {})[base] = last
+    doc.flags.ignore_permissions = True
+    doc.save()
+    if commit:
+        frappe.db.commit()  # nosemgrep
+    return out
+
+
+def daily_rates():
+    """Scheduler (00:15): the day's automatic rates."""
+    try:
+        refresh_auto_rates(commit=True)
+    except Exception:
+        frappe.db.rollback()
+        frappe.log_error(title="LumenPOS: exchange rates update failed", message=frappe.get_traceback())
+
+
+@frappe.whitelist()
+def update_rates_now():
+    """Settings, Update now: today's automatic rates at once, replacing today's
+    rate of every Automatic currency."""
+    _require_settings()
+    if not auto_rates_on():
+        frappe.throw(_("Switch on automatic exchange rates first, and save."))
+    return {"result": refresh_auto_rates(force=True), "rates": rates()}
