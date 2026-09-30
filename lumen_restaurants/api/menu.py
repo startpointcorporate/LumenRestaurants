@@ -128,7 +128,10 @@ def _filing(profile, section_of=None):
     section_of = section_of or _section_of(profile)
     leaves = set(frappe.get_all("Item Group", filters={"name": ["in", list(section_of) or [""]], "is_group": 0}, pluck="name"))
     hidden = modifiers.addon_group()
-    return [{"name": g, "section": s} for g, s in section_of.items() if g in leaves and g != hidden]
+    return sorted(
+        ({"name": g, "section": s} for g, s in section_of.items() if g in leaves and g != hidden),
+        key=lambda row: row["name"],
+    )
 
 
 def _list_prices(profile, codes):
