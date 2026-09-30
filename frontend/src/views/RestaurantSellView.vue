@@ -63,6 +63,7 @@
               <!-- Lumen Restaurants: the dish's free choices, then its paid lines. -->
               <span v-if="freeChoices(line).length" class="rl-choices">{{ freeChoices(line).join(listSep) }}</span>
               <span v-if="line.note" class="rl-note">{{ line.note }}</span>
+              <span v-if="line.price_override != null" class="rl-typed">{{ t('Price changed at the till') }}</span>
               <span v-if="line.sent_qty" class="rl-sent"><Icon name="check" /> {{ t('sent {n}', { n: line.sent_qty }) }}</span>
             </div>
             <div class="rl-price">{{ money(line.price * line.qty) }}</div>
@@ -79,8 +80,13 @@
             <button v-if="groupsOf(line).length" class="rl-tool" @click="editDish(line)">
               {{ t('Add-ons') }}
             </button>
-            <button class="rl-tool" :class="{ on: noteFor === i }" @click="noteFor = noteFor === i ? null : i">
+            <button class="rl-tool" :class="{ on: noteFor === i }" @click="noteFor = noteFor === i ? null : i; priceFor = null">
               {{ t('Note') }}
+            </button>
+            <!-- A price typed for the dish: the outlet allows it (POS Profile,
+                 Allow User to Edit Rate) and the person may edit prices. -->
+            <button v-if="canChangePrice" class="rl-tool" :class="{ on: priceFor === i }" @click="priceFor = priceFor === i ? null : i; noteFor = null">
+              {{ t('Price') }}
             </button>
             <button class="rl-tool danger" @click="removeLine(i, line)"><Icon name="close" /></button>
           </div>
@@ -92,6 +98,22 @@
             @change="cart.setLineNote(i, $event.target.value); noteFor = null"
             @keyup.enter="$event.target.blur()"
           />
+          <div v-if="priceFor === i" class="rl-price-edit">
+            <input
+              class="rl-note-input rl-price-input"
+              type="text"
+              inputmode="decimal"
+              :value="line.price_override != null ? String(line.price_override) : String(cart.inSale(line.price))"
+              :placeholder="String(cart.inSale(line.price_before_override ?? line.price))"
+              @change="typePrice(line, $event.target.value)"
+              @keyup.enter="$event.target.blur()"
+            />
+            <span class="muted small">
+              {{ linesOf(line.item_code) > 1
+                ? t('One price for every {item} on this order', { item: line.item_name })
+                : t('Leave it empty for the menu price') }}
+            </span>
+          </div>
         </div>
         </template>
       </div>
@@ -206,6 +228,7 @@ import ModifierSheet from '../components/ModifierSheet.vue'
 import { useModifierStore } from '../stores/modifiers'
 import {
   addDish, updateDish, setDishQty, removeDish, addonsOf, freeChoices, picksFrom, defaultPicks, missingGroups,
+  setItemPrice,
 } from '../addons'
 import { call } from '../api'
 import { useSessionStore } from '../stores/session'
@@ -224,6 +247,9 @@ const customerOpen = ref(false)
 const paymentOpen = ref(false)
 const receipt = ref(null)
 const noteFor = ref(null)
+const priceFor = ref(null)
+// Type a price on a dish: where the outlet allows it and the person may.
+const canChangePrice = computed(() => Boolean(session.permissions?.can_change_price))
 const firing = ref(false)
 const readyCalls = ref([])
 let readyTimer = null
@@ -274,6 +300,16 @@ function saveSheet({ picks, qty, note }) {
 function removeFromSheet() {
   if (sheet.value?.lineId) removeDish(cart, sheet.value.lineId)
   sheet.value = null
+}
+
+// One price for the item on every line of it (addons.js setItemPrice).
+function typePrice(line, value) {
+  setItemPrice(cart, line.item_code, value)
+  priceFor.value = null
+}
+
+function linesOf(itemCode) {
+  return cart.lines.filter((l) => l.item_code === itemCode && !l.lr_addon_of && !l.bundle_key).length
 }
 
 function stepQty(i, line, step) {
@@ -455,6 +491,9 @@ onUnmounted(() => clearInterval(readyTimer))
 .rl-tool.on { background: var(--brand); color: #fff; }
 .rl-tool.danger { margin-inline-start: auto; color: var(--red); background: transparent; }
 .rl-note-input { width: 100%; margin-top: 7px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; font: inherit; font-size: 13px; }
+.rl-typed { display: block; color: var(--brand); font-size: 11.5px; margin-top: 2px; }
+.rl-price-edit { display: flex; flex-direction: column; gap: 4px; }
+.rl-price-input { max-width: 180px; font-variant-numeric: tabular-nums; }
 .rtotals { border-top: 1px solid var(--border); padding: 10px 16px 2px; font-size: 13px; }
 .rt-row { display: flex; justify-content: space-between; margin: 3px 0; color: var(--text-muted); }
 .rt-row.big { color: var(--text); font-weight: 700; font-size: 17px; }

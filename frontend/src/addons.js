@@ -135,8 +135,11 @@ export function addDish(cart, item, groups, picks, qty = 1, note = '', hiddenGro
     setDishQty(cart, twin.lr_line, twin.qty + qty)
     return twin.lr_line
   }
+  const typed = typedPriceOf(cart, item.item_code)
   const dish = { ...dishLine(item), qty, note: (note || '').trim(), lr_line: newLineId(), lr_mods: mods }
   cart.lines.push(dish)
+  // One price per item on the order (setItemPrice).
+  if (typed != null) cart.setLinePrice(cart.lines.length - 1, typed)
   placeAddons(cart, dish, hiddenGroup)
   if (cart.appType || cart.customer) cart.reprice()
   return dish.lr_line
@@ -165,6 +168,22 @@ export function setDishQty(cart, lineId, qty) {
 
 export function removeDish(cart, lineId) {
   cart.lines = cart.lines.filter((l) => l.lr_line !== lineId && l.lr_addon_of !== lineId)
+}
+
+// A price typed at the till, where the outlet allows it and the person may
+// (the server checks both again when the order is saved and at the sale):
+// one price per item on the order, on every line of it, because a return
+// takes an item back at one rate, the rate of its first line on the sale.
+export function typedPriceOf(cart, itemCode) {
+  const line = cart.lines.find((l) => l.item_code === itemCode && !l.bundle_key && l.price_override != null)
+  return line ? line.price_override : null
+}
+
+// Type (or clear, with an empty value) the price of an item on every line of it.
+export function setItemPrice(cart, itemCode, value) {
+  cart.lines.forEach((line, i) => {
+    if (line.item_code === itemCode && !line.bundle_key) cart.setLinePrice(i, value)
+  })
 }
 
 // What a dish costs on the order: its own price and its paid lines.

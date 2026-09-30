@@ -474,7 +474,15 @@ def _price_overrides(payload, lines, ctx, profile):
             ),
             frappe.PermissionError,
         )
-    if not permissions.can_edit_price():
+    # Lumen Restaurants: at a restaurant outlet an item has one price on the
+    # sale (a return takes it back at one rate), and a price typed on the table
+    # order being paid was checked when it was typed (restaurant.save_order),
+    # so the cashier taking the money needs no right of their own.
+    from lumen_restaurants.api import restaurant
+
+    if cint(profile.get("lumenpos_restaurant_mode")):
+        restaurant.assert_one_price_per_item(payload.get("items"))
+    if not permissions.can_edit_price() and not restaurant.typed_on_order(payload, [row for _, row in typed]):
         frappe.throw(
             _("You're not allowed to edit prices or apply discounts on a sale."),
             frappe.PermissionError,

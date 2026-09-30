@@ -5,6 +5,9 @@
 // Kept apart from LumenPOS's messages.js, so a LumenPOS update never collides
 // with it: messages.js only spreads it into the Arabic dictionary.
 export const restaurantAddonsAr = {
+  // A price typed on the restaurant screen (0.1.0-r11).
+  'One price for every {item} on this order': 'سعر واحد لكل {item} في هذا الطلب',
+  'Leave it empty for the menu price': 'اتركه فارغا ليرجع سعر المنيو',
   'Menu': 'المنيو',
   'Edit the menu': 'تعديل المنيو',
   'Dishes': 'الأطباق',

@@ -268,6 +268,101 @@ def _derive_items(doc, cart):
         )
 
 
+# ---------------------------------------------------------------------------
+# A price typed at the till on a table order (LumenPOS 0.55.0 on the shop
+# screen, here since 0.1.0-r11). It is checked when it is TYPED: the outlet
+# lets prices be changed (POS Profile, Allow User to Edit Rate) and the person
+# may (Edit price / discount). It stays on the order with the name of whoever
+# typed it, so the cashier who takes the money needs no right of their own.
+
+
+def _typed_prices(cart):
+    """{item code: (typed price, who typed it)} on an order's cart."""
+    out = {}
+    for line in (cart or {}).get("lines") or []:
+        if line.get("bundle_key") or line.get("price_override") in (None, ""):
+            continue
+        out[line.get("item_code")] = (flt(line.get("price_override"), 2), line.get("price_override_by"))
+    return out
+
+
+def assert_one_price_per_item(rows):
+    """Every line of one item carries the same typed price, or none. A return
+    takes an item back at one rate (sales._build_return_doc keeps its first
+    line), so two burgers at two prices would be refunded wrong. Bundle lines
+    keep their own pricing and are left out."""
+    prices = {}
+    for row in rows or []:
+        if row.get("bundle_key"):
+            continue
+        value = row.get("price_override")
+        value = None if value in (None, "") else flt(value, 2)
+        code = row.get("item_code")
+        if code in prices and prices[code] != value:
+            frappe.throw(
+                _("{0} is on this order at two prices. Type one price for all of it.").format(
+                    row.get("item_name") or code
+                )
+            )
+        prices[code] = value
+
+
+def _check_typed_prices(doc, old_cart, new_cart):
+    """The typed prices of an order being saved: one per item, a new or
+    changed one only from someone who may type prices at this outlet. Each
+    carries who typed it. Returns the lines typed now, one per item."""
+    lines = new_cart.get("lines") or []
+    assert_one_price_per_item(lines)
+    before = _typed_prices(old_cart)
+    typed_now = {}
+    for line in lines:
+        if line.get("bundle_key"):
+            continue
+        if line.get("price_override") in (None, ""):
+            line.pop("price_override_by", None)
+            continue
+        code = line.get("item_code")
+        was = before.get(code)
+        if was and was[1] and abs(was[0] - flt(line.get("price_override"), 2)) < 0.005:
+            line["price_override_by"] = was[1]
+            continue
+        typed_now.setdefault(code, line)
+        line["price_override_by"] = frappe.session.user
+    if typed_now:
+        profile = frappe.get_cached_doc("POS Profile", doc.pos_profile)
+        if not cint(profile.get("allow_rate_change")):
+            frappe.throw(
+                _("{0} does not let prices be changed at the till. Tick Allow User to Edit Rate on its POS Profile to allow it.").format(
+                    profile.name
+                ),
+                frappe.PermissionError,
+            )
+        if not permissions.can_edit_price():
+            frappe.throw(
+                _("You're not allowed to edit prices or apply discounts on a sale."),
+                frappe.PermissionError,
+            )
+    return list(typed_now.values())
+
+
+def typed_on_order(payload, rows):
+    """Were the typed prices of this sale all typed on the table order it pays,
+    by someone allowed to (save_order checked them)? Then the cashier taking
+    the money needs no right to type prices."""
+    name = payload.get("order")
+    if not name or not rows:
+        return False
+    order = frappe.db.get_value(ORDER, name, ["status", "cart", "pos_profile"], as_dict=True)
+    if not order or order.status != "Open" or order.pos_profile != payload.get("pos_profile"):
+        return False
+    typed = _typed_prices(json.loads(order.cart or "{}"))
+    for row in rows:
+        was = typed.get(row.get("item_code"))
+        if not was or not was[1] or abs(was[0] - flt(row.get("price_override"), 2)) >= 0.005:
+            return False
+    return True
+
+
 @frappe.whitelist()
 def save_order(name, cart=None, customer=None, guests=None, note=None, order_type=None):
     """Keep the order up to date as the waiter rings items in.
@@ -277,9 +372,11 @@ def save_order(name, cart=None, customer=None, guests=None, note=None, order_typ
     doc = _open_doc(name)
     if doc.status != "Open":
         frappe.throw(_("This order is {0} and cannot be changed").format(_(doc.status)))
+    typed_now = []
     if cart is not None:
         if isinstance(cart, str):
             cart = json.loads(cart or "{}")
+        typed_now = _check_typed_prices(doc, json.loads(doc.cart or "{}"), cart)
         doc.cart = json.dumps(cart)
         _derive_items(doc, cart)
     if customer is not None:
@@ -294,6 +391,20 @@ def save_order(name, cart=None, customer=None, guests=None, note=None, order_typ
     if order_type:
         doc.order_type = order_type
     doc.save()
+    if typed_now:
+        from lumen_restaurants.api import audit
+
+        for line in typed_now:
+            audit.log(
+                audit.PRICE_EDIT,
+                detail=_("{0}: price changed from {1} to {2}").format(
+                    line.get("item_code"), flt(line.get("price_before_override"), 2), flt(line.get("price_override"), 2)
+                ),
+                amount=flt(line.get("price_override")),
+                reference_doctype=ORDER,
+                reference_name=doc.name,
+                pos_profile=doc.pos_profile,
+            )
     return _as_dict(doc)
 
 

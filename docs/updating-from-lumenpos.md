@@ -98,6 +98,11 @@ items, test, then fill in the entry's last column (our commit and the date).
      to our `order` and `serviceType`, `clear()` resets both, the payload's
      `idempotency_key` right after our `order:` line, `_keepQueuedSale` after
      our `leaveOrder`).
+   - Keep both, a price typed on the restaurant screen (0.1.0-r11):
+     `api/sales.py` `_price_overrides` (after the outlet switch check, our
+     `restaurant.assert_one_price_per_item` at a restaurant outlet and
+     `restaurant.typed_on_order` next to `permissions.can_edit_price()`).
+     LumenPOS's `stores/cart.js` `setLinePrice` is what our screen calls.
    - `api/menu.py` (ours) follows LumenPOS's item group rules: `_listed` reads
      the outlet's list as `catalog.item_groups_under` does, and the dishes skip
      `catalog.internal_item_codes()`. When LumenPOS changes either helper, look

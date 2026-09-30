@@ -822,6 +822,7 @@
 "{0} is in {1} twice","{0} مكرر في {1}"
 "{0} is kept by LumenPOS for gift cards and hold deposits and cannot be sold as a product.","{0} صنف يستخدمه LumenPOS لبطاقات الهدايا وعربون الحجوزات، ولا يمكن بيعه كمنتج."
 "{0} is not a field of the customer form","{0} ليس من حقول نموذج العميل"
+"{0} is on this order at two prices. Type one price for all of it.","{0} في هذا الطلب بسعرين مختلفين. اكتب له سعرا واحدا."
 "{0} is serialized, quantity must be a whole number","الصنف {0} له أرقام تسلسلية، لذا يجب أن تكون الكمية عددا صحيحا"
 "{0} is serialized: scan {1} serial number(s), got {2}","الصنف {0} له أرقام تسلسلية: المطلوب مسح {1} من الأرقام التسلسلية، والممسوح {2}"
 "{0} is serialized: select {1} serial number(s) to return, got {2}","الصنف {0} له أرقام تسلسلية: المطلوب اختيار {1} من الأرقام التسلسلية للاسترجاع، والمختار {2}"
