@@ -694,12 +694,22 @@ promotions, loyalty, cashback, the Z-report and returns work unchanged.
 ### Takeaway and the order number
 
 A takeaway or delivery order is paid first. The moment the money is in, the
-till hands out a **short daily number** (starts at 1 every morning, per
-outlet), prints it big on the customer receipt, stamps it on the invoice in
+till hands out a **short daily number** (per outlet, starting at 1 each day
+at midnight, even while a shift carries on past it), prints it big on the customer receipt, stamps it on the invoice in
 ERPNext, and opens a kitchen ticket carrying the same number. The kitchen
 presses **Ready** and the sell screen shows a blue call strip: shout the
 number, hand the bag over, press **Handed over**. Dine-in tickets carry the
 table name instead, a table needs no number.
+
+### Open past midnight
+
+A restaurant open after midnight keeps its shift. Tables opened before midnight
+are paid after it as usual, the kitchen screen keeps the tickets it was showing,
+and the waiters who sold on the outlet's shift all close with it at the end. On
+ERPNext 16, which takes sales only on a shift opened the same day, the first
+sale after midnight closes ERPNext's day and opens the next by itself, and the
+drawer is still counted once, at the end of the shift (section 13, *A shift past
+midnight*).
 
 ### The kitchen screen
 
@@ -740,6 +750,15 @@ with the dishes themselves, without going into ERPNext's own screens.
   with its dishes and a search. Tick a whole section, which also covers the
   dishes added to it later, or single dishes of it. A new group opens this list
   as soon as it is saved.
+- **Sections are the till's.** The page shows the sections the till shows: the
+  item groups listed on the outlet's POS Profile, or every group without
+  sub-groups when it lists none or lists *All Item Groups*. A listed parent
+  section (Food, with Burgers and Drinks beneath it) is one section here as at
+  the till, holding the dishes of the groups beneath it, and a dish is filed in
+  one of those groups (the dish form lists them under their section). A new
+  section made from the dish form goes beneath that parent, so the outlet sells
+  it at once. LumenPOS's own items for gift cards and hold deposits are never
+  dishes.
 
 **At the till** a dish with add-ons shows *Has add-ons*. A tap opens its window:
 the groups as buttons, a note for the kitchen and the quantity, and the button
@@ -770,7 +789,12 @@ person, because the page changes prices. Every call the page makes is checked
 again on the server.
 
 A return counts items as it always has: a dish and its paid add-on are two
-lines, each returned on its own.
+lines, each returned on its own. Without a connection too (section 15): the
+till works out what ERPNext will refund for a dish, its add-ons or both, to the
+cent. A sale with a **service charge** is the exception, it waits for the
+connection to be taken back, and the screen says so. The restaurant screen has
+no price field on a line: typing a price at the till (section 17, *Changing a
+price at the till*) is the shop screen's.
 
 ### Reservations
 
@@ -1317,6 +1341,7 @@ which both LumenPOS roles are given.
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r10 | **LumenPOS 0.54.1 to 0.56.0, brought in.** Everything LumenPOS added up to 0.56.0 is in Lumen Restaurants too (see the LumenPOS releases below): an outlet's item groups cover the groups beneath them, offers and cashback on a group reach its sub-groups, a shift whose opening entry was cancelled in ERPNext closes, a shift can run past midnight on ERPNext 16, a shift several cashiers or waiters sold on closes, the hold deposit item is never sold as a product, selling in another currency without a connection, a price typed at the shop till, returns without a connection, queued sales sent in the background, a warning when the browser may clear the offline data, and a sale that never posts twice. **The Menu page follows the item group tree.** An outlet listing *All Item Groups* sees its whole menu there, and one listing a parent section (Food, with Burgers and Drinks beneath it) sees one section holding the dishes of the groups beneath it, as the till sells them. A dish is filed in a group without sub-groups, and a new section made there goes beneath the parent. The gift-card and hold deposit items never show as dishes. **Tested for restaurants:** a table opened before midnight and paid after it, two waiters on one shift that closes, and a sale with add-ons taken back without a connection for exactly what ERPNext refunds. A sale with a service charge still needs a connection to be taken back. |
 | 0.1.0-r9 | **Add-ons on dishes, and the Menu page.** A guest's choices about a dish (no pickles, medium heat, extra mayo) are set up as add-on groups on the new **Menu** page, together with the dishes, their prices and their sections, without going into ERPNext's screens, and for a big menu: search everywhere, many dishes tied at once, a group tied to a whole section or to single dishes. At the till a dish opens its add-ons window, a free choice goes to the kitchen as an instruction and a paid one is billed on its own line under the dish. The kitchen screen, the kitchen slip and the receipt show them under their dish, in colour in the kitchen. The Menu page is for the people allowed to **Edit the menu**, a new permission only managers have until somebody is named. Three switches per outlet in Settings, Restaurant. The Permissions list in Settings now also offers the restaurant's own actions (open, move or merge, and cancel a table order). |
 | 0.1.0-r8 | **LumenPOS 0.51.1 to 0.54.0, brought in.** Everything LumenPOS added up to 0.54.0 is in Lumen Restaurants too (see the LumenPOS releases below): automatic exchange rates and change given in the sale's currency, the till in nine languages, a customer's own price list in another currency priced right, held serials refused, the cart keeping its room for the goods, one open shift per person when the restaurant wants it, a close that always goes through, a manager closing anyone's open shift, and the permissions a cashier-only user needs to sell on ERPNext 15 and 16. **The floor screen on ERPNext 16** no longer fails as soon as a table has an order. The restaurant screens (the floor, the kitchen, bookings, the booking designer and the public booking page) are in English and Arabic so far: in the seven new languages they still show English. |
 | 0.1.0-r7 | **ERPNext looks like ERPNext again.** The Lumen Restaurants logo stays in the Lumen Restaurants screens only: the till, the booking page, the icon of the installed app and the receipts. The ERPNext desk bar, the login page, the loading screen and the browser tab show ERPNext's logo as before, and Frappe v15 opens as before after signing in, with no Lumen Restaurants tile on its apps screen. **Our mark and name on every receipt, always.** Every receipt the till gives out ends with the Lumen Restaurants mark and name, and no setting takes them off: the built-in receipt, the receipt printer, an outlet's own Print Format (the till now prints it with our mark added at the foot) and the emailed receipt. |

@@ -56,7 +56,12 @@
                 <label class="mfield">
                   <span>{{ t('Section') }}</span>
                   <select v-if="dishForm.newSection === null" :value="dishForm.item_group" @change="pickSection($event.target.value)">
-                    <option v-for="s in data.sections" :key="s" :value="s">{{ s }}</option>
+                    <template v-for="block in filingBlocks" :key="block.section">
+                      <optgroup v-if="block.nested" :label="block.section">
+                        <option v-for="g in block.groups" :key="g" :value="g">{{ g }}</option>
+                      </optgroup>
+                      <option v-else :value="block.groups[0]">{{ block.groups[0] }}</option>
+                    </template>
                     <option value="__new">+ {{ t('New section') }}</option>
                   </select>
                   <span v-else class="mnew-sec">
@@ -142,7 +147,7 @@
                   </span>
                   <button class="mrow-main" @click="editDish(d)">
                     <b>{{ d.item_name }}</b>
-                    <span class="muted small">{{ d.item_group }}</span>
+                    <span class="muted small">{{ d.section === d.item_group ? d.item_group : d.section + ' / ' + d.item_group }}</span>
                     <span v-if="data.options.enabled" class="mtags">
                       <span v-for="g in groupsForDish(d).slice(0, 4)" :key="g.name" class="mtag">{{ g.group_name }}</span>
                       <span v-if="groupsForDish(d).length > 4" class="mtag">+{{ groupsForDish(d).length - 4 }}</span>
@@ -435,20 +440,31 @@ function tieSummary(g) {
 
 // --- dishes ---------------------------------------------------------------
 function countIn(sectionName) {
-  return data.value.dishes.filter((d) => d.item_group === sectionName).length
+  return data.value.dishes.filter((d) => d.section === sectionName).length
 }
+// The groups a dish can be filed in, under the section that covers them: one
+// line each, or an optgroup when a listed section has groups beneath it.
+const filingBlocks = computed(() => {
+  if (!data.value) return []
+  const blocks = []
+  for (const s of data.value.sections) {
+    const groups = (data.value.filing || []).filter((f) => f.section === s).map((f) => f.name)
+    if (groups.length) blocks.push({ section: s, groups, nested: groups.length > 1 || groups[0] !== s })
+  }
+  return blocks
+})
 const shownDishes = computed(() => {
   if (!data.value) return []
   const query = norm(q.value)
   return data.value.dishes.filter(
-    (d) => (section.value === 'all' || d.item_group === section.value) && has(d.item_name, query)
+    (d) => (section.value === 'all' || d.section === section.value) && has(d.item_name, query)
   )
 })
 const dishBlocks = computed(() => {
   const list = shownDishes.value
   if (section.value !== 'all' || norm(q.value)) return list.length ? [{ section: 'all', heading: false, dishes: list }] : []
   return data.value.sections
-    .map((s) => ({ section: s, heading: true, dishes: list.filter((d) => d.item_group === s) }))
+    .map((s) => ({ section: s, heading: true, dishes: list.filter((d) => d.section === s) }))
     .filter((block) => block.dishes.length)
 })
 const selectedCodes = computed(() => Object.keys(selected.value).filter((code) => selected.value[code]))
@@ -471,7 +487,8 @@ function pickAllShown(on) {
 }
 
 function newDish() {
-  const first = section.value !== 'all' ? section.value : data.value.sections[0] || ''
+  const filing = data.value.filing || []
+  const first = (filing.find((f) => section.value !== 'all' && f.section === section.value) || filing[0] || {}).name || ''
   dishForm.value = { item_code: null, item_name: '', price: '', item_group: first, groups: [], fq: '', newSection: null }
   nextTick(() => dishName.value?.focus())
 }
@@ -507,7 +524,8 @@ async function addSection() {
     dishForm.value.item_group = out.name
     dishForm.value.newSection = null
     // the till's section list, without a reload
-    if (!session.itemGroups.includes(out.name)) session.itemGroups.push(out.name)
+    // a chip of its own when the outlet shows it as a section (not beneath a listed parent)
+    if ((out.sections || []).includes(out.name) && !session.itemGroups.includes(out.name)) session.itemGroups.push(out.name)
   }
 }
 async function saveDish() {
@@ -529,7 +547,7 @@ async function saveDish() {
   )
   if (out) {
     dishForm.value = null
-    if (section.value !== 'all' && section.value !== out.item_group) section.value = out.item_group
+    if (section.value !== 'all' && section.value !== out.section) section.value = out.section
   }
 }
 async function setSale(codes, onSale) {
@@ -604,22 +622,22 @@ function openTie(g) {
   for (const s of data.value.sections) {
     if (g.sections.some((x) => covered(x).includes(s))) cats[s] = true
   }
-  for (const code of g.dishes) {
-    const d = data.value.dishes.find((x) => x.item_code === code)
-    if (d && !cats[d.item_group]) dishes[code] = true
+  // A dish tied alone, or through a sub-section tied in ERPNext, shows ticked.
+  for (const d of data.value.dishes) {
+    if (!cats[d.section] && linkedTo(g, d)) dishes[d.item_code] = true
   }
   const open = {}
   for (const s of data.value.sections) {
-    if (data.value.dishes.some((d) => d.item_group === s && dishes[d.item_code])) open[s] = true
+    if (data.value.dishes.some((d) => d.section === s && dishes[d.item_code])) open[s] = true
   }
   tie.value = { group: g, cats, dishes, q: '', only: false, open }
   nextTick(() => tieSearch.value?.focus())
 }
 function isTied(d) {
-  return Boolean(tie.value.cats[d.item_group] || tie.value.dishes[d.item_code])
+  return Boolean(tie.value.cats[d.section] || tie.value.dishes[d.item_code])
 }
 function dishesIn(sectionName) {
-  return data.value.dishes.filter((d) => d.item_group === sectionName)
+  return data.value.dishes.filter((d) => d.section === sectionName)
 }
 const tieView = computed(() => {
   if (!tie.value) return []
@@ -654,9 +672,9 @@ function tieSection(s) {
 }
 function tieDish(d) {
   const L = tie.value
-  const all = dishesIn(d.item_group)
-  if (L.cats[d.item_group]) {
-    delete L.cats[d.item_group]
+  const all = dishesIn(d.section)
+  if (L.cats[d.section]) {
+    delete L.cats[d.section]
     for (const x of all) if (x.item_code !== d.item_code) L.dishes[x.item_code] = true
     return
   }
@@ -667,7 +685,7 @@ function tieDish(d) {
   L.dishes[d.item_code] = true
   // every dish of the section ticked: the whole section, dishes added later too
   if (all.every((x) => L.dishes[x.item_code])) {
-    L.cats[d.item_group] = true
+    L.cats[d.section] = true
     for (const x of all) delete L.dishes[x.item_code]
   }
 }
@@ -685,11 +703,11 @@ function tieShown(on) {
 }
 async function saveTie() {
   const L = tie.value
-  // Ties made in ERPNext to a section this outlet does not list stay as they
-  // are while every section they cover here is still whole.
+  // Ties made in ERPNext to a group this outlet does not show (a sub-section,
+  // or a parent) stay as they are while every dish they cover is still ticked.
   const listed = new Set(data.value.sections)
   const keep = L.group.sections.filter(
-    (s) => !listed.has(s) && data.value.sections.filter((x) => covered(s).includes(x)).every((x) => L.cats[x])
+    (s) => !listed.has(s) && data.value.dishes.filter((d) => covered(s).includes(d.item_group)).every(isTied)
   )
   const sections = [...keep, ...data.value.sections.filter((s) => L.cats[s] && !keep.some((k) => covered(k).includes(s)))]
   const items = Object.keys(L.dishes).filter((code) => L.dishes[code])

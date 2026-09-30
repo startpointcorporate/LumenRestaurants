@@ -61,25 +61,74 @@ def _guard(pos_profile):
     return frappe.get_cached_doc("POS Profile", pos_profile)
 
 
+def _listed(profile):
+    """The outlet's own list of sections, or None when it lists none or lists
+    the whole tree (its root, "All Item Groups"), exactly as the till reads it
+    (catalog.item_groups_under, session.get_bootstrap)."""
+    from lumen_restaurants.api.catalog import item_groups_under
+
+    listed = [row.item_group for row in (profile.item_groups or []) if row.item_group]
+    if not listed or item_groups_under(listed) is None:
+        return None
+    return listed
+
+
 def _sections(profile):
-    """The sections the till shows at this outlet, picked as the till picks
-    them (session.get_bootstrap): the outlet's own list, or every section with
-    no sub-sections. Never the Item Group of the add-on items."""
+    """The sections the page shows, the till's own chips: the outlet's list, or
+    every section with no sub-sections. Never the Item Group of the add-on
+    items. A listed parent section (Food, with Burgers and Drinks beneath it)
+    is one section here too, and covers the dishes of the groups beneath it."""
     hidden = modifiers.addon_group()
-    listed = [row.item_group for row in (profile.item_groups or [])]
-    if not listed:
+    listed = _listed(profile)
+    if listed is None:
         listed = frappe.get_all("Item Group", filters={"is_group": 0}, order_by="name", pluck="name")
     return [name for name in listed if name != hidden]
 
 
-def _dish_filters(profile):
-    from lumen_restaurants.api.catalog import _gift_card_item_code
+def _section_of(profile):
+    """{item group: the shown section it falls under}, every group a shown
+    section covers (itself and the groups beneath it)."""
+    from lumen_restaurants.api.catalog import item_group_and_below
 
-    filters = {"is_sales_item": 1, "has_variants": 0, "item_group": ["in", _sections(profile) or [""]]}
-    gift_card = _gift_card_item_code()
-    if gift_card:
-        filters["name"] = ["!=", gift_card]
+    sections = _sections(profile)
+    if _listed(profile) is None:
+        # Every leaf group is a section of its own: nothing beneath them.
+        return {section: section for section in sections}
+    hidden = _addon_groups()
+    out = {}
+    for section in sections:
+        for group in item_group_and_below(section):
+            if group not in hidden:
+                out.setdefault(group, section)
+    return out
+
+
+def _addon_groups():
+    """The Item Group of the add-on items and anything beneath it: never a
+    dish's, wherever it sits in the tree."""
+    hidden = modifiers.addon_group()
+    return modifiers.covered_groups([hidden]) if hidden else set()
+
+
+def _dish_filters(profile):
+    """The dishes of this outlet's menu: sales items of the groups its sections
+    cover, never LumenPOS's placeholder items (gift card, hold deposit)."""
+    from lumen_restaurants.api.catalog import internal_item_codes
+
+    filters = {"is_sales_item": 1, "has_variants": 0, "item_group": ["in", list(_section_of(profile)) or [""]]}
+    internal = internal_item_codes()
+    if internal:
+        filters["name"] = ["not in", sorted(internal)]
     return filters
+
+
+def _filing(profile, section_of=None):
+    """The groups a dish can be filed in from this page: the groups without
+    sub-groups that the shown sections cover, each with its section."""
+    section_of = section_of or _section_of(profile)
+    leaves = set(frappe.get_all("Item Group", filters={"name": ["in", list(section_of) or [""]], "is_group": 0}, pluck="name"))
+    hidden = modifiers.addon_group()
+    return [{"name": g, "section": s} for g, s in section_of.items() if g in leaves and g != hidden]
 
 
 def _list_prices(profile, codes):
@@ -148,6 +197,7 @@ def get_menu(pos_profile):
     their prices, and every add-on group with its choices and its ties."""
     profile = _guard(pos_profile)
     sections = _sections(profile)
+    section_of = _section_of(profile)
     dishes = frappe.get_all(
         "Item",
         filters=_dish_filters(profile),
@@ -159,6 +209,9 @@ def get_menu(pos_profile):
     for dish in dishes:
         dish["price"] = flt(prices.get(dish.item_code))
         dish["on_sale"] = 0 if cint(dish.pop("disabled")) else 1
+        # The shown section it falls under: its own group, or the listed
+        # parent section above it.
+        dish["section"] = section_of.get(dish.item_group, dish.item_group)
     groups = _groups(profile)
     # Each tied section's sub-sections, so a group tied to a parent section
     # covers the dishes of its children here as it does at the till.
@@ -171,6 +224,7 @@ def get_menu(pos_profile):
         "price_list": profile.selling_price_list,
         "currency": frappe.db.get_value("Price List", profile.selling_price_list, "currency"),
         "sections": sections,
+        "filing": _filing(profile, section_of),
         "dishes": dishes,
         "groups": groups,
         "covers": covers,
@@ -249,17 +303,24 @@ def _dish(profile, item_code):
     row = frappe.db.get_value("Item", item_code, ["name as item_code", "item_name", "item_group", "image", "disabled"], as_dict=True)
     row["price"] = flt(_list_prices(profile, [item_code]).get(item_code))
     row["on_sale"] = 0 if cint(row.pop("disabled")) else 1
+    row["section"] = _section_of(profile).get(row.item_group, row.item_group)
     return row
 
 
-def _check_section(profile, section):
-    if not section or section not in _sections(profile):
+def _check_section(profile, group):
+    """A dish is filed in a group without sub-groups that a section covers."""
+    if not group or group not in {row["name"] for row in _filing(profile)}:
         frappe.throw(_("Pick a section of this outlet for the dish"))
 
 
 def _check_dishes(profile, codes):
-    allowed = set(frappe.get_all("Item", filters=dict(_dish_filters(profile), name=["in", codes or [""]]), pluck="name"))
-    if len(allowed) != len(set(codes or [])):
+    from lumen_restaurants.api.catalog import internal_item_codes
+
+    codes = set(codes or [])
+    filters = _dish_filters(profile)
+    filters["name"] = ["in", sorted(codes) or [""]]
+    allowed = set(frappe.get_all("Item", filters=filters, pluck="name")) - internal_item_codes()
+    if len(allowed) != len(codes):
         frappe.throw(_("Some of these dishes are not on this outlet's menu"))
 
 
@@ -347,13 +408,21 @@ def new_section(pos_profile, name):
         frappe.throw(_("There is already a section called {0}").format(name))
     from frappe.utils.nestedset import get_root_of
 
-    parents = {frappe.db.get_value("Item Group", s, "parent_item_group") for s in _sections(profile)}
-    parents.discard(None)
-    parent = parents.pop() if len(parents) == 1 else get_root_of("Item Group")
+    listed = _listed(profile) or []
+    branches = [s for s in listed if frappe.db.get_value("Item Group", s, "is_group")]
+    if len(branches) == 1:
+        # The outlet sells a parent section (Food): the new one goes beneath
+        # it, and the outlet covers it without being told.
+        parent, add_to_list = branches[0], False
+    else:
+        parents = {frappe.db.get_value("Item Group", s, "parent_item_group") for s in _sections(profile)}
+        parents.discard(None)
+        parent = parents.pop() if len(parents) == 1 else get_root_of("Item Group")
+        add_to_list = bool(listed)
     frappe.get_doc(
         {"doctype": "Item Group", "item_group_name": name, "parent_item_group": parent, "is_group": 0}
     ).insert(ignore_permissions=True)
-    if profile.item_groups:
+    if add_to_list:
         doc = frappe.get_doc("POS Profile", profile.name)
         doc.append("item_groups", {"item_group": name})
         doc.flags.ignore_validate = True
@@ -417,7 +486,7 @@ def save_group(pos_profile, group):
         row.option_name = title
         row.is_default = 1 if cint(option.get("is_default")) else 0
         price = flt(option.get("price"))
-        ours = bool(row.item) and frappe.db.get_value("Item", row.item, "item_group") == addon_section
+        ours = bool(row.item) and bool(addon_section) and frappe.db.get_value("Item", row.item, "item_group") in modifiers.covered_groups([addon_section])
         if price > 0:
             if not row.item:
                 row.item = _addon_item(title, uom)
@@ -451,19 +520,34 @@ def delete_group(pos_profile, name):
     return {"deleted": name}
 
 
+def _dishes_under(section):
+    """Every dish filed in a section or in the groups beneath it, never an
+    add-on choice's item nor LumenPOS's placeholder items."""
+    from lumen_restaurants.api.catalog import internal_item_codes
+
+    groups = (modifiers.covered_groups([section]) or {section}) - _addon_groups()
+    names = frappe.get_all(
+        "Item",
+        filters={"item_group": ["in", sorted(groups) or [""]], "is_sales_item": 1, "has_variants": 0},
+        pluck="name",
+    )
+    internal = internal_item_codes()
+    return [name for name in names if name not in internal]
+
+
 def _promote(doc):
     """A section whose every dish is tied one by one becomes a whole-section
     tie, which also covers the dishes added to it later. And a whole section
     keeps no single ties of its own dishes."""
     singles = {row.item for row in doc.items}
-    sections = {row.item_group for row in doc.item_groups}
+    covered = modifiers.covered_groups([row.item_group for row in doc.item_groups])
     by_section = {}
     for code in singles:
         by_section.setdefault(frappe.db.get_value("Item", code, "item_group"), set()).add(code)
     for section, codes in by_section.items():
-        if section in sections:
+        if section in covered:
             continue
-        everything = set(frappe.get_all("Item", filters={"item_group": section, "is_sales_item": 1, "has_variants": 0}, pluck="name"))
+        everything = set(_dishes_under(section))
         if everything and everything <= codes:
             doc.append("item_groups", {"item_group": section})
 
@@ -502,15 +586,16 @@ def bulk_tie(pos_profile, name, items, tie=1):
                 doc.append("items", {"item": code})
     else:
         drop = set(codes)
-        sections = {row.item_group for row in doc.item_groups}
         for code in codes:
-            section = frappe.db.get_value("Item", code, "item_group")
-            if section in sections:
-                sections.discard(section)
-                doc.set("item_groups", [row for row in doc.item_groups if row.item_group != section])
-                rest = frappe.get_all("Item", filters={"item_group": section, "is_sales_item": 1, "has_variants": 0}, pluck="name")
-                have = {row.item for row in doc.items}
-                for other in rest:
+            group = frappe.db.get_value("Item", code, "item_group")
+            # Every tied section that covers this dish (its own, or one above
+            # it) gives way to its other dishes, tied one by one.
+            for row in list(doc.item_groups):
+                if group not in modifiers.covered_groups([row.item_group]):
+                    continue
+                doc.set("item_groups", [r for r in doc.item_groups if r.item_group != row.item_group])
+                have = {r.item for r in doc.items}
+                for other in _dishes_under(row.item_group):
                     if other not in drop and other not in have:
                         doc.append("items", {"item": other})
         doc.set("items", [row for row in doc.items if row.item not in drop])

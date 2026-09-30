@@ -87,6 +87,22 @@ items, test, then fill in the entry's last column (our commit and the date).
      Restaurant section, the restaurant's actions in `capabilityOptions`),
      `messages.js` (the import and spread of `messages-restaurant.js`) and
      `translations/ar.csv` (the add-ons' server messages).
+   - Keep both, found merging LumenPOS 0.54.1 to 0.56.0 (0.1.0-r10):
+     `api/catalog.py` `get_items` (LumenPOS's `item_groups_under` filter, and
+     our add-ons section kept off only when no group filter applies),
+     `api/session.py` (LumenPOS's root rule and `item_group_members`, next to
+     our add-ons section kept off the section list), `api/sales.py`
+     `submit_sale` (our `restaurant_meta` first, then LumenPOS's
+     `receipt = _sale_answer(invoice.name)`, then our `order_no` and
+     `kitchen_ticket` on it), and `stores/cart.js` (LumenPOS's `_saleKey` next
+     to our `order` and `serviceType`, `clear()` resets both, the payload's
+     `idempotency_key` right after our `order:` line, `_keepQueuedSale` after
+     our `leaveOrder`).
+   - `api/menu.py` (ours) follows LumenPOS's item group rules: `_listed` reads
+     the outlet's list as `catalog.item_groups_under` does, and the dishes skip
+     `catalog.internal_item_codes()`. When LumenPOS changes either helper, look
+     at the Menu page again (`menu_tree_check.py` in the project folder's
+     `reference/bench-scripts/`).
    - `docs/user-guide.md`: keep our header and the *Lumen Restaurants releases*
      table, take LumenPOS's new sections and rows.
    - A doctype file LumenPOS changed: take its change. Should a conflict land on
@@ -111,6 +127,15 @@ items, test, then fill in the entry's last column (our commit and the date).
      to a whitelisted server method.
    - `node scripts/rename_from_lumenpos.mjs --check` reports 0 files.
    - The Python compiles (`python3 -m compileall -q lumen_restaurants`).
+   - `check_endpoints.py` also catches a `@frappe.whitelist()` that slid onto
+     the wrong function in a merge ("DECORATOR THEFT"). It found one in
+     LumenPOS 0.55.0 itself (`api/layaway.py`: `_assert_hold_prices` took the
+     decorator of `create_layaway`, so a hold could not be started from the
+     till): put it back on the endpoint and tell the LumenPOS conversation.
 7. **Test, then release.** Install on a throwaway site on the benches first,
-   then the test sites. Bump the version (`x.y.z-rN` for previews) and add the
+   then the test sites. LumenPOS's own suites that come in the inbox's
+   `tools/` folder run on our sites as they are, with the project folder's
+   `reference/bench-scripts/`: `lp_fixtures.py` makes their shop outlet
+   ("LumenPOS Smoke", LP-PLAIN) once per site, and `lp_suite.sh <bench> <site>
+   <suite.py>` renames their imports to ours and runs them. Bump the version (`x.y.z-rN` for previews) and add the
    changelog row in `docs/user-guide.md` in the same commit as the code.
