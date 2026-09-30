@@ -5,7 +5,14 @@
 // sales made while the network is down. No external dependencies.
 
 const DB_NAME = 'lumenpos'
-const DB_VERSION = 4
+const DB_VERSION = 5
+
+// The till page and the service worker's background upload (public/sw.js)
+// take turns through this Web Lock, so one queued sale is never sent by both
+// at once. sw.js uses the same name.
+export const UPLOAD_LOCK = 'lumenpos-queue-upload'
+// The Background Sync tag the page asks for and sw.js answers.
+export const SYNC_TAG = 'lumenpos-queue'
 
 // A unique client id for offline records (queued-sale idempotency keys,
 // offline-created customer temp ids).
@@ -64,8 +71,21 @@ function db() {
           database.createObjectStore('pending_customers', { keyPath: 'temp_id' })
         if (!database.objectStoreNames.contains('sale_log'))
           database.createObjectStore('sale_log', { keyPath: 'key' })
+        // 0.56.0: the sales this device made in its shift, so it can take one
+        // back without a connection (refund.js). Keyed by the sale's
+        // idempotency key, which a sale has from before its first attempt.
+        if (!database.objectStoreNames.contains('shift_sales'))
+          database.createObjectStore('shift_sales', { keyPath: 'key' })
       }
-      req.onsuccess = () => resolve(req.result)
+      // Another tab or the service worker may need a newer version: step aside.
+      req.onsuccess = () => {
+        const database = req.result
+        database.onversionchange = () => {
+          database.close()
+          dbPromise = null
+        }
+        resolve(database)
+      }
       req.onerror = () => reject(req.error)
     })
   }
@@ -116,12 +136,15 @@ export async function saveCatalog(items) {
   })
 }
 
-export async function searchCatalog(search = '', itemGroup = '', limit = 80) {
+// `groups`: the picked group and every group beneath it (the server sends
+// them per chip), or one group name, or nothing for all.
+export async function searchCatalog(search = '', groups = null, limit = 80) {
   const database = await db()
   const all = await request(database.transaction('items').objectStore('items').getAll())
   const term = search.trim().toLowerCase()
+  const allowed = Array.isArray(groups) ? groups : groups ? [groups] : null
   const filtered = all.filter((item) => {
-    if (itemGroup && item.item_group !== itemGroup) return false
+    if (allowed && !allowed.includes(item.item_group)) return false
     if (!term) return true
     return (
       (item.item_name || '').toLowerCase().includes(term) ||
@@ -246,7 +269,41 @@ export async function listPendingCustomers() {
 
 // --- offline sales queue ----------------------------------------------------
 
-export async function queueSale(payload) {
+// Run `fn` holding the upload lock (see UPLOAD_LOCK). A browser without Web
+// Locks runs it straight away, as before.
+export function withUploadLock(fn) {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+      return navigator.locks.request(UPLOAD_LOCK, fn)
+    }
+  } catch {
+    /* fall through */
+  }
+  return fn()
+}
+
+// Ask the browser to send the queue as soon as it has a network, even with
+// the till closed (Background Sync: Chrome, Edge, Android). Elsewhere, and
+// with the shop's switch off, the till sends it itself when it is open.
+export async function requestBackgroundUpload() {
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration('/pos')
+    if (registration?.sync) await registration.sync.register(SYNC_TAG)
+    return Boolean(registration?.sync)
+  } catch {
+    return false
+  }
+}
+
+// What a queued entry is: a sale (the only kind before 0.56.0, so an entry
+// without one is a sale) or a return made without a connection.
+export function entryKind(entry) {
+  return entry?.kind === 'return' ? 'return' : 'sale'
+}
+
+// `lang`: the till's language when it was made, so the server's answer (a
+// refusal's reason) comes back in it even when the service worker sends it.
+export async function queueEntry(kind, payload, lang = null) {
   const database = await db()
   return new Promise((resolve, reject) => {
     // strict durability: the write is flushed to disk BEFORE oncomplete fires,
@@ -254,12 +311,19 @@ export async function queueSale(payload) {
     // invoice (Chrome 121+ defaults to relaxed, which acks before the disk
     // flush). Unknown to older engines, the option is safely ignored there.
     const transaction = database.transaction('queue', 'readwrite', { durability: 'strict' })
-    const req = transaction
-      .objectStore('queue')
-      .add({ payload: JSON.parse(JSON.stringify(payload)), queued_at: new Date().toISOString() })
+    const req = transaction.objectStore('queue').add({
+      kind,
+      payload: JSON.parse(JSON.stringify(payload)),
+      lang,
+      queued_at: new Date().toISOString(),
+    })
     transaction.oncomplete = () => resolve(req.result)
     transaction.onerror = () => reject(transaction.error)
   })
+}
+
+export async function queueSale(payload, lang = null) {
+  return queueEntry('sale', payload, lang)
 }
 
 export async function listQueue() {
@@ -274,6 +338,22 @@ export async function removeQueued(localId) {
 export async function queueCount() {
   const database = await db()
   return request(database.transaction('queue').objectStore('queue').count())
+}
+
+// What the queue holds: sales not tried yet (or still waiting for the
+// connection), and sales the server refused, whose log row says why. A
+// refused sale stays queued and is tried again on every upload, but it must
+// never hold the shift's close: it may never go through on this shift.
+export async function queueBreakdown() {
+  const [queue, log] = await Promise.all([listQueue(), listSaleLog()])
+  const refused = new Map(log.filter((r) => r.status === 'failed').map((r) => [r.key, r]))
+  const rows = queue.filter((e) => refused.has(e.payload?.idempotency_key))
+  const first = rows.length ? refused.get(rows[0].payload.idempotency_key) : null
+  return {
+    waiting: queue.length - rows.length,
+    refused: rows.length,
+    reason: first?.error || '',
+  }
 }
 
 // --- offline sales log ------------------------------------------------------
@@ -311,6 +391,71 @@ export async function listSaleLog() {
   const all = await request(database.transaction('sale_log').objectStore('sale_log').getAll())
   all.sort((a, b) => (b.queued_at || '').localeCompare(a.queued_at || ''))
   return all
+}
+
+// --- this device's sales of the shift (returns without a connection) -------
+
+export async function putShiftSale(record) {
+  return tx('shift_sales', 'readwrite', (store) => store.put(JSON.parse(JSON.stringify(record))))
+}
+
+export async function getShiftSale(key) {
+  const database = await db()
+  return request(database.transaction('shift_sales').objectStore('shift_sales').get(key))
+}
+
+// Merge a patch into one record, in one transaction.
+export async function patchShiftSale(key, patch) {
+  if (!key) return
+  const database = await db()
+  const clean = JSON.parse(JSON.stringify(patch))
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction('shift_sales', 'readwrite')
+    const store = transaction.objectStore('shift_sales')
+    const getReq = store.get(key)
+    getReq.onsuccess = () => {
+      if (getReq.result) store.put({ ...getReq.result, ...clean })
+    }
+    transaction.oncomplete = () => resolve()
+    transaction.onerror = () => reject(transaction.error)
+  })
+}
+
+// Newest first. A record from another shift is dropped (pruneShiftSales).
+export async function listShiftSales() {
+  const database = await db()
+  const all = await request(database.transaction('shift_sales').objectStore('shift_sales').getAll())
+  all.sort((a, b) => (b.at || '').localeCompare(a.at || ''))
+  return all
+}
+
+// A sale of this shift taken back online, or in an exchange: its record
+// learns what came back, so a return without a connection later cannot take
+// the same goods back twice. Best effort.
+export async function markReturned(invoice, items) {
+  if (!invoice) return
+  try {
+    const record = (await listShiftSales()).find((r) => r.name === invoice)
+    if (!record) return
+    const returned = { ...(record.returned || {}) }
+    for (const [code, qty] of Object.entries(items || {})) {
+      returned[code] = (Number(returned[code]) || 0) + (Number(qty) || 0)
+    }
+    await patchShiftSale(record.key, { returned })
+  } catch {
+    /* the server still refuses what cannot come back */
+  }
+}
+
+// Only the shift that is open on this till keeps its sales here: a return
+// without a connection is for a sale of the same shift, on the same device.
+export async function pruneShiftSales(session) {
+  const all = await listShiftSales()
+  for (const record of all) {
+    if (record.session !== session) {
+      await tx('shift_sales', 'readwrite', (store) => store.delete(record.key)).catch(() => {})
+    }
+  }
 }
 
 // Keep every pending/failed row; keep only the newest `keepSynced` synced ones

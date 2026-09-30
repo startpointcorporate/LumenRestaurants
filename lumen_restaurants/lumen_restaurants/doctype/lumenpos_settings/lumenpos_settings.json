@@ -7,10 +7,14 @@
  "field_order": [
   "register_section",
   "offline_stock_only",
+  "offline_returns",
+  "background_upload",
+  "warn_unprotected_storage",
   "show_out_of_stock",
   "serial_scan_only",
   "shift_scope",
   "one_shift_per_user",
+  "carry_shift_past_midnight",
   "variance_alert_enabled",
   "variance_alert_threshold",
   "variance_alert_role",
@@ -124,6 +128,27 @@
    "fieldname": "offline_stock_only",
    "fieldtype": "Check",
    "label": "Cache only in-stock items for offline use"
+  },
+  {
+   "default": "1",
+   "description": "On (the default): without a connection, a sale this device made in the same shift can be taken back, refunded in cash or the way the customer paid, never to store credit, a gift card or cashback. The till works out the refund as ERPNext will, and the server checks it again when the connection is back.",
+   "fieldname": "offline_returns",
+   "fieldtype": "Check",
+   "label": "Returns without a connection"
+  },
+  {
+   "default": "1",
+   "description": "On (the default): sales and returns made without a connection are sent as soon as the network is back, even with the till closed, where the browser allows it (Chrome, Edge, Android). The till still sends them itself whenever it is open.",
+   "fieldname": "background_upload",
+   "fieldtype": "Check",
+   "label": "Send queued sales in the background"
+  },
+  {
+   "default": "1",
+   "description": "On (the default): the till shows a warning when the browser has not agreed to keep its offline data for good, which it may otherwise clear when space runs low, and asks the browser again on a tap.",
+   "fieldname": "warn_unprotected_storage",
+   "fieldtype": "Check",
+   "label": "Warn when offline sales are not protected"
   },
   {
    "default": "0",
@@ -646,6 +671,13 @@
    "label": "One open shift per person"
   },
   {
+   "default": "1",
+   "description": "ERPNext 16 takes sales only on a shift opened the same day. On (the default): at the first sale after midnight LumenPOS closes the day in ERPNext and opens the next one by itself, and the shift carries on and is counted once, at its own close. Off: a shift from an earlier day has to be closed before it can sell again. Set from the till: Settings, General, Register and shifts.",
+   "fieldname": "carry_shift_past_midnight",
+   "fieldtype": "Check",
+   "label": "Keep a shift open past midnight"
+  },
+  {
    "default": "0",
    "description": "Email a role when a closing count differs from expected by more than the threshold. Records and notifies, it never blocks the close.",
    "fieldname": "variance_alert_enabled",
@@ -810,7 +842,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-28 12:00:00.000000",
+ "modified": "2026-09-30 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Lumen Restaurants",
  "name": "LumenPOS Settings",

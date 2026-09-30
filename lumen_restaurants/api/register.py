@@ -37,7 +37,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, now_datetime, nowdate
+from frappe.utils import cint, flt, get_datetime, getdate, now_datetime, nowdate, nowtime
 
 from lumen_restaurants.api.session import get_open_session
 from lumen_restaurants import erpnext_compat
@@ -101,13 +101,29 @@ def _foreign_drawers(pos_profile):
     return out
 
 
-def _drawer_movements(session_doc, mode, main_drawer):
+def _in_window(recorded_at, since=None, until=None):
+    """Whether a cash movement belongs to the part of a shift from `since`
+    (exclusive) to `until` (inclusive): one ERPNext day of a shift that ran
+    past midnight (roll_day). No bounds, the whole shift."""
+    if since is None and until is None:
+        return True
+    when = get_datetime(recorded_at) if recorded_at else None
+    if when is None:
+        return since is None
+    if since is not None and when <= get_datetime(since):
+        return False
+    return until is None or when <= get_datetime(until)
+
+
+def _drawer_movements(session_doc, mode, main_drawer, since=None, until=None):
     """(cash in, cash out) of ONE drawer. The main drawer takes every movement
     recorded without a drawer, which is all of them before drawers had
-    currencies."""
+    currencies. `since` and `until` keep to one ERPNext day of the shift."""
     cash_in = cash_out = 0.0
     for m in session_doc.get("cash_movements") or []:
         if (m.get("mode_of_payment") or main_drawer) != mode:
+            continue
+        if not _in_window(m.get("recorded_at"), since, until):
             continue
         if m.movement_type == "Cash In":
             cash_in += flt(m.amount)
@@ -277,6 +293,7 @@ def open_register(pos_profile, opening_float=0, resume_opening_entry=None, force
             }
         )
         sess.insert()
+        _pin_rates(sess.name, profile)
         _audit_register("open", sess.name, profile.name, opening_float)
         return get_open_session(pos_profile)
 
@@ -397,8 +414,21 @@ def _create_fresh_session(profile, opening_float, bypass_live_guard=False, float
     if bypass_live_guard:
         sess.flags.ignore_validate = True
     sess.insert()
+    _pin_rates(sess.name, profile)
     _audit_register("open", sess.name, profile.name, opening_float)
     return get_open_session(profile.name)
+
+
+def _pin_rates(session_name, profile):
+    """Fix the shift's exchange rates as it opens (currency.pin_shift_rates),
+    so a till that goes offline already knows them. Never stops a shift from
+    opening."""
+    try:
+        from lumen_restaurants import currency
+
+        currency.pin_shift_rates(session_name, profile)
+    except Exception:
+        frappe.log_error(title="LumenPOS: fixing a shift's rates at open", message=frappe.get_traceback())
 
 
 def _role_emails(role, company=None):
@@ -642,6 +672,8 @@ def get_session_summary(session):
             for m in (doc.cash_movements or [])
         ],
         "expected": expected,
+        # The ERPNext days the shift closed while it sold on past midnight.
+        "erpnext_days": _days_info(doc),
         **totals,
     }
 
@@ -964,9 +996,20 @@ def _reconcile_session(session_name, counted):
     if session.status == "Closed":
         return session.get("pos_closing_entry")
 
+    # The ERPNext days this shift closed while it sold on past midnight
+    # (roll_day) reach the books first: a return in a later day may be of a
+    # sale in an earlier one, and ERPNext consolidates the original first.
+    day_error = _consolidate_days(session.name) if session.get("erpnext_days") else None
+
     opening_name = session.get("pos_opening_entry")
     if not opening_name:
         _mark_closed(session.name, None)
+        return None
+    try:
+        opening_name = _usable_opening_entry(session, opening_name)
+    except Exception as exc:
+        frappe.db.rollback()
+        _mark_failed(session.name, None, _short(exc))
         return None
 
     closing_name = session.get("pos_closing_entry") or frappe.db.get_value(
@@ -988,6 +1031,10 @@ def _reconcile_session(session_name, counted):
         closing = frappe.get_doc("POS Closing Entry", closing_name)
         if closing.docstatus == 0:
             try:
+                # As _submit_closing: ERPNext's own checks refuse a shift
+                # several cashiers sold on.
+                closing.flags.ignore_validate = True
+                closing.flags.ignore_permissions = True
                 _suppress_consolidation(closing)
                 closing.submit()
             except Exception as exc:
@@ -1004,16 +1051,20 @@ def _reconcile_session(session_name, counted):
     if session.get("expected_pending"):
         _fill_pending_figures(session.name, closing)
     if closing.status == "Submitted" and _opening_closed(opening_name):
-        _mark_closed(session.name, closing_name)
+        if day_error:
+            _mark_failed(session.name, closing_name, day_error)
+        else:
+            _mark_closed(session.name, closing_name)
         return closing_name
 
     status = _consolidate_now(closing)
-    if status == "Submitted":
+    if status == "Submitted" and not day_error:
         _mark_closed(session.name, closing_name)
+    elif status == "Submitted":
+        _mark_failed(session.name, closing_name, day_error)
     else:
-        _mark_failed(
-            session.name, closing_name, closing.get("error_message") or _("Consolidation failed")
-        )
+        error = frappe.db.get_value("POS Closing Entry", closing_name, "error_message")
+        _mark_failed(session.name, closing_name, day_error or error or _("Consolidation failed"))
     return closing_name
 
 
@@ -1090,6 +1141,65 @@ def fill_pending_figures():
         _fill_pending_figures(row.name, closing, quiet=True)
 
 
+def _usable_opening_entry(session, opening_name):
+    """The POS Opening Entry this shift closes against. Someone may have
+    cancelled it in ERPNext (v13 to v15 allow that even with sales on it), and
+    ERPNext refuses a POS Closing Entry that links a cancelled one ("Cannot
+    link cancelled document"), so the shift could never close and its sales
+    would never reach the books. ERPNext's own way back is to amend the
+    cancelled entry: an amendment made earlier (by hand, or by an earlier try)
+    is used, or one is made, and the shift points at it from then on."""
+    if frappe.db.get_value("POS Opening Entry", opening_name, "docstatus") != 2:
+        return opening_name
+    cancelled = opening_name
+    current = opening_name
+    while True:
+        amended = frappe.db.get_value(
+            "POS Opening Entry", {"amended_from": current}, ["name", "docstatus"], as_dict=True
+        )
+        if not amended:
+            break
+        current = amended.name
+        if amended.docstatus == 2:
+            continue
+        if amended.docstatus == 0:
+            # A draft amendment someone started by hand: finish it.
+            draft = frappe.get_doc("POS Opening Entry", amended.name)
+            draft.flags.ignore_validate = True
+            draft.flags.ignore_permissions = True
+            draft.submit()
+        return _point_session_at(session, cancelled, current)
+    last = frappe.get_doc("POS Opening Entry", current)
+    new = frappe.copy_doc(last)
+    new.amended_from = last.name
+    # Open again: nothing of the cancelled entry's own close carries over.
+    new.status = "Draft"
+    new.pos_closing_entry = None
+    new.period_end_date = None
+    # The same period, outlet and cashier as the shift; ERPNext's own checks
+    # (one open entry per outlet and per cashier) are for opening a shift, not
+    # for closing one that already ran, as in _create_fresh_session.
+    new.flags.ignore_validate = True
+    new.insert(ignore_permissions=True)
+    new.submit()
+    return _point_session_at(session, cancelled, new.name)
+
+
+def _point_session_at(session, cancelled, opening_name):
+    session.db_set("pos_opening_entry", opening_name, commit=True)
+    try:
+        frappe.get_doc("POS Register Session", session.name).add_comment(
+            "Info",
+            _("The POS Opening Entry {0} of this shift was cancelled in ERPNext, so the shift closes against its amendment {1}.").format(
+                cancelled, opening_name
+            ),
+        )
+        frappe.db.commit()  # nosemgrep
+    except Exception:
+        frappe.log_error(title="LumenPOS: note on an amended opening entry", message=frappe.get_traceback())
+    return opening_name
+
+
 def _consolidate_now(closing):
     """Run consolidation SYNCHRONOUSLY (never via ERPNext's >=10 enqueue) so it
     stays inside our global lock and concurrent shifts can't deadlock. Returns
@@ -1141,17 +1251,36 @@ def _make_closing_entry(session_doc, counted):
     if session_counts:
         counted = session_counts
 
+    opening = frappe.get_doc("POS Opening Entry", session_doc.get("pos_opening_entry"))
+    closing = _build_closing(session_doc, opening, counted=counted or {})
+    _submit_closing(closing)
+    return closing
+
+
+def _build_closing(session_doc, opening, counted=None, until=None):
+    """The native POS Closing Entry for the part of a shift `opening` covers,
+    not saved yet. That is the whole shift, unless it ran past midnight on
+    ERPNext 16 (roll_day): then its sales are the ones no earlier ERPNext day
+    of it holds, and its cash in and out the ones recorded after that day
+    ended, up to `until`. `counted` None closes a day that ends while the
+    shift trades on at what each drawer should hold: the drawer is counted
+    once, at the end of the shift."""
     from lumen_restaurants.api.sales import _table_doctype
 
     # The one mode that represents this till's cash drawer (float, change and
     # cash in/out all belong to it alone).
     drawer = _drawer_mode(session_doc.pos_profile)
     sale_doctype = _table_doctype(session_doc.pos_profile)
-    opening = frappe.get_doc("POS Opening Entry", session_doc.get("pos_opening_entry"))
+    held = _day_invoices(session_doc)
+    since = _last_day_end(session_doc)
+    filters = {"lumenpos_session": session_doc.name, "docstatus": 1}
+    if held:
+        filters["name"] = ["not in", list(held)]
     invoices = frappe.get_all(
         sale_doctype,
-        filters={"lumenpos_session": session_doc.name, "docstatus": 1},
+        filters=filters,
         fields=["name", "customer", "grand_total", "is_return", "posting_date"],
+        order_by="creation asc",
     )
 
     closing = erpnext_compat.new_doc("POS Closing Entry")
@@ -1159,7 +1288,7 @@ def _make_closing_entry(session_doc, counted):
         {
             "pos_opening_entry": opening.name,
             "period_start_date": opening.period_start_date,
-            "period_end_date": now_datetime(),
+            "period_end_date": until or now_datetime(),
             "posting_date": nowdate(),
             "company": opening.company,
             "pos_profile": opening.pos_profile,
@@ -1167,7 +1296,6 @@ def _make_closing_entry(session_doc, counted):
         }
     )
 
-    grand_total = net_total = qty_total = 0.0
     si_rows = []
     # ERPNext's table of the shift's POS Invoices (pos_transactions, renamed
     # pos_invoices in v16).
@@ -1190,26 +1318,22 @@ def _make_closing_entry(session_doc, counted):
             )
         else:
             si_rows.append(inv)
-        full = frappe.get_doc(sale_doctype, inv.name)
-        # Totals in the company currency: a shift may hold sales in several
-        # currencies (lumen_restaurants.currency), and the books add up in one.
-        grand_total += flt(full.base_grand_total)
-        net_total += flt(full.base_net_total)
-        qty_total += sum(flt(i.qty) for i in full.items)
-        for tax in full.taxes or []:
-            _accumulate_tax(closing, tax)
+    grand_total, net_total, qty_total = _invoice_totals(closing, sale_doctype, [inv.name for inv in invoices])
 
     # What each tender took, in ITS OWN account's currency, with change taken
     # off the drawer it really came out of (see _payments_by_mode). Change comes
     # OUT OF A DRAWER, never out of whichever Cash-type tender sorts first
     # (delivery apps are often typed Cash).
-    for mode, amount in _payments_by_mode(session_doc.name, sale_doctype, drawer).items():
+    for mode, amount in _payments_by_mode(session_doc.name, sale_doctype, drawer, exclude=held).items():
         if amount:
             _accumulate_payment(closing, mode, amount)
 
     cash_modes = _cash_modes()
     foreign = _foreign_drawers(session_doc.pos_profile)
-    cash_in, cash_out = _drawer_movements(session_doc, drawer, drawer)
+    cash_in, cash_out = _drawer_movements(session_doc, drawer, drawer, since, until)
+    # An entry a shift opened past midnight carries what each method held at
+    # the end of the day before (_carried_opening), cash or not.
+    carried = bool(session_doc.get("erpnext_days"))
     drawer_applied = False
     for detail in opening.balance_details:
         row = _get_reconciliation_row(closing, detail.mode_of_payment)
@@ -1220,6 +1344,7 @@ def _make_closing_entry(session_doc, counted):
         # only, and each drawer in another currency's own float.
         if (
             opening_amt
+            and not carried
             and detail.mode_of_payment != drawer
             and detail.mode_of_payment in cash_modes
             and detail.mode_of_payment not in foreign
@@ -1233,7 +1358,7 @@ def _make_closing_entry(session_doc, counted):
             row.expected_amount = flt(row.expected_amount) + cash_in - cash_out
             drawer_applied = True
         elif detail.mode_of_payment in foreign:
-            f_in, f_out = _drawer_movements(session_doc, detail.mode_of_payment, drawer)
+            f_in, f_out = _drawer_movements(session_doc, detail.mode_of_payment, drawer, since, until)
             row.expected_amount = flt(row.expected_amount) + f_in - f_out
     if not drawer_applied and (cash_in or cash_out):
         # The drawer mode isn't on this opening entry (profile changed mid-life)
@@ -1244,12 +1369,15 @@ def _make_closing_entry(session_doc, counted):
                 break
 
     for row in closing.payment_reconciliation:
-        row.closing_amount = flt(counted.get(row.mode_of_payment))
+        if counted is None:
+            row.closing_amount = flt(row.expected_amount)
+        else:
+            row.closing_amount = flt(counted.get(row.mode_of_payment))
         row.difference = flt(row.closing_amount) - flt(row.expected_amount)
 
     # Declare the shift's cash movements ON the closing entry (they otherwise
     # live only on the session and are invisible on the official Z-report).
-    _declare_cash_movements(closing, session_doc, cash_in, cash_out)
+    _declare_cash_movements(closing, session_doc, cash_in, cash_out, since, until)
     # And, in Sales Invoice mode, the invoices themselves: the takings above are
     # a total, and an accountant checking this drawer has to be able to walk it
     # back to the documents that made it.
@@ -1258,7 +1386,70 @@ def _make_closing_entry(session_doc, counted):
     closing.grand_total = flt(grand_total, 2)
     closing.net_total = flt(net_total, 2)
     closing.total_quantity = flt(qty_total, 2)
+    return closing
 
+
+def _invoice_totals(closing, sale_doctype, names):
+    """(grand total, net total, quantity) of these invoices in the company
+    currency, a shift may hold sales in several currencies (lumen_restaurants.currency)
+    and the books add up in one, with their taxes added to the closing. In a
+    few queries, not one document per sale: a shift that runs past midnight
+    builds this inside the first sale of the new day (roll_day). `sale_doctype`
+    is a fixed doctype name (_table_doctype), not user input."""
+    if not names:
+        return 0.0, 0.0, 0.0
+    values = {"names": tuple(names), "doctype": sale_doctype}
+    grand, net = frappe.db.sql(  # nosemgrep
+        f"""select coalesce(sum(base_grand_total), 0), coalesce(sum(base_net_total), 0)
+        from `tab{sale_doctype}` where name in %(names)s""",
+        values,
+    )[0]
+    qty = frappe.db.sql(  # nosemgrep
+        f"""select coalesce(sum(qty), 0) from `tab{sale_doctype} Item`
+        where parenttype = %(doctype)s and parent in %(names)s""",
+        values,
+    )[0][0]
+    for tax in frappe.db.sql(
+        """select account_head, rate, base_tax_amount, tax_amount from `tabSales Taxes and Charges`
+        where parenttype = %(doctype)s and parent in %(names)s order by parent, idx""",
+        values,
+        as_dict=True,
+    ):
+        _accumulate_tax(closing, tax)
+    return flt(grand), flt(net), flt(qty)
+
+
+def _submit_closing(closing):
+    """Insert and submit one of our POS Closing Entries, without ERPNext's
+    on-submit consolidation (we consolidate ourselves, serialized).
+
+    ERPNext's own checks on the entry assume one cashier per POS Opening
+    Entry: every invoice on it must have been made by the entry's user ("POS
+    Invoice isn't created by user"). A shift shared by several cashiers, "Per
+    outlet" (the default), can never meet that, so any such shift where a
+    second person sold failed its close for good, on every version. Its
+    invoices are this shift's own, submitted and not yet held by another
+    closing (chosen so in _build_closing), so what else ERPNext checks is
+    checked here, and its validation is skipped, as for our POS Opening
+    Entries (_create_fresh_session)."""
+    if frappe.db.get_value("POS Opening Entry", closing.pos_opening_entry, "status") != "Open":
+        frappe.throw(_("Selected POS Opening Entry should be open."), title=_("Invalid Opening Entry"))
+    table = erpnext_compat.closing_invoice_table()
+    names = [row.pos_invoice for row in closing.get(table) or []]
+    if names:
+        taken = frappe.get_all(
+            "POS Invoice",
+            filters={"name": ["in", names], "consolidated_invoice": ["is", "set"]},
+            pluck="name",
+        )
+        if taken:
+            closing.set(table, [row for row in closing.get(table) if row.pos_invoice not in set(taken)])
+    # What ERPNext 16's validate fills in.
+    if closing.meta.has_field("posting_time"):
+        closing.posting_time = nowtime()
+    if closing.meta.has_field("invoice_type"):
+        closing.invoice_type = frappe.db.get_single_value("POS Settings", "invoice_type")
+    closing.flags.ignore_validate = True
     closing.insert(ignore_permissions=True)
     _suppress_consolidation(closing)
     closing.submit()
@@ -1291,11 +1482,12 @@ def _declare_sales_invoices(closing, rows):
         )
 
 
-def _declare_cash_movements(closing, session_doc, cash_in, cash_out):
+def _declare_cash_movements(closing, session_doc, cash_in, cash_out, since=None, until=None):
     """Copy the session's drawer cash in/out onto the POS Closing Entry's LumenPOS
     fields (created in install.make_custom_fields) so the Z-report itself shows
     what was added to / taken from the drawer. Guarded with has_field so a
-    not-yet-migrated site still closes cleanly."""
+    not-yet-migrated site still closes cleanly. `since` and `until` keep to
+    one ERPNext day of a shift that ran past midnight (roll_day)."""
     meta = frappe.get_meta("POS Closing Entry")
     if not meta.has_field("lumenpos_cash_in"):
         return
@@ -1306,6 +1498,8 @@ def _declare_cash_movements(closing, session_doc, cash_in, cash_out):
     closing.set("lumenpos_cash_movements", [])
     main = _drawer_mode(session_doc.pos_profile)
     for m in session_doc.cash_movements or []:
+        if not _in_window(m.get("recorded_at"), since, until):
+            continue
         # A movement of a drawer in another currency says which drawer, so its
         # amount is read in that drawer's money (lumen_restaurants.currency).
         drawer = m.get("mode_of_payment")
@@ -1366,6 +1560,278 @@ def _short(value, length=480):
 
 
 # ---------------------------------------------------------------------------
+# A shift that sells on past midnight (ERPNext 16)
+# ---------------------------------------------------------------------------
+
+def carry_past_midnight():
+    """LumenPOS Settings.carry_shift_past_midnight, on unless a shop switched
+    it off (install.default_carry_past_midnight_on writes the ON down once).
+    A site updated without its migrate has no such field yet: on."""
+    try:
+        return bool(cint(frappe.db.get_single_value("LumenPOS Settings", "carry_shift_past_midnight")))
+    except Exception:
+        return True
+
+
+def from_earlier_day(started):
+    """Whether a POS Opening Entry started on an earlier day than today, the
+    one thing ERPNext 16 refuses a sale for once an outlet has one open."""
+    return bool(started) and getdate(started) != getdate(nowdate())
+
+
+def roll_day(session_name):
+    """ERPNext 16 takes a POS Invoice only while its outlet's one open POS
+    Opening Entry was opened today (SalesInvoice.validate_pos_opening_entry),
+    so a shift still selling after midnight could no longer sell, take a
+    return or upload a sale made offline, and the till would not close while
+    such a sale waited to upload (a shop in Zimbabwe, 2026-09-30). With "Keep
+    a shift open past midnight" on (the default), the first of them closes
+    ERPNext's day for the shift and opens the next, ERPNext's own way: a POS
+    Closing Entry for what the day sold and a new POS Opening Entry, while the
+    LumenPOS shift sells on, with one drawer and one count at its own close.
+    What each payment method should hold is carried into the new entry's
+    opening amounts, so the shift's last POS Closing Entry still sets the
+    count against the whole shift. The day's invoices are consolidated in the
+    background, like any close (consolidate_days).
+
+    Runs inside the request that needs it and commits nothing itself, so a
+    sale that then fails takes the new day back with it. Serialized on the
+    shift's row with every sale, cash movement and close. Returns True when
+    it closed a day."""
+    row = frappe.db.get_value(
+        "POS Register Session", session_name, ["status", "pos_opening_entry"], as_dict=True, for_update=True
+    )
+    if not row or row.status != "Open" or not row.pos_opening_entry:
+        return False
+    opening = frappe.get_doc("POS Opening Entry", row.pos_opening_entry)
+    if opening.docstatus != 1 or opening.status != "Open" or not from_earlier_day(opening.period_start_date):
+        return False
+    session_doc = frappe.get_doc("POS Register Session", session_name)
+    now = now_datetime()
+    closing = _build_closing(session_doc, opening, until=now)
+    _submit_closing(closing)
+    _close_opening(opening, closing.name)
+    carried = _carried_opening(opening, closing, now)
+    sales = len(closing.get(erpnext_compat.closing_invoice_table()) or [])
+    session_doc.append(
+        "erpnext_days",
+        {
+            "pos_opening_entry": opening.name,
+            "pos_closing_entry": closing.name,
+            "started_at": opening.period_start_date,
+            "ended_at": now,
+            "sales_count": sales,
+            "closing_status": "Pending",
+        },
+    )
+    session_doc.pos_opening_entry = carried.name
+    session_doc.flags.ignore_permissions = True
+    session_doc.save()
+    note = _(
+        "ERPNext's day was closed at {0} while this shift sold on past midnight: POS Closing Entry {1} holds "
+        "its {2} sales, and POS Opening Entry {3} opens the next day. The drawer is counted once, when the shift closes."
+    ).format(frappe.utils.format_datetime(now, "yyyy-MM-dd HH:mm"), closing.name, sales, carried.name)
+    session_doc.add_comment("Info", note)
+    from lumen_restaurants.api import audit
+
+    audit.log(
+        audit.ERPNEXT_DAY,
+        detail=note,
+        reference_doctype="POS Register Session",
+        reference_name=session_name,
+        pos_profile=session_doc.pos_profile,
+    )
+    _enqueue_days(session_name)
+    return True
+
+
+def _close_opening(opening, closing_name):
+    """What ERPNext does to a POS Opening Entry once its closing is through
+    (POSClosingEntry.update_opening_entry), done at once for a day that ends
+    while its shift sells on: ERPNext 16 takes no sale while the outlet still
+    has it open. Its consolidation follows in the background and does the
+    same again at its end."""
+    opening.pos_closing_entry = closing_name
+    opening.set_status()
+    opening.flags.ignore_permissions = True
+    opening.save()
+
+
+def _carried_opening(opening, closing, now):
+    """The next day's POS Opening Entry of a shift that sells on past
+    midnight: same outlet, company and cashier, opened now, and each payment
+    method opening at what the day just closed says it should hold, cash or
+    not, since the shift is counted once at its own close."""
+    carried = {r.mode_of_payment: flt(r.expected_amount) for r in closing.payment_reconciliation}
+    modes = [r.mode_of_payment for r in opening.balance_details]
+    modes += [mode for mode in carried if mode not in modes]
+    entry = frappe.get_doc(
+        {
+            "doctype": "POS Opening Entry",
+            "company": opening.company,
+            "pos_profile": opening.pos_profile,
+            "user": opening.user,
+            "period_start_date": now,
+            "posting_date": getdate(now),
+            "balance_details": [
+                {"mode_of_payment": mode, "opening_amount": flt(carried.get(mode))} for mode in modes
+            ],
+        }
+    )
+    # As in _create_fresh_session: ERPNext's checks are for a cashier opening
+    # a shift, and this one is already running.
+    entry.flags.ignore_validate = True
+    entry.insert(ignore_permissions=True)
+    entry.submit()
+    return entry
+
+
+def _day_invoices(session_doc):
+    """The shift's POS Invoices that an ERPNext day it closed while selling on
+    past midnight already holds (roll_day): none for any other shift."""
+    closings = [r.pos_closing_entry for r in session_doc.get("erpnext_days") or [] if r.pos_closing_entry]
+    if not closings:
+        return set()
+    rows = frappe.db.sql(
+        """select pos_invoice from `tabPOS Invoice Reference`
+        where parenttype = 'POS Closing Entry' and parent in %(closings)s""",
+        {"closings": tuple(closings)},
+    )
+    return {r[0] for r in rows if r[0]}
+
+
+def _last_day_end(session_doc):
+    """When the shift's last closed ERPNext day ended (roll_day), or None."""
+    ends = [get_datetime(r.ended_at) for r in session_doc.get("erpnext_days") or [] if r.ended_at]
+    return max(ends) if ends else None
+
+
+def _enqueue_days(session_name, after_commit=True):
+    """Queue one consolidation of a shift's closed ERPNext days, de-duplicated
+    like _enqueue_consolidation."""
+    job_id = f"lumenpos_days::{session_name}"
+    try:
+        from frappe.utils.background_jobs import is_job_enqueued
+
+        if is_job_enqueued(job_id):
+            return
+    except Exception:
+        pass
+    frappe.enqueue(
+        "lumen_restaurants.api.register.consolidate_days",
+        queue="long",
+        timeout=2000,
+        enqueue_after_commit=after_commit,
+        job_id=job_id,
+        session_name=session_name,
+    )
+
+
+def consolidate_days(session_name):
+    """Background job and self-healer: put the ERPNext days a shift closed
+    while it sold on past midnight into the books, behind the same lock as
+    every close. Not whitelisted: retry_days is the checked way in."""
+    if not _acquire_lock(timeout=10):
+        _enqueue_days(session_name, after_commit=False)
+        return None
+    try:
+        return _consolidate_days(session_name)
+    finally:
+        _release_lock()
+
+
+def _consolidate_days(session_name):
+    """Consolidate, oldest first, the shift's closed ERPNext days not in the
+    books yet. Stops at the first that fails: a return in a later day may be
+    of a sale in it, and ERPNext consolidates the original first. Returns
+    that failure's reason, or None when every day is in the books."""
+    rows = frappe.get_all(
+        "POS Session Day",
+        filters={"parent": session_name, "parenttype": "POS Register Session", "closing_status": ["!=", "Submitted"]},
+        fields=["name", "pos_closing_entry", "closing_attempts"],
+        order_by="idx asc",
+    )
+    for row in rows:
+        # A failed consolidation rolls back everything not committed yet.
+        frappe.db.commit()  # nosemgrep
+        closing = frappe.get_doc("POS Closing Entry", row.pos_closing_entry) if row.pos_closing_entry else None
+        if not closing or closing.docstatus != 1:
+            status, error = "Failed", _("POS Closing Entry {0} of this shift is not submitted.").format(
+                row.pos_closing_entry
+            )
+        else:
+            status = _consolidate_now(closing)
+            error = None
+            if status != "Submitted":
+                status = "Failed"
+                error = frappe.db.get_value("POS Closing Entry", closing.name, "error_message") or _(
+                    "Consolidation failed"
+                )
+        frappe.db.set_value(
+            "POS Session Day",
+            row.name,
+            {
+                "closing_status": status,
+                "closing_error": _short(error),
+                "closing_attempts": 0 if status == "Submitted" else cint(row.closing_attempts) + 1,
+            },
+            update_modified=False,
+        )
+        # Background job or self-healer: keep what happened.
+        frappe.db.commit()  # nosemgrep
+        if error:
+            return error
+    return None
+
+
+def _days_info(session_doc):
+    return [
+        {
+            "pos_opening_entry": r.pos_opening_entry,
+            "pos_closing_entry": r.pos_closing_entry,
+            "started_at": str(r.started_at) if r.started_at else None,
+            "ended_at": str(r.ended_at) if r.ended_at else None,
+            "sales_count": cint(r.sales_count),
+            "closing_status": r.closing_status,
+            "closing_error": r.closing_error,
+        }
+        for r in session_doc.get("erpnext_days") or []
+    ]
+
+
+@frappe.whitelist()
+def retry_days(session):
+    """Book again the ERPNext days of a shift that did not reach the books
+    (roll_day), once whatever stopped them is put right. Queued, like
+    retry_closing, and allowed to the same people."""
+    if not frappe.has_permission("POS Closing Entry", "create"):
+        frappe.throw(_("You are not permitted to close a register"), frappe.PermissionError)
+    doc = frappe.get_doc("POS Register Session", session)
+    for row in doc.get("erpnext_days") or []:
+        if row.closing_status == "Failed":
+            frappe.db.set_value("POS Session Day", row.name, "closing_attempts", 0, update_modified=False)
+    _enqueue_days(doc.name)
+    return {"queued": True}
+
+
+def _sessions_with_pending_days():
+    """Open shifts with a closed ERPNext day not in the books yet (a closing
+    shift's days go with its close)."""
+    if not frappe.db.table_exists("POS Session Day"):
+        return []
+    return [
+        r[0]
+        for r in frappe.db.sql(
+            """select distinct d.parent from `tabPOS Session Day` d
+            join `tabPOS Register Session` s on s.name = d.parent
+            where d.parenttype = 'POS Register Session' and d.closing_status != 'Submitted'
+              and coalesce(d.closing_attempts, 0) < 30 and s.status = 'Open'
+            limit 50"""
+        )
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Self-healer (scheduled), converge any stuck shift to Closed
 # ---------------------------------------------------------------------------
 
@@ -1397,6 +1863,13 @@ def reconcile_stuck_closings():
             frappe.log_error(
                 title="LumenPOS closing reconcile failed", message=frappe.get_traceback()
             )
+    # The ERPNext days of shifts still selling past midnight (roll_day).
+    for name in _sessions_with_pending_days():
+        try:
+            consolidate_days(name)
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(title="LumenPOS: booking a closed ERPNext day failed", message=frappe.get_traceback())
     try:
         fill_pending_figures()
     except Exception:
@@ -1530,6 +2003,7 @@ def list_sessions(pos_profile, limit=20):
     from lumen_restaurants import currency
 
     ccy = currency.company_currency(frappe.get_cached_value("POS Profile", pos_profile, "company"))
+    has_days = frappe.db.table_exists("POS Session Day")
     for session in sessions:
         counts = frappe.get_all(
             "POS Register Payment Count",
@@ -1538,6 +2012,17 @@ def list_sessions(pos_profile, limit=20):
             order_by="idx asc",
         )
         session["counts"] = counts
+        # The ERPNext days it closed while it sold on past midnight (roll_day).
+        session["erpnext_days"] = (
+            frappe.get_all(
+                "POS Session Day",
+                filters={"parent": session.name, "parenttype": "POS Register Session"},
+                fields=["pos_closing_entry", "closing_status"],
+                order_by="idx asc",
+            )
+            if has_days
+            else []
+        )
         # One figure in the company currency, however many currencies were
         # counted (lumen_restaurants.currency). Only a shift with a drawer in another
         # currency needs its fixed rates read.
@@ -1579,7 +2064,7 @@ def _accumulate_tax(closing, tax):
     )
 
 
-def _payments_by_mode(session, doctype="POS Invoice", drawer=None):
+def _payments_by_mode(session, doctype="POS Invoice", drawer=None, exclude=None):
     """What each tender took in this shift, in ITS OWN account's currency.
 
     A shift can hold sales in several currencies (lumen_restaurants.currency): dirham
@@ -1587,13 +2072,15 @@ def _payments_by_mode(session, doctype="POS Invoice", drawer=None):
     (the row's base amount), dollar cash in the dollar drawer at its dollar
     value. Adding the rows' raw amounts together, as before, mixed the two.
     Change is taken off the drawer it really came out of (the sale's change
-    account), in that drawer's currency."""
+    account), in that drawer's currency. `exclude`: invoices left out, the
+    ones an earlier ERPNext day of the shift holds (roll_day)."""
     from lumen_restaurants import currency
 
     profile_name = frappe.db.get_value("POS Register Session", session, "pos_profile")
     company = frappe.get_cached_value("POS Profile", profile_name, "company") if profile_name else None
     ccy = currency.company_currency(company) if company else None
     foreign = _foreign_drawers(profile_name) if profile_name else {}
+    values = {"session": session, "exclude": tuple(exclude or ()) or ("",)}
     # Both POS Invoice and Sales Invoice use the Sales Invoice Payment child.
     # `doctype` is a fixed doctype name (POS Invoice / Sales Invoice), not user
     # input, and can't be a bound param as a table identifier; the session filter
@@ -1604,10 +2091,11 @@ def _payments_by_mode(session, doctype="POS Invoice", drawer=None):
                sum(sip.amount) as amount, sum(sip.base_amount) as base_amount
         from `tabSales Invoice Payment` sip
         join `tab{doctype}` pi on pi.name = sip.parent and sip.parenttype = '{doctype}'
-        where pi.lumenpos_session = %s and pi.docstatus = 1
+        where pi.lumenpos_session = %(session)s and pi.docstatus = 1
+          and pi.name not in %(exclude)s
         group by sip.mode_of_payment, pi.currency
         """,
-        session,
+        values,
         as_dict=True,
     )
     result = {}
@@ -1627,10 +2115,11 @@ def _payments_by_mode(session, doctype="POS Invoice", drawer=None):
                coalesce(sum(change_amount), 0) as change_amount,
                coalesce(sum(base_change_amount), 0) as base_change_amount
         from `tab{doctype}`
-        where lumenpos_session = %s and docstatus = 1 and change_amount != 0
+        where lumenpos_session = %(session)s and docstatus = 1 and change_amount != 0
+          and name not in %(exclude)s
         group by account_for_change_amount, currency
         """,
-        session,
+        values,
         as_dict=True,
     )
     cash_modes = _cash_modes()

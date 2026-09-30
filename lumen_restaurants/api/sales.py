@@ -63,6 +63,134 @@ def _find_by_idempotency_key(key):
     return None
 
 
+def _insert_once(doc, key):
+    """Insert `doc`, or, when another request posted under the same idempotency
+    key between our check and this insert, answer with that one's name.
+
+    Two uploads of one queued sale can meet: the till's own and the browser's
+    background upload (they take turns through a Web Lock, but a second tab or
+    an old browser need not), or a retry after an answer lost on the way back
+    while the first request is still running. Both pass the "already posted?"
+    check before either commits; the key's UNIQUE index then refuses the second
+    insert. That refusal is the answer "it posted", not an error to show."""
+    try:
+        doc.insert()
+        return None
+    except (frappe.UniqueValidationError, frappe.DuplicateEntryError):
+        if not key:
+            raise
+        # Our snapshot predates the other request's commit: start over to see it.
+        frappe.db.rollback()
+        existing = _find_by_idempotency_key(key)
+        if not existing:
+            raise
+        # Frappe queued "must be unique" for the answer, it is not one.
+        frappe.local.message_log = []
+        return existing
+
+
+def rounding_rule(currency_code, doc=None, profile=None):
+    """How ERPNext rounds this total (taxes_and_totals.set_rounded_total): off
+    when rounded totals are disabled (a POS Invoice has no switch of its own,
+    Global Defaults decides; a Sales Invoice carries one, from its POS
+    Profile), else to the currency's smallest fraction, or to a whole unit when
+    it has none, by the site's rounding method. A till repeats it to know a
+    refund to the cent without a connection (refund.js)."""
+    disabled = None
+    if doc is not None:
+        try:
+            disabled = cint(doc.is_rounded_total_disabled())
+        except Exception:
+            disabled = None
+    if disabled is None and profile is not None and profile.get("lumenpos_invoice_mode") == "Sales Invoice":
+        disabled = cint(profile.get("disable_rounded_total"))
+    if disabled is None:
+        disabled = cint(frappe.db.get_single_value("Global Defaults", "disable_rounded_total"))
+    fraction = (
+        flt(frappe.db.get_value("Currency", currency_code, "smallest_currency_fraction_value", cache=True))
+        if currency_code
+        else 0
+    )
+    # v13 has no rounding method (Banker's legacy is its only one), and asking
+    # for one there queues a red "Invalid field name" onto the answer.
+    method = ""
+    if frappe.get_meta("System Settings").has_field("rounding_method"):
+        method = frappe.get_system_settings("rounding_method") or ""
+    precision = None
+    if doc is not None:
+        try:
+            precision = cint(doc.precision("grand_total"))
+        except Exception:
+            precision = None
+    if precision is None:
+        from frappe.model.meta import get_field_precision
+
+        precision = cint(
+            get_field_precision(frappe.get_meta("POS Invoice").get_field("grand_total"), currency=currency_code)
+        )
+    # ERPNext 15 and later may round each line's tax on its own
+    # (frappe.flags.round_row_wise_tax, from Accounts Settings).
+    row_wise = 0
+    if frappe.get_meta("Accounts Settings").has_field("round_row_wise_tax"):
+        row_wise = cint(frappe.db.get_single_value("Accounts Settings", "round_row_wise_tax"))
+    return {
+        "disabled": disabled,
+        "fraction": fraction,
+        "method": method or "Banker's Rounding (legacy)",
+        "precision": precision if precision is not None else 2,
+        "row_wise": row_wise,
+        "commercial": _commercial_variant(),
+    }
+
+
+_COMMERCIAL = None
+
+
+def _commercial_variant():
+    """How this Frappe breaks a tie away from zero (Commercial Rounding): v16
+    nudges the value by its last place (math.ulp), v14 and v15 by 2 ** (log2 x
+    - 52), which lands differently on a few values. The till repeats the one
+    the site runs (refund.js), read from Frappe's own code once per process."""
+    global _COMMERCIAL
+    if _COMMERCIAL is None:
+        try:
+            import inspect
+
+            from frappe.utils import data
+
+            _COMMERCIAL = "ulp" if "math.ulp" in inspect.getsource(data._round_away_from_zero) else "log"
+        except Exception:
+            _COMMERCIAL = "ulp"
+    return _COMMERCIAL
+
+
+def _offline_return_facts(name):
+    """What a till needs to take this sale back later WITHOUT a connection,
+    worked out while the server is there: the refund tenders the shop allows
+    for it (None: any), which of its products the shop restricts (such a line
+    needs an approval, so a connection), and how ERPNext rounds its totals.
+    Best effort: a till without it refuses that return offline."""
+    try:
+        from lumen_restaurants import return_restrictions
+
+        doc = frappe.get_doc(_doctype_of(name), name)
+        return {
+            "refund_modes": _cashier_refund_modes(doc),
+            "blocked": return_restrictions.blocked_items(_restriction_items(doc), doc.get("pos_profile")),
+            "rounding": rounding_rule(doc.currency, doc=doc),
+        }
+    except Exception:
+        return None
+
+
+def _sale_answer(name):
+    """A posted sale's answer to the till: its receipt, plus what the till
+    keeps to take it back later without a connection."""
+    receipt = get_receipt(name)
+    receipt["offline_return"] = _offline_return_facts(name)
+    return receipt
+
+
 def _table_doctype(pos_profile):
     """Sale doctype for a profile's history queries (defaults to POS Invoice)."""
     if pos_profile and frappe.db.get_value(
@@ -105,6 +233,18 @@ def _build_sale_invoice(
     Every price below stays in the outlet's currency, as it always was; only
     the invoice rows and the service charge are converted, at the rate the
     shift fixed (`pin` fixes it, on a real sale)."""
+    from lumen_restaurants.api.catalog import internal_item_codes
+
+    # LumenPOS's own placeholder items are sold by their own flows (gift card,
+    # hold), never as a product line: sold here, an offer and the outlet's tax
+    # applied to a deposit as if it were goods, and nothing recorded the hold.
+    internal = sorted(internal_item_codes() & {line.get("item_code") for line in payload.get("items") or []})
+    if internal:
+        frappe.throw(
+            _("{0} is kept by LumenPOS for gift cards and hold deposits and cannot be sold as a product.").format(
+                ", ".join(internal)
+            )
+        )
     customer = payload.get("customer") or profile.customer
     if not customer:
         frappe.throw(_("Select a customer (or set a default customer on the POS Profile)"))
@@ -134,6 +274,9 @@ def _build_sale_invoice(
     for line in lines:
         if line["item_code"] in own:
             line["price"] = own[line["item_code"]]
+    # A price typed at the till replaces the line's price before offers, as a
+    # price list price would (the outlet's switch and the rule are checked).
+    price_overrides = _price_overrides(payload, lines, ctx, profile)
     bundle_discounts, bundle_applied = _apply_bundles(payload["items"], lines, profile.name)
 
     # Promotions never touch bundle lines, bundle pricing is final.
@@ -199,8 +342,16 @@ def _build_sale_invoice(
             "remarks": _build_remarks(payload.get("note"), discount_approver),
         }
     )
-    _set_custom(invoice, ("lumenpos_promotions",), json.dumps(promo_result["applied"]))
+    # The offers the receipt lists, each saving in the sale's currency: the
+    # engine works in the outlet's, so a sale in euros at 4 dollars to the euro
+    # printed "saved €13.20" for a saving of €3.30 (since 0.51.0).
+    applied = promo_result["applied"]
+    if ctx.foreign:
+        applied = [dict(p, savings=flt(flt(p.get("savings")) * ctx.factor, 2)) for p in applied]
+    _set_custom(invoice, ("lumenpos_promotions",), json.dumps(applied))
     _set_custom(invoice, ("lumenpos_note",), payload.get("note"))
+    # For the audit log once the sale posts (submit_sale).
+    invoice.flags.lumenpos_price_overrides = price_overrides
     if app:
         # Use the site's existing channel fields: pick_customer (the checkbox
         # that reveals the app fields), custom_app_type (Select) and
@@ -296,6 +447,49 @@ def _build_sale_invoice(
 
     invoice.run_method("calculate_taxes_and_totals")
     return invoice, customer
+
+
+def _price_overrides(payload, lines, ctx, profile):
+    """Prices typed at the till for single lines, in the sale's currency.
+    Allowed where the outlet lets its cashiers change the rate, the way
+    ERPNext's own POS does (POS Profile, Allow User to Edit Rate), to whoever
+    may edit prices (Who can do what, Edit price / discount), and checked
+    here, whatever the till showed. A typed price replaces the line's price
+    before offers, like a price list's (bundle lines keep bundle pricing).
+    Asked for by a shop in Zimbabwe (2026-09-30). Returns [(item_code, the
+    price it had, the price typed)] in the sale's currency, for the audit log."""
+    typed = [
+        (i, row)
+        for i, row in enumerate(payload.get("items") or [])
+        if row.get("price_override") not in (None, "") and not row.get("bundle_key")
+    ]
+    if not typed:
+        return []
+    from lumen_restaurants.api import permissions
+
+    if not cint(profile.get("allow_rate_change")):
+        frappe.throw(
+            _("{0} does not let prices be changed at the till. Tick Allow User to Edit Rate on its POS Profile to allow it.").format(
+                profile.name
+            ),
+            frappe.PermissionError,
+        )
+    if not permissions.can_edit_price():
+        frappe.throw(
+            _("You're not allowed to edit prices or apply discounts on a sale."),
+            frappe.PermissionError,
+        )
+    factor = flt(ctx.factor) or 1.0
+    out = []
+    for i, row in typed:
+        value = flt(row.get("price_override"))
+        if value < 0:
+            frappe.throw(_("A price cannot be below zero."))
+        was = flt(flt(lines[i]["price"]) * factor, 2)
+        lines[i]["price"] = value / factor
+        lines[i]["standard_price"] = value / factor
+        out.append((lines[i]["item_code"], was, flt(value, 2)))
+    return out
 
 
 def _apply_service_charge(invoice, profile, lines, per_unit_discounts):
@@ -425,7 +619,7 @@ def submit_sale(payload):
     if key:
         existing = _find_by_idempotency_key(key)
         if existing:
-            return get_receipt(existing)
+            return _sale_answer(existing)
     profile = frappe.get_cached_doc("POS Profile", payload["pos_profile"])
     from lumen_restaurants.api import permissions as outlet_permissions
 
@@ -435,6 +629,9 @@ def submit_sale(payload):
     # A real sale fixes the shift's rate for its currency (lumen_restaurants.currency).
     invoice, customer = _build_sale_invoice(profile, payload, session_name=session["name"], pin=True)
     ctx = invoice.flags.lumenpos_currency
+    # A sale the till made offline was priced at the rate it knew: it posts
+    # only if that is the rate the shift sells at (lumen_restaurants.currency).
+    currency.assert_till_rate(ctx, payload.get("currency_rate"))
     _set_custom(invoice, ("lumenpos_session",), session["name"])
     if key:
         _set_custom(invoice, ("lumenpos_idempotency_key",), key)
@@ -534,7 +731,9 @@ def submit_sale(payload):
 
     _lock_open_session(session["name"])
     t_build = _perf_now()
-    invoice.insert()
+    posted = _insert_once(invoice, key)
+    if posted:
+        return _sale_answer(posted)
     t_insert = _perf_now()
     # The change account ERPNext settled on must be one this sale can book.
     currency.check_change(invoice)
@@ -554,6 +753,19 @@ def submit_sale(payload):
         )
     # Cashback EARNED on this sale (credited to the customer, spendable later).
     _cashback_earn(invoice, profile, payload, cashback_used)
+    # A price typed at the till, one audit entry per line.
+    if invoice.flags.get("lumenpos_price_overrides"):
+        from lumen_restaurants.api import audit
+
+        for code, was, value in invoice.flags.lumenpos_price_overrides:
+            audit.log(
+                audit.PRICE_EDIT,
+                detail=_("{0}: price changed from {1} to {2}").format(code, was, value),
+                amount=value,
+                reference_doctype=invoice.doctype,
+                reference_name=invoice.name,
+                pos_profile=profile.name,
+            )
     # Spend any single-use bulk coupons that were entered on this sale.
     coupons.consume(payload.get("coupon_codes") or [], invoice.name)
     # Consume the over-limit discount approval (single-use) the sale was built with.
@@ -583,7 +795,7 @@ def submit_sale(payload):
             if (meta.get("order_type") or "Takeaway") != "Dine in":
                 restaurant_meta = kitchen.after_sale(invoice, profile, meta)
 
-    receipt = get_receipt(invoice.name)
+    receipt = _sale_answer(invoice.name)
     if restaurant_meta:
         receipt["order_no"] = str(restaurant_meta["order_no"])
         receipt["kitchen_ticket"] = restaurant_meta.get("ticket")
@@ -769,26 +981,59 @@ def _lock_open_session(session_name):
 def _assert_erpnext_accepts_sale(pos_profile, session):
     """ERPNext 16's rules for every POS Invoice, said plainly before the sale
     is built rather than as ERPNext's own error at the end: the site must make
-    POS Invoices from the POS (POS Settings), and the shift must have been
-    opened today (one open shift per outlet is kept by open_register)."""
+    POS Invoices from the POS (POS Settings), and the shift's POS Opening Entry
+    must have been opened today (one open shift per outlet is kept by
+    open_register). A shift still selling past midnight has ERPNext's day
+    closed and the next one opened for it (register.roll_day), unless the
+    shop switched that off. Returns the session, on today's entry."""
     from lumen_restaurants import erpnext_compat
+    from lumen_restaurants.api import register
+    from lumen_restaurants.api.session import get_open_session
 
     if frappe.db.get_value("POS Profile", pos_profile, "lumenpos_invoice_mode") == "Sales Invoice":
-        return
+        return session
     refused = erpnext_compat.pos_invoice_refused()
     if refused:
         frappe.throw(refused, title=_("Invoice type"))
     if not erpnext_compat.one_open_shift_per_outlet() or not session.get("pos_opening_entry"):
-        return
+        return session
     started = frappe.db.get_value("POS Opening Entry", session["pos_opening_entry"], "period_start_date")
-    if started and frappe.utils.getdate(started) != frappe.utils.getdate(frappe.utils.today()):
-        frappe.throw(
-            _(
-                "This shift was opened on {0}. ERPNext 16 accepts sales only on a shift opened today: "
-                "close this shift on the Register screen and open a new one."
-            ).format(frappe.utils.formatdate(started)),
-            title=_("Shift from an earlier day"),
-        )
+    if not register.from_earlier_day(started):
+        return session
+    if register.carry_past_midnight():
+        try:
+            rolled = register.roll_day(session["name"])
+        except Exception as exc:
+            # The request fails anyway: keep why for the Error Log, and nothing
+            # of the half-closed day.
+            frappe.db.rollback()
+            frappe.log_error(
+                title="LumenPOS: closing ERPNext's day for a shift past midnight failed",
+                message=frappe.get_traceback(),
+            )
+            frappe.db.commit()  # nosemgrep
+            frappe.throw(
+                _(
+                    "ERPNext's day could not be closed for this shift ({0}). Close the shift on the "
+                    "Register screen and open a new one."
+                ).format(frappe.utils.strip_html(str(exc))[:300]),
+                title=_("Shift from an earlier day"),
+            )
+        if not rolled and not frappe.db.transaction_writes:
+            # Another till on this shift closed the day a moment ago: read
+            # afresh, or ERPNext would still find yesterday's entry open.
+            frappe.db.commit()  # nosemgrep
+        session = get_open_session(pos_profile) or session
+        started = frappe.db.get_value("POS Opening Entry", session["pos_opening_entry"], "period_start_date")
+        if not register.from_earlier_day(started):
+            return session
+    frappe.throw(
+        _(
+            "This shift was opened on {0}. ERPNext 16 accepts sales only on a shift opened today: "
+            "close this shift on the Register screen and open a new one."
+        ).format(frappe.utils.formatdate(started)),
+        title=_("Shift from an earlier day"),
+    )
 
 
 def _open_session(pos_profile):
@@ -799,7 +1044,7 @@ def _open_session(pos_profile):
     session = get_open_session(pos_profile)
     if not session:
         frappe.throw(_("No open register session. Open the register first."))
-    _assert_erpnext_accepts_sale(pos_profile, session)
+    session = _assert_erpnext_accepts_sale(pos_profile, session)
     # "Per cashier" scope: the takings land in the drawer of whoever OPENED the
     # shift, so only that cashier may ring one up. Deliberately no manager
     # bypass, selling is operational, not supervisory (supervision, i.e. cash
@@ -1731,6 +1976,10 @@ def get_receipt(invoice):
                 "discount_amount": row.discount_amount,
                 "barcode": barcode_map.get(row.item_code),
                 "serial_no": (row.get("serial_no") or "").strip() or None,
+                # Taking it back without a connection (refund.js): a set comes
+                # back whole, and a line's own tax rates override the row's.
+                "return_group": row.get("lumenpos_return_group") or None,
+                "item_tax_rate": _tax_map(row.get("item_tax_rate")),
                 **modifiers.receipt_item(row, doc.get("pos_profile")),
             }
             for row in doc.items
@@ -1740,7 +1989,15 @@ def get_receipt(invoice):
         "discount_amount": doc.discount_amount,
         "total_taxes_and_charges": doc.total_taxes_and_charges,
         "taxes": [
-            {"description": t.description, "tax_amount": t.tax_amount}
+            {
+                "description": t.description,
+                "tax_amount": t.tax_amount,
+                "charge_type": t.charge_type,
+                "rate": flt(t.rate),
+                "included": cint(t.included_in_print_rate),
+                "account_head": t.account_head,
+                "row_id": t.get("row_id") or None,
+            }
             for t in (doc.taxes or [])
         ],
         "grand_total": doc.grand_total,
@@ -1752,6 +2009,15 @@ def get_receipt(invoice):
             _get_custom(doc, ("lumenpos_promotions",)) or "[]"
         ),
     }
+
+
+def _tax_map(raw):
+    """A line's item_tax_rate ({account: rate}, JSON text on the line)."""
+    try:
+        data = json.loads(raw) if isinstance(raw, str) and raw.strip() else (raw or {})
+        return {k: flt(v) for k, v in data.items()} if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 @frappe.whitelist()
@@ -2317,7 +2583,7 @@ def _build_return_doc(original, sale_doctype, invoice, items, serials, pos_profi
     return return_doc, session
 
 
-def _refund_splits(refund_payments, refund_amount, default_mode, allowed_modes):
+def _refund_splits(refund_payments, refund_amount, default_mode, allowed_modes, absorb=None):
     """Normalise the refund tenders into [{mode_of_payment, amount(neg), reference_no}].
 
     Splitting a refund matters when the customer paid two ways, but DIRECTION
@@ -2325,7 +2591,12 @@ def _refund_splits(refund_payments, refund_amount, default_mode, allowed_modes):
     restricted to the configured refund rules. So every requested tender is
     validated here, not just the first.
 
-    Falls back to the legacy single `refund_mode` when no split is supplied."""
+    Falls back to the legacy single `refund_mode` when no split is supplied.
+
+    `absorb` (a return made without a connection): the till split what it
+    worked out, ERPNext's figure may differ by cents, and the money has already
+    changed hands. A gap up to that tolerance goes onto the largest row, as
+    _reconcile_payment does for a sale."""
     if isinstance(refund_payments, str):
         refund_payments = json.loads(refund_payments or "[]")
     rows = [
@@ -2346,6 +2617,11 @@ def _refund_splits(refund_payments, refund_amount, default_mode, allowed_modes):
         rows[0]["amount"] = abs(refund_amount)
 
     total = flt(sum(r["amount"] for r in rows), 2)
+    gap = flt(abs(refund_amount) - total, 2)
+    if absorb is not None and 0.005 < abs(gap) <= absorb + 0.005:
+        biggest = max(rows, key=lambda r: r["amount"])
+        biggest["amount"] = flt(biggest["amount"] + gap, 2)
+        total = flt(sum(r["amount"] for r in rows), 2)
     if abs(total - abs(refund_amount)) > 0.005:
         frappe.throw(
             _("The refund split adds up to {0} but the refund is {1}.").format(
@@ -2498,6 +2774,9 @@ def create_return(
     return_request=None,
     pos_profile=None,
     refund_payments=None,
+    idempotency_key=None,
+    original_key=None,
+    offline_refund=None,
     _split_fn=None,
 ):
     """Create a POS return (credit note) against a submitted POS sale.
@@ -2513,6 +2792,17 @@ def create_return(
     return_request = an approved POS Approval Request (type Return) that
     authorizes a return made AFTER the configured return window has passed.
 
+    idempotency_key = the till's key for THIS return: a retry of one that
+    already posted (its answer was lost on the way back) gets that return's
+    receipt, never a second credit note.
+    original_key / offline_refund = a return the till made WITHOUT a
+    connection (0.56.0, LumenPOS Settings.offline_returns): the sale it takes
+    back may itself have been queued offline, so the till may name it by that
+    sale's own idempotency key, and says what it paid out. ERPNext's figure is
+    what posts. A difference within the outlet's payment tolerance is recorded
+    on the credit note and in the audit log, so the close explains it; a larger
+    one is refused with both figures, like a sale.
+
     _split_fn is internal (Python callers only, it cannot arrive over HTTP):
     given the credit note's final value it returns the refund tenders. An
     exchange needs it because the split depends on a figure only ERPNext knows
@@ -2526,6 +2816,27 @@ def create_return(
         frappe.throw(
             _("You're not allowed to make returns."), frappe.PermissionError
         )
+    key = (idempotency_key or "").strip()
+    if key:
+        existing = _find_by_idempotency_key(key)
+        if existing:
+            return get_receipt(existing)
+    offline = offline_refund not in (None, "")
+    if offline:
+        from lumen_restaurants.api.settings import offline_switch
+
+        if not offline_switch("offline_returns"):
+            frappe.throw(
+                _("Returns without a connection are switched off in LumenPOS Settings. Make this return again from Sales History.")
+            )
+    if not invoice and (original_key or "").strip():
+        invoice = _find_by_idempotency_key(original_key.strip())
+        if not invoice:
+            frappe.throw(
+                _("The sale this return takes back has not reached the server yet. It goes first, then this return.")
+            )
+    if not invoice:
+        frappe.throw(_("Choose the sale to take back"))
     if isinstance(items, str):
         items = json.loads(items)
     if isinstance(serials, str):
@@ -2615,7 +2926,19 @@ def create_return(
     refund_amount = flt(invoice_total, return_doc.precision("grand_total"))  # negative
     if _split_fn:
         refund_payments = _split_fn(abs(refund_amount))
-    splits = _refund_splits(refund_payments, refund_amount, refund_mode, allowed_modes)
+    tolerance = None
+    if offline:
+        tolerance = flt(
+            frappe.get_cached_value("POS Profile", pos_profile or original.pos_profile, "lumenpos_payment_tolerance")
+        ) or 1.0
+        paid_out = flt(offline_refund, 2)
+        if abs(paid_out - abs(refund_amount)) > tolerance + 0.005:
+            frappe.throw(
+                _("This return was refunded without a connection as {0}, but ERPNext calculated {1}. Check the sale and make the return again from Sales History.").format(
+                    paid_out, abs(refund_amount)
+                )
+            )
+    splits = _refund_splits(refund_payments, refund_amount, refund_mode, allowed_modes, absorb=tolerance)
     if any(r["mode_of_payment"] in _wallet_modes() for r in splits):
         frappe.throw(
             _("A refund does not go back onto a gift card or cashback. Refund that part as store credit."),
@@ -2659,8 +2982,20 @@ def create_return(
         )
 
     _lock_open_session(session["name"])
-    return_doc.insert()
+    if key:
+        _set_custom(return_doc, ("lumenpos_idempotency_key",), key)
+    posted = _insert_once(return_doc, key)
+    if posted:
+        return get_receipt(posted)
     return_doc.submit()
+    gap = flt(abs(refund_amount) - flt(offline_refund), 2) if offline else 0
+    if offline and abs(gap) > 0.005:
+        return_doc.add_comment(
+            "Comment",
+            _("Refunded without a connection: the till paid out {0}, ERPNext's figure is {1}.").format(
+                flt(offline_refund, 2), abs(refund_amount)
+            ),
+        )
 
     credit_amount = flt(
         sum(
@@ -2696,6 +3031,10 @@ def create_return(
         detail += f" · {return_reason}"
     if return_approver:
         detail += f" · {_('late return approved by {0}').format(return_approver)}"
+    if offline:
+        detail += " · " + _("made without a connection")
+        if abs(gap) > 0.005:
+            detail += " · " + _("the till paid out {0}").format(flt(offline_refund, 2))
     audit.log(
         audit.RETURN,
         detail=detail,
@@ -2707,6 +3046,8 @@ def create_return(
 
     receipt = get_receipt(return_doc.name)
     receipt["stock_after"] = _stock_after(return_doc)
+    if offline:
+        receipt["offline_gap"] = gap
     return receipt
 
 

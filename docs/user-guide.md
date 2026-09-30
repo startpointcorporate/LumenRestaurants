@@ -1,6 +1,6 @@
 # Lumen Restaurants: Complete User Guide
 
-*Applies to Lumen Restaurants v0.1.0-r9, built from LumenPOS v0.54.0. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r10, built from LumenPOS v0.56.0. This document is updated with every feature change.*
 
 **Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
 own.** Everything this guide says about LumenPOS applies to it: the till is the
@@ -96,12 +96,18 @@ Create a **POS Profile** per register/branch with:
 - **Payment methods** (at least one; mark one as Default; have one of type Cash)
 - Your cashiers under **Applicable for Users**
 - Optional: **Taxes and Charges** template, default **Customer** (walk-in),
-  **Print Format** (used for browser printing), **Item Groups** (limits the grid)
+  **Print Format** (used for browser printing), **Item Groups** (limits the grid
+  to those groups and every group beneath them, as ERPNext's own POS does, so
+  listing a parent group such as *Food* covers its sub-groups, and listing
+  *All Item Groups* is the same as listing none)
 - Optional (printer): `Printer IP` / `Printer Port` fields (LumenPOS section)
   for a network ESC/POS thermal printer
 
 Items need an **Item Price** on the profile's selling price list. Items
-without a price ring up at 0.
+without a price ring up at 0. Stock items with no stock in the profile's
+warehouse stay off the grid unless **Show out-of-stock items in the grid** is
+on (Settings, General, Register and shifts), and the grid says so when that is
+why it is empty.
 
 ### Open the POS
 Log in to ERPNext, then open **`https://yoursite/pos`**.
@@ -266,9 +272,12 @@ in its currency with its local value underneath; a local sale can also show its
 value in the currencies ticked *Show the equivalent at the till*.
 
 **Rates.** Kept in ERPNext (*Currency Exchange*, selling). Set them in the same
-Settings card. A shift fixes the rate of a currency at its first sale in it and
-keeps it until it closes, because ERPNext merges each customer's shift into one
-invoice at one rate, and a new rate applies from the next shift.
+Settings card. A shift fixes the rate of every currency as it opens and keeps
+it until it closes, because ERPNext merges each customer's shift into one
+invoice at one rate, and a new rate applies from the next shift. (A currency
+that has no rate yet when the shift opens gets it at its first sale in it.
+Until 0.55.0 every rate was fixed at the first sale, which a till without a
+connection could not know.)
 
 **Automatic rates (optional).** Tick *Update exchange rates automatically* and
 choose, for each currency, a **Fixed rate** (the one you set, as before) or an
@@ -315,8 +324,17 @@ cash and cards or its own drawer.
 **What stays in the outlet's currency.** Gift cards, store credit, cashback,
 loyalty redemption, holds and exchanges keep one currency in their ledgers, so
 they are refused for a sale in another currency with a plain message (refund
-it and ring up a new sale instead of an exchange). A sale in another currency
-needs a connection: it is not queued offline.
+it and ring up a new sale instead of an exchange).
+
+**Without a connection.** A sale in another currency can be made offline, to
+that currency's walk-in customer (**Sell in ZWG**): the till prices it at the
+rate the shift fixed as it opened, and from the walk-in's own price list when
+it has one (the till keeps it with the catalogue), and the sale is queued like
+any other. The server posts it only at the shift's rate. A till that was out
+of date sees the sale refused with both rates, never posted at a price nobody
+paid (and a refused sale never holds the close). A named customer billed in
+another currency still needs a connection, since their own prices are not kept
+on the device.
 
 **Off.** With the switch off, a customer billed in another currency is refused
 at the till, with the reason, instead of being posted wrong. Rates and the
@@ -362,8 +380,10 @@ when a promoted item also has an active **price book**:
 ### Products: include & exclude
 Each row is **Include** or **Exclude** and targets an Item, Item Group,
 Brand, or **Tag** (an ERPNext item tag, tag items in the desk, then group them
-here without listing every group/brand). All picked from a validating dropdown
-(free text is rejected):
+here without listing every group/brand). An Item Group covers every group
+beneath it, as an ERPNext pricing rule does: a row on *Food* also takes the
+items filed under *Food > Burgers*. The same goes for cashback rules. All picked
+from a validating dropdown (free text is rejected):
 - *All products except brand X*: tick **Apply on all products** + Exclude row.
 - *Group except items*: Include the group + Exclude the items.
 - Exclude-only rows = "everything else".
@@ -559,6 +579,11 @@ customer in the cart and as a payment tile.
   (every member, full quantity) or none; the screen badges them *Set, return
   together* and steps the whole set at once, and the server enforces it. Each
   line stores its set in `lumenpos_return_group` at sale time.
+- **Without a connection**, a sale this device made in the same shift can still
+  be taken back from Sales History (section 14, *Returns without a connection*).
+- **A refund never posts twice.** Every refund carries its own key from its
+  first attempt, so one whose answer was lost on the way back, and was then
+  tried again, is answered with the credit note that already posted.
 
 ---
 
@@ -863,6 +888,26 @@ A serialized item can never be sold without its exact serials:
   Entry** when it consolidates (a Sales Invoice outlet's cash shift, which has
   none, gets them once they can be worked out again), and the variance alert
   goes out then.
+- **A shift past midnight (ERPNext 16).** ERPNext 16 takes sales only on a shift
+  opened the same day. With **Keep a shift open past midnight** on (Settings,
+  General, Register and shifts, on by default and shown on ERPNext 16 only), the
+  first sale after midnight (or return, or sale made offline and uploaded then)
+  closes the day in ERPNext and opens the next one by itself, the way ERPNext
+  does it: a **POS Closing Entry** for the day's sales, closed at what the drawer
+  should hold rather than counted, and a new **POS Opening Entry** that opens at
+  that amount for each payment method. The shift carries on, and the cashier
+  counts the drawer once, at the end, against the whole shift. The day's sales
+  are posted in the background (the self-healer retries), and the Register page
+  lists each closed day with its entry and whether it is posted, with **Try
+  again** when posting failed. The shift's own close waits for those days, since
+  a return in a later day may be of a sale in an earlier one. With the switch
+  off, a shift from an earlier day refuses every sale until it is closed and a
+  new one is opened. Before ERPNext 16 a shift simply runs past midnight.
+- **A shift several cashiers sold on closes.** In *Per outlet* scope any cashier
+  sells on the outlet's shift. ERPNext's own check on a POS Closing Entry wants
+  every sale made by the cashier who opened it, so until 0.55.0 such a shift
+  failed its close for good ("POS Invoice isn't created by user"). LumenPOS now
+  makes that entry itself, with the checks that matter.
 - **Cash in / out** during the day from the Register page (reason logged). Each
   movement is **netted into the expected cash** at close (expected = opening +
   cash sales + cash in − cash out) **and declared on the POS Closing Entry**
@@ -944,8 +989,9 @@ this also makes everyday search instant. If the connection drops:
 - search and selling continue; finished sales are **queued** and sync
   automatically when the network returns (errors keep the sale queued and
   tell you why),
-- needs a connection: history, customers, loyalty, store credit, gift cards,
-  serialized items, delivery-app sales, register opening.
+- needs a connection: the full sales history, customers, loyalty, store credit,
+  gift cards, serialized items, delivery-app sales, register opening. (A sale this
+  device made in the shift can be taken back without one, see below.)
 - **The till survives a reload and a reboot.** The app itself (page, script,
   styles, fonts) is kept on the device by a service worker, so /pos opens with
   no connection at all and the shift carries on: cached catalogue, queued
@@ -965,6 +1011,52 @@ this also makes everyday search instant. If the connection drops:
   connection was down, and it does so once more a minute later, for a till that
   was still uploading its own sales. The server never sells more than it has,
   whatever a tile showed.
+- **A sale the server refuses never keeps the shift open.** A queued sale the
+  server refused (the offline sales log says why) shows apart on the Register
+  page. The close waits for sales not sent yet, never for refused ones: close
+  the shift, taking the refused sales' cash out of the drawer before you count,
+  and put it back once the next shift is open. A refused sale is sent again as
+  soon as a shift opens, and on every upload after that.
+- **Returns without a connection** (from 0.56.0, Settings, General, Register
+  and Offline, on by default). Sales History lists this device's own sales of
+  the open shift, those it sent and those still waiting (the search box finds
+  them by invoice, customer or item), and any of them can be taken back there:
+  pick the items and the reason, and refund in cash or the
+  way the customer paid (never onto store credit, a gift card or cashback, whose
+  balances live on the server). The till works the refund out the way ERPNext
+  will (taxes, a line's own tax template, rounded totals and the site's rounding
+  method, all as ERPNext does them), so the figure it shows is the one to pay
+  out. The return waits in the queue behind the sale it takes back and is sent
+  after it. The server checks everything again: ERPNext's figure is what posts,
+  a difference within the outlet's payment tolerance is written on the credit
+  note and in the audit log, a bigger one is refused with both figures, and the
+  shop's switch and the right to make returns are enforced there too. Not
+  offline: serial numbers, a sale paid with loyalty points, products the shop
+  takes back only with an approval, a sale with a service charge, and a sale
+  not sent yet at a shop that restricts returns of some products. The screen
+  says which, and why.
+- **Sent in the background** (from 0.56.0, Settings, General, Register and
+  Offline, on by default). Sales and returns made without a connection are sent
+  by the browser the moment the network is back, even with the till closed, in
+  Chrome, Edge and on Android (the browser's Background Sync). The till still
+  sends them itself whenever it is open, and the two take turns, so nothing is
+  sent twice. Frappe v13 cannot serve the part of the till this runs in, so
+  there the till sends them when it is open, as before.
+- **Nothing posts twice.** Every sale and refund carries its own key from its
+  first attempt. A sale whose answer was lost on the way back (the connection
+  dropped after the server posted it) is queued under the same key, and the
+  server answers it with the invoice it already made. Two uploads of one sale
+  that reach the server together get the same answer. (Before 0.56.0 a sale
+  made online got its key only when it was queued, so a lost answer could post
+  it twice.)
+- **The browser keeps the offline data for good, or says it will not.** A
+  browser that has not agreed to keep the till's storage may clear it when the
+  device runs short of space, with the sales waiting to be sent. The till asks
+  as it opens, and when the browser did not agree, a banner says so, with
+  **Protect** to ask again (Firefox asks you, Chrome and Edge agree once the
+  till is installed as an app or bookmarked) and **Later** for a day. Settings,
+  General, Register and Offline, *Warn when offline sales are not protected*
+  (on by default).
 - Settings → Status shows cache size and queued count; **Refresh offline
   catalog** re-pulls it. The General toggle *Cache only in-stock items*
   keeps the cache to your warehouse's stock.
@@ -972,7 +1064,8 @@ this also makes everyday search instant. If the connection drops:
 
 ### What is NOT available offline
 
-Anything that has to reach ERPNext to be true: sales history, the customer
+Anything that has to reach ERPNext to be true: the full sales history (this
+device's own sales of the shift are listed, and can be taken back), the customer
 directory beyond the cached recent list, loyalty and store credit balances,
 gift cards, serialized items, delivery-app sales, exchanges, and **opening or
 closing a shift**. Open the shift while you have a connection, and the till can
@@ -996,7 +1089,7 @@ behaviour: it sells offline as long as the tab stays open.)
 | **Bundles** | Fixed-price bundles: components, price, outlets. |
 | **Price Books** | Items with special prices for a period (validity + priority + outlets/customer groups); add items or **Excel/CSV import**. No ERPNext price list created, the master is never changed. |
 | **Loyalty & Gift Cards** | Create/view loyalty programs; search/disable gift cards. |
-| **General** | Split into groups, one at a time, each saying what it is for: **Features** (what the till offers, plus the one-tap favourites), **Register and shifts** (shift ownership, variance and overdue alerts, offline cache), **Payments and delivery** (delivery apps with their price lists and per-method rules), **Other currencies** (the switch, the currencies the till sells in, their rates), **Customers** (what the new-customer form asks, field by field), **Companies** (whether gift cards, cashback and store credit are shared by the group or kept per company, what waits to be booked between companies and **Book now**), **Returns and refunds** (return window, return reasons, **what cannot be returned**, and the refund method rules), **Receipt**, **Languages** (which languages cashiers may pick), **Accounts and gift cards** (per-company accounts, including the two that carry balances spent across the group, gift card expiry), **Approvals and access** (discount limit and over-limit method, master passcode, approver PINs, the shared Approver Role, permissions, audit log). One Save button covers them all. |
+| **General** | Split into groups, one at a time, each saying what it is for: **Features** (what the till offers, plus the one-tap favourites), **Register and shifts** (shift ownership, one shift per person, a shift past midnight on ERPNext 16, variance and overdue alerts, offline cache, returns without a connection, sending in the background, the storage warning), **Payments and delivery** (delivery apps with their price lists and per-method rules), **Other currencies** (the switch, the currencies the till sells in, their rates), **Customers** (what the new-customer form asks, field by field), **Companies** (whether gift cards, cashback and store credit are shared by the group or kept per company, what waits to be booked between companies and **Book now**), **Returns and refunds** (return window, return reasons, **what cannot be returned**, and the refund method rules), **Receipt**, **Languages** (which languages cashiers may pick), **Accounts and gift cards** (per-company accounts, including the two that carry balances spent across the group, gift card expiry), **Approvals and access** (discount limit and over-limit method, master passcode, approver PINs, the shared Approver Role, permissions, audit log). One Save button covers them all. |
 | **Status** | Version, outlet, price list, connection, cache size, queue, printer, register state. |
 | **Approvals** | (Approvers only) Live tray of pending **discount and return** requests to Approve / Reject, shown in the left rail when discount requests are enabled or returns are window-limited. |
 
@@ -1109,6 +1202,18 @@ for holders of the configured **Approver Role** plus LumenPOS / System Managers.
 
 ---
 
+### Changing a price at the till
+
+Where an outlet allows it, the way ERPNext's own POS does (POS Profile, **Allow
+User to Edit Rate**), a person who may **Edit price / discount** taps a line in
+the cart and types its **Price**, in the money of the sale. It replaces the
+list's price for that line, offers apply on top of it as on any price, the line
+says "Price changed at the till", and the audit log records the item, the old
+price and the new one. Clearing the field goes back to the list's price. The
+server checks the outlet's switch and the rule again on every sale, and a hold
+takes a price other than the list's only from someone who may give it. An item
+with no price at all (US$0.00) can be sold this way.
+
 ### Who can do what (Settings → General → Approvals and permissions)
 
 ERPNext roles decide what a person may reach. This table decides what they may
@@ -1117,7 +1222,7 @@ plus Fatima" is two rows rather than a role invented for one person.
 
 | Action | What it covers |
 |---|---|
-| **Edit price / discount** | A manual discount or price change on a sale line |
+| **Edit price / discount** | A manual discount on a sale line, and typing a new price on it where the outlet allows that (POS Profile, **Allow User to Edit Rate**) |
 | **Make returns** | Creating a credit note from the till |
 | **Return past the window** | Returning a sale older than the return window WITHOUT an approval request |
 | **Exchange goods** | The one-step exchange (needs *Make returns* as well) |
@@ -1157,6 +1262,14 @@ stays open.
 | Promotion not applying | Open it → **Run test** with the real items: the report shows the failing gate, rows that match nothing, or items priced 0. |
 | "Already has an open entry" when opening register | You have an open POS Opening Entry, continue that shift, or cancel the entry in the desk. The choice dialog handles it. |
 | "Previous shift not finished / Retry closing" when opening | The last shift's closing hasn't finished consolidating (or failed). Click **↻ Retry closing**, it's safe to retry repeatedly. It also self-heals every ~10 min. You can't open a fresh shift until it completes (this is what prevents selling on a stale shift). |
+| After midnight: "This shift was opened on ... ERPNext 16 accepts sales only on a shift opened today" | ERPNext 16's own rule. From 0.55.0 the first sale after midnight closes the day in ERPNext and opens the next by itself, unless **Keep a shift open past midnight** is off (Settings, General, Register and shifts). With it off, close the shift on the Register page and open a new one. |
+| Closing fails with "POS Invoice isn't created by user" | A shift more than one cashier sold on, before 0.55.0. Update, then press **Retry closing** (or let the self-healer do it). |
+| The price cannot be changed in the cart, though the POS Profile allows it | Before 0.55.0 LumenPOS had no price field. From 0.55.0 a line's price is typed in the cart, at an outlet whose POS Profile has **Allow User to Edit Rate** ticked, by whoever may **Edit price / discount** (Settings, General, Approvals and permissions). |
+| A refund made without a connection shows "Rejected" in the offline sales log | The server refused it (the log says why: the sale was taken back elsewhere, a product needs an approval, or ERPNext's figure differs from what the till paid out by more than the outlet's payment tolerance). The money has left the drawer, so make the return again from Sales History with the connection on, and the close counts it. |
+| The till says "Offline sales are not protected on this device" | The browser has not agreed to keep the till's storage for good. Install the till as an app (Chrome or Edge, the install button in the address bar) or bookmark it, then press **Protect**. The banner can be switched off in Settings, General, Register and Offline. |
+| An offline sale was refused and the shift will not close | From 0.55.0 a refused sale no longer holds the close: the Register page shows it apart with its reason. Take its cash out of the drawer before you count, close, and put the cash back once the next shift is open: the sale is sent again then. |
+| "Customer Deposit" shows on the sell screen, with a price | It is LumenPOS's own item for deposits on holds, and ERPNext's *Auto Insert Item Price If Missing* (Stock Settings) saved the first deposit's amount as its price. From 0.55.0 it is kept off the sell screen and a sale refuses it. Take deposits from the Holds screen. |
+| Closing fails with "Cannot link cancelled document: POS Opening Entry" | The shift's POS Opening Entry was cancelled in ERPNext (ERPNext 13 to 15 allow that even with sales on it), and ERPNext refuses to close a shift against a cancelled entry. From 0.54.1 LumenPOS closes it against the entry's **amendment**, ERPNext's own way back: it uses one made by hand, or makes one (for example *POS-OPE-2026-00014-1*), and leaves a note on the shift. Press **Retry closing**, or let the self-healer do it. |
 | Closing shows **Failed** with an error | Read the error (usually a stuck invoice or a transient lock). Hit **↻ Retry closing**; nothing is double-posted. If it keeps failing, open the linked POS Closing Entry in the desk and retry there. |
 | "Close your open shift first" when opening a register | The shop has **One open shift per person** on and you still have a shift open at another outlet. Tap **Go to its Register page**, count and close it, then open this one. If you may not close registers, or the shift is at an outlet you can no longer open, a manager closes it from that outlet's Register page (**Other open shifts here**). An administrator can also turn the setting off. |
 | "difference pending" on a closed shift | The shift closed, but its expected takings could not be worked out at the time. They are filled in from its POS Closing Entry when it consolidates; nothing to do unless the close itself shows **Failed**. |
@@ -1217,6 +1330,9 @@ which both LumenPOS roles are given.
 ### LumenPOS releases
 | Version | Highlights |
 |---|---|
+| 0.56.0 | **Returns without a connection.** Sales History now lists, while the connection is down, the sales this device made in the open shift, and any of them can be taken back there, even one still waiting to be sent: refunded in cash or the way the customer paid, at the figure ERPNext will post, which the till works out as ERPNext does (taxes added or included, a line's own tax template, a tax on the previous row, rounded totals to a fraction or to whole units, and each of Frappe's rounding methods, checked against real credit notes on ERPNext 13 to 16). The return is queued behind its sale and posted after it, and the server checks it all again: ERPNext's figure posts, a small difference is recorded on the credit note and in the audit log, a bigger one is refused with both figures. Settings, General, Register and Offline: *Returns without a connection* (on). **Sales sent in the background.** A sale or return made offline is sent by the browser as soon as the network is back, even with the till closed (Chrome, Edge, Android), and the till and the browser take turns so nothing is sent twice. *Send queued sales in the background* (on). **A warning when the browser may clear the offline data**, with a button that asks it again. *Warn when offline sales are not protected* (on). **A sale never posts twice**: a sale made online now carries its key from its first attempt, so one whose answer was lost and that the till then queued (or the cashier tried again) is answered with the invoice already made, where before it could post a second time. Refunds carry their own key the same way, and two uploads of one sale or refund that meet at the server get one answer. |
+| 0.55.0 | **A shift can run past midnight on ERPNext 16.** ERPNext 16 takes sales only on a shift opened the same day, so a shop open until one in the morning could not sell after midnight, a sale made offline could not upload, and the Register page would not close while that sale waited: the till was stuck both ways (a shop in Zimbabwe). Now the first sale after midnight closes the day in ERPNext and opens the next one by itself, the way ERPNext does it (a POS Closing Entry for the day, a new POS Opening Entry), while the shift carries on. The cashier counts the drawer once, at the end of the shift, against the whole shift: what each payment method should hold is carried into the next day's entry. The day's sales are posted in the background, and the Register page lists each closed day with its entry and whether it is posted, with a retry if posting failed. Settings, General, Register and shifts: *Keep a shift open past midnight* (on by default, shown on ERPNext 16 only). **An offline sale the server refuses no longer keeps the shift open.** The Register page still waits for sales not sent yet, but a sale the server refused now shows apart with its reason, and the shift can be closed: its cash is taken out before the count and put back once the next shift is open, and the sale is sent again at once. **A shift several cashiers sold on closes.** In *Per outlet* scope (the default) any cashier sells on the outlet's shift, but ERPNext's own check on a closing entry wants every sale made by the cashier who opened it, so such a shift failed its close for good with "POS Invoice isn't created by user", on every version. LumenPOS now makes that entry itself, with the checks that matter, as it already did for opening entries. **Selling in another currency without a connection** (asked by the same shop, whose customers pay in ZWG): a shift now fixes its exchange rates as it opens, so every till knows them, and a sale to a currency's walk-in is queued offline at that rate, priced from the walk-in's own list when it has one. The server posts it only at the shift's rate, and refuses it with both rates otherwise. **A price typed at the till**, where the outlet allows it the way ERPNext's POS does (POS Profile, *Allow User to Edit Rate*), for whoever may *Edit price / discount*: tap a line, type its price in the sale's money, offers apply on top, the audit log keeps the old and the new price, and the server checks it all again. A hold no longer takes a price the person may not give. **The receipt of a sale in another currency** showed an offer's saving in the outlet's number (saved €13.20 for a saving of €3.30 at 4 dollars to the euro), since 0.51.0. It now shows it in the sale's money. **The Customer Deposit item is no longer sold as a product.** LumenPOS's own item for deposits on holds could show on the sell screen, and where ERPNext's *Auto Insert Item Price If Missing* had saved the first deposit's amount as its price, it sold like goods, with offers and VAT on it and no hold behind it. It is now kept off the grid, search, price check and the offline copy, like the gift-card item, and a sale refuses both as a product line. |
+| 0.54.1 | **An outlet listing "All Item Groups" shows its products again.** The sell grid matched an outlet's item groups, and the group chip a cashier taps, by name only, so an outlet whose POS Profile listed *All Item Groups* (or any parent group) showed "No products found": every item sits in a group beneath it. It now reads them the way ERPNext's own POS does, each group with every group beneath it, on the server and in the catalog kept on the device for instant search and offline selling. *All Item Groups* listed is the same as nothing listed, so the chips show the item groups as usual. Reported by a shop whose till showed no products at all. **The grid says why it is empty:** when products were found but none has stock at the outlet (and out-of-stock items are hidden), it says so and names the setting, instead of "No products found". **Offers and cashback rules on an item group cover its sub-groups too**, as ERPNext's pricing rules do: an offer on *Food* missed every item filed under *Food > Burgers*, and excluding a group let its sub-groups through. The till and the server work it out the same way, from the offer's own list of groups. **A shift whose POS Opening Entry was cancelled in ERPNext closes again.** Its close failed for good with "Cannot link cancelled document: POS Opening Entry" (a shop's report), so its sales never reached the books. It now closes against the entry's amendment, ERPNext's own way back from a cancelled document: one made by hand is used (a draft one is finished), otherwise LumenPOS makes it, and the shift carries a note naming both entries. |
 | 0.54.0 | **One open shift per person, when a shop wants it.** Settings, General, Register and shifts: *One open shift per person* (off by default). On, nobody opens a new shift while they still have one open at another outlet: the server refuses it, naming the open shift, and the Open Register screen says so, with a button that goes straight to that outlet's Register page to close it. Off, a person may still hold shifts at several outlets (a manager covering branches), and the reminder now says how many are open (it said "another register" above a list of five). Asked by a shop in Zimbabwe whose one login held five shifts at five outlets: on ERPNext 16 each of those also kept that outlet's own cashier from opening a shift, since ERPNext 16 sells on one open shift per outlet at a time. **Nobody is locked out by it:** a shift whose close was started, even a failed one, does not count, nor does one at an outlet the person can no longer reach (listed with "ask a manager"). **A manager closes anyone's open shift** from the outlet's Register page (*Other open shifts here*), which in *Per cashier* scope was out of a manager's reach until now. **A close always goes through:** when the expected takings cannot be worked out (the 0.52.0 failure on ERPNext 16 that kept every shift of that shop open), the counts are kept, the shift closes, and its figures come from its POS Closing Entry at consolidation, with the variance alert sent then. **A user holding only the LumenPOS Cashier (or Manager) role can sell on ERPNext 15 and 16:** ERPNext checks, as the person selling, that they may select the customer's receivable account and read the Item (and, on 16, the POS Profile), so such a user was refused with "User don't have permissions to select/read this account" (then Item, then POS Profile). Both roles now get select on Account (the name only, not read) and read on Item and POS Profile on update; on ERPNext 13 and 14 nothing was missing. Found by this release's strict shift tests, which now open, sell, close and consolidate as a cashier holding nothing else. |
 | 0.53.0 | **The till in more languages, starting with the ones ERPNext is used in most.** A study of public ERPNext sites (their default language), Frappe Cloud installs of each country's app and traffic to Frappe's sites ranks the languages after English: Arabic, Spanish, German, Chinese, French, Thai, Indonesian, Vietnamese. **Spanish, German, Chinese (Simplified), French, Thai, Indonesian and Vietnamese** join English and Arabic, every screen and every message. Thai uses IBM Plex Sans Thai, the family of the Arabic font, and Chinese the system's own Chinese font. The top bar's language control becomes a short list when a shop offers more than two, and **Settings → General → Languages** chooses which ones cashiers may pick (all by default, English always). **The server now answers in the till's language.** Until now a refusal from the server (a PIN that is too short, a serial that cannot be sold, a shift that cannot close) came up in English even on an Arabic till, because LumenPOS carried no translations for its server messages. It now carries them for every language it speaks, and the till sends its language with each request, so ERPNext's own messages follow too, whatever the user's language in the desk. LumenPOS never renames a text that Frappe or ERPNext already translate, so the desk keeps its own wording. **A serial number cannot be offered twice.** A serial already sold on a sale the shift close has not booked yet still reads Active in ERPNext, because the stock moves only at the close, and the till used to offer it again, only for ERPNext to refuse the sale with a message about the warehouse. The serial check, the scanner and the sale now ask ERPNext's own question for the version and refuse it first, naming that sale. After a return of the sale, ERPNext 13 and 14 give the serial back at once, while ERPNext 15 and 16 hold it until the close books the sale, and the till says so. **The cart keeps its room for the goods** (asked by the owner: with coupons, a bundle, VAT and two other currencies on screen, only one line of the sale was left visible). Coupon, order discount and note are now three small buttons that open their field when tapped, the breakdown under the total folds away under *Details* (each device remembers whether it is open) with the saving shown beside it, and the other currencies share one line. On a 1554 by 874 window the lines went from about 100 to about 430 pixels, and they never shrink below three lines: what sits under them scrolls first. **Also:** the top bar no longer breaks onto two lines in a long language (below 1400 pixels the user's name makes room for the outlet), the title of every settings card sits beside its icon (it was pushed to the far end of the card), and a long label in the left rail (Configuración, Einstellungen) is set smaller instead of running under the page. |
 | 0.52.1 | **Tested on a real Frappe and ERPNext 16, and fixed where it differs.** LumenPOS has been offered for v16 since 0.37.0 but had only ever run on v13 to v15. A v16 installation (Frappe 16.35, ERPNext 16.36, Python 3.14) now runs every test, and this is what it found. **The X-report** stopped with "SQL functions are not allowed as strings in SELECT" (reported by a shop in Zimbabwe), because v16 no longer accepts a count or a sum written as text in a list query. That query and four more of the same kind (store credit balances, the customers kept for offline use, the quantities already returned on an invoice, and the order cashback is spent in) now use a form every version runs. **Closing a shift** failed, because v16 renamed the closing entry's table of invoices. **A sale paid partly with loyalty points** showed "Partly Paid" with the points still owing, though the books were right. It now shows paid, as on v13 to v15. **ERPNext 16's rules for every POS sale are said plainly before a sale fails.** An outlet sells with one open shift at a time: a previous shift still closing is finished first, and anything else still open (another cashier's shift, or one from ERPNext's own POS) is named with what to do, so on v16 cashiers who each keep their own shift need a POS Profile each. A shift sells only on the day it opened, so after midnight it is closed and a new one opened. A site set to make Sales Invoices from the POS (POS Settings, which is how a new v16 site starts) cannot take the POS Invoices an outlet makes, and the till says where to change it. **Change on a new v16 site.** A new v16 site does not record change as its own ledger entry, so it cannot take change from one drawer for money paid into another. Selling in other currencies now turns that on, and on every version a sale whose change the books could not take is refused with the reason. |

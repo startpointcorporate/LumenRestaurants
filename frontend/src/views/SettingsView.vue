@@ -1399,6 +1399,15 @@
               <span class="setting-desc">{{ t('On: nobody opens a new shift while they still have one open at another outlet, they close it first. Off (the default): a person may hold shifts at several outlets at once, and the till only reminds them.') }}</span>
             </span>
           </label>
+          <!-- Only ERPNext 16 and later take sales on a shift opened the same
+               day alone (register.roll_day). -->
+          <label v-if="settingsInfo.same_day_shifts" class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.carry_shift_past_midnight" :true-value="1" :false-value="0" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Keep a shift open past midnight') }}</span>
+              <span class="setting-desc">{{ t('ERPNext 16 takes sales only on a shift opened the same day. On (the default): at the first sale after midnight LumenPOS closes the day in ERPNext and opens the next one by itself, and the shift carries on and is counted once, at its own close. Off: a shift from an earlier day has to be closed before it can sell again.') }}</span>
+            </span>
+          </label>
           <label class="setting-row">
             <input type="checkbox" class="setting-toggle" v-model="generalForm.variance_alert_enabled" :true-value="1" :false-value="0" />
             <span class="setting-text">
@@ -1442,6 +1451,27 @@
             <span class="setting-text">
               <span class="setting-title">{{ t('Cache only in-stock items for offline use') }}</span>
               <span class="setting-desc">{{ t('Smaller, faster cache, refresh the catalog after changing.') }}</span>
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.offline_returns" :true-value="1" :false-value="0" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Returns without a connection') }}</span>
+              <span class="setting-desc">{{ t('On (the default): without a connection, a sale this device made in the same shift can be taken back, refunded in cash or the way the customer paid, never to store credit, a gift card or cashback. The till works out the refund as ERPNext will, and the server checks it again when the connection is back.') }}</span>
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.background_upload" :true-value="1" :false-value="0" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Send queued sales in the background') }}</span>
+              <span class="setting-desc">{{ t('On (the default): sales and returns made without a connection are sent as soon as the network is back, even with the till closed, where the browser allows it (Chrome, Edge, Android). The till still sends them itself whenever it is open.') }}</span>
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.warn_unprotected_storage" :true-value="1" :false-value="0" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Warn when offline sales are not protected') }}</span>
+              <span class="setting-desc">{{ t('On (the default): the till shows a warning when the browser has not agreed to keep its offline data for good, which it may otherwise clear when space runs low, and asks the browser again on a tap.') }}</span>
             </span>
           </label>
           <label class="setting-row">
@@ -2110,6 +2140,9 @@
         <p class="muted hint-row">
           {{ t('An action with no rule is open to everyone. Returning past the window is the exception: nobody does it directly until you name someone, everyone else sends an approval request.') }}
         </p>
+        <p class="muted hint-row">
+          {{ t('Edit price / discount also covers typing a new price on a sale line, at an outlet whose POS Profile has Allow User to Edit Rate ticked.') }}
+        </p>
       </div>
 
       <!-- Sticky footer -->
@@ -2381,8 +2414,12 @@ const generalForm = ref({
   restrict_returns_to_window: 0,
   return_window_days: 14,
   offline_stock_only: 0,
+  offline_returns: 1,
+  background_upload: 1,
+  warn_unprotected_storage: 1,
   shift_scope: 'Per outlet',
   one_shift_per_user: 0,
+  carry_shift_past_midnight: 1,
   variance_alert_enabled: 0,
   variance_alert_threshold: 0,
   variance_alert_role: '',
@@ -2922,7 +2959,7 @@ const previewReceipt = computed(() => ({
 // ---- audit log viewer ----
 const AUDIT_ACTIONS = [
   'Sale', 'Return', 'Over-limit discount', 'Price edit',
-  'Register open', 'Register close', 'Settings change', 'Email receipt', 'Till unlock',
+  'Register open', 'Register close', 'ERPNext day closed', 'Settings change', 'Email receipt', 'Till unlock',
 ]
 const auditLogs = ref([])
 const auditFilter = ref({ action: '', from_date: '', to_date: '' })
@@ -3026,8 +3063,14 @@ async function load() {
     restrict_returns_to_window: info.restrict_returns_to_window || 0,
     return_window_days: info.return_window_days ?? 14,
     offline_stock_only: info.offline_stock_only || 0,
+    // A server from before 0.56.0 does not send these: on, their default.
+    offline_returns: info.offline_returns === 0 ? 0 : 1,
+    background_upload: info.background_upload === 0 ? 0 : 1,
+    warn_unprotected_storage: info.warn_unprotected_storage === 0 ? 0 : 1,
     shift_scope: info.shift_scope || 'Per outlet',
     one_shift_per_user: info.one_shift_per_user ? 1 : 0,
+    // A server from before 0.55.0 does not send it: on, its default.
+    carry_shift_past_midnight: info.carry_shift_past_midnight === 0 ? 0 : 1,
     variance_alert_enabled: info.variance_alert_enabled || 0,
     variance_alert_threshold: info.variance_alert_threshold || 0,
     variance_alert_role: info.variance_alert_role || '',

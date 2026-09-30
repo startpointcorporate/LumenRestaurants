@@ -9,6 +9,7 @@ import {
   catalogCount,
   saveCustomers,
   patchCatalogStock,
+  kvSet,
 } from '../offline'
 import { useSessionStore } from './session'
 
@@ -36,7 +37,10 @@ export const useCatalogStore = defineStore('catalog', {
         this.cachedCount = await catalogCount().catch(() => 0)
       }
       if (this.cachedCount > 0) {
-        const items = await searchCatalog(this.search, this.itemGroup)
+        const groups = this.itemGroup
+          ? session.itemGroupMembers?.[this.itemGroup] || [this.itemGroup]
+          : null
+        const items = await searchCatalog(this.search, groups)
         // The newest request clears "Loading…" here too: a cold start's server
         // request that lost the race to the full catalog download (which then
         // searched the device) never cleared it, and the grid stayed on
@@ -82,6 +86,17 @@ export const useCatalogStore = defineStore('catalog', {
         })
         await saveCatalog(items)
         this.cachedCount = items.length
+        // Selling in another currency without a connection: each currency
+        // walk-in's own prices (lumen_restaurants.currency.offline_prices).
+        if (session.multiCurrency?.enabled) {
+          const prices = await call('lumen_restaurants.currency.offline_prices', {
+            pos_profile: session.posProfile,
+          }).catch(() => null)
+          if (prices) {
+            session.offlinePrices = prices
+            await kvSet('currency_prices', prices).catch(() => {})
+          }
+        }
         this.fetch()
       } catch {
         /* cache refresh is best-effort */
