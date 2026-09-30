@@ -1,6 +1,6 @@
 # Lumen Restaurants: Complete User Guide
 
-*Applies to Lumen Restaurants v0.1.0-r10, built from LumenPOS v0.56.0. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r11, built from LumenPOS v0.56.0. This document is updated with every feature change.*
 
 **Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
 own.** Everything this guide says about LumenPOS applies to it: the till is the
@@ -694,8 +694,8 @@ promotions, loyalty, cashback, the Z-report and returns work unchanged.
 ### Takeaway and the order number
 
 A takeaway or delivery order is paid first. The moment the money is in, the
-till hands out a **short daily number** (per outlet, starting at 1 each day
-at midnight, even while a shift carries on past it), prints it big on the customer receipt, stamps it on the invoice in
+till hands out a **short daily number** (per outlet, starting at 1 each day,
+and a shift that sells on past midnight keeps counting until it closes), prints it big on the customer receipt, stamps it on the invoice in
 ERPNext, and opens a kitchen ticket carrying the same number. The kitchen
 presses **Ready** and the sell screen shows a blue call strip: shout the
 number, hand the bag over, press **Handed over**. Dine-in tickets carry the
@@ -709,7 +709,9 @@ and the waiters who sold on the outlet's shift all close with it at the end. On
 ERPNext 16, which takes sales only on a shift opened the same day, the first
 sale after midnight closes ERPNext's day and opens the next by itself, and the
 drawer is still counted once, at the end of the shift (section 13, *A shift past
-midnight*).
+midnight*). The takeaway order numbers carry on too: they do not start again at
+1 at midnight but when the next day's first shift opens. Two shifts on one day,
+a morning and an evening one, share the day's numbers.
 
 ### The kitchen screen
 
@@ -1341,6 +1343,7 @@ which both LumenPOS roles are given.
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r11 | **The order number follows the shift.** A takeaway number no longer starts again at 1 at midnight while the shift carries on: a shift that sells on past midnight keeps counting until it closes, and the next day's first shift starts again at 1. Two shifts on one day (a morning and an evening one) share the day's numbers, as before. |
 | 0.1.0-r10 | **LumenPOS 0.54.1 to 0.56.0, brought in.** Everything LumenPOS added up to 0.56.0 is in Lumen Restaurants too (see the LumenPOS releases below): an outlet's item groups cover the groups beneath them, offers and cashback on a group reach its sub-groups, a shift whose opening entry was cancelled in ERPNext closes, a shift can run past midnight on ERPNext 16, a shift several cashiers or waiters sold on closes, the hold deposit item is never sold as a product, selling in another currency without a connection, a price typed at the shop till, returns without a connection, queued sales sent in the background, a warning when the browser may clear the offline data, and a sale that never posts twice. **The Menu page follows the item group tree.** An outlet listing *All Item Groups* sees its whole menu there, and one listing a parent section (Food, with Burgers and Drinks beneath it) sees one section holding the dishes of the groups beneath it, as the till sells them. A dish is filed in a group without sub-groups, and a new section made there goes beneath the parent. The gift-card and hold deposit items never show as dishes. **Tested for restaurants:** a table opened before midnight and paid after it, two waiters on one shift that closes, and a sale with add-ons taken back without a connection for exactly what ERPNext refunds. A sale with a service charge still needs a connection to be taken back. |
 | 0.1.0-r9 | **Add-ons on dishes, and the Menu page.** A guest's choices about a dish (no pickles, medium heat, extra mayo) are set up as add-on groups on the new **Menu** page, together with the dishes, their prices and their sections, without going into ERPNext's screens, and for a big menu: search everywhere, many dishes tied at once, a group tied to a whole section or to single dishes. At the till a dish opens its add-ons window, a free choice goes to the kitchen as an instruction and a paid one is billed on its own line under the dish. The kitchen screen, the kitchen slip and the receipt show them under their dish, in colour in the kitchen. The Menu page is for the people allowed to **Edit the menu**, a new permission only managers have until somebody is named. Three switches per outlet in Settings, Restaurant. The Permissions list in Settings now also offers the restaurant's own actions (open, move or merge, and cancel a table order). |
 | 0.1.0-r8 | **LumenPOS 0.51.1 to 0.54.0, brought in.** Everything LumenPOS added up to 0.54.0 is in Lumen Restaurants too (see the LumenPOS releases below): automatic exchange rates and change given in the sale's currency, the till in nine languages, a customer's own price list in another currency priced right, held serials refused, the cart keeping its room for the goods, one open shift per person when the restaurant wants it, a close that always goes through, a manager closing anyone's open shift, and the permissions a cashier-only user needs to sell on ERPNext 15 and 16. **The floor screen on ERPNext 16** no longer fails as soon as a table has an order. The restaurant screens (the floor, the kitchen, bookings, the booking designer and the public booking page) are in English and Arabic so far: in the seven new languages they still show English. |

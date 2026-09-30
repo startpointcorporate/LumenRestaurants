@@ -20,7 +20,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, now_datetime, nowdate
+from frappe.utils import cint, flt, getdate, now_datetime, nowdate
 
 from lumen_restaurants.api import restaurant
 
@@ -89,6 +89,17 @@ def _make_ticket(profile_name, order_type, items, order_no=None, table_label=Non
     return doc
 
 
+def _working_day(invoice):
+    """The day the shift this sale is posted on opened, the day its order
+    number belongs to: a shift that sells on past midnight keeps counting
+    until it closes (the owner, 2026-10-01). None (today) without a shift."""
+    from lumen_restaurants.api import sales
+
+    session = sales._get_custom(invoice, ("lumenpos_session",))
+    opened = session and frappe.db.get_value("POS Register Session", session, "opened_at")
+    return getdate(opened) if opened else None
+
+
 def after_sale(invoice, profile, meta):
     """A restaurant sale just posted: hand out the day's number and open the
     kitchen ticket, inside the sale's own transaction.
@@ -108,7 +119,7 @@ def after_sale(invoice, profile, meta):
         if line.get("item_code") and (line.get("note") or "").strip():
             notes[line["item_code"]] = line["note"].strip()
 
-    order_no = next_order_no(profile.name)
+    order_no = next_order_no(profile.name, day=_working_day(invoice))
     items = []
     for row in invoice.items:
         if row.get("lr_addon_of"):
