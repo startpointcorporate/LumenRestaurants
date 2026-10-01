@@ -5,7 +5,7 @@
      Restaurant. They live on the POS Profile (lumen_restaurants.api.menu,
      save_outlet_options, a manager's call). -->
 <template>
-  <div class="addon-settings">
+  <div class="addon-settings lr-settings">
     <div class="sub-label">{{ t('Add-ons on dishes') }}</div>
     <div class="setting-list">
       <label class="setting-row">
@@ -39,6 +39,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import './restaurant-settings.css'
 import { call } from '../api'
 import { useSessionStore } from '../stores/session'
 import { useModifierStore } from '../stores/modifiers'

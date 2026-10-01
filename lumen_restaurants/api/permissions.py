@@ -39,6 +39,8 @@ MOVE_TABLE = "Move or merge tables"
 CANCEL_ORDER = "Cancel a table order"
 # Lumen Restaurants: the Menu page, dishes, their prices and their add-ons.
 EDIT_MENU = "Edit the menu"
+# Lumen Restaurants 0.1.0-r14: the floor plan, its areas, tables, walls and doors.
+EDIT_FLOOR = "Edit the floor plan"
 SALES_BY_PERSON = "See sales by salesperson"
 SYSTEM_CHECK = "See the system check"
 
@@ -53,8 +55,10 @@ LEGACY_FIELD = {
 # until a shop decides otherwise, so installing LumenPOS never locks a till.
 # The two reports added in 0.57.0 show staff performance and the state of the
 # whole site, so they stay with the managers until a shop names someone.
-# Editing the menu changes prices, so it starts closed too (Lumen Restaurants).
-CLOSED_BY_DEFAULT = {RETURN_EXCEED, SALES_BY_PERSON, SYSTEM_CHECK, EDIT_MENU}
+# Editing the menu changes prices, so it starts closed too (Lumen Restaurants),
+# and so does editing the floor plan: the whole place sees it, managers only
+# until a restaurant names someone.
+CLOSED_BY_DEFAULT = {RETURN_EXCEED, SALES_BY_PERSON, SYSTEM_CHECK, EDIT_MENU, EDIT_FLOOR}
 
 
 def _roles(user=None):
@@ -211,6 +215,13 @@ def can_edit_menu(user=None):
     """Lumen Restaurants: add and change dishes, their prices and their add-ons
     on the till's Menu page. Managers, and whoever a restaurant names."""
     return allowed(EDIT_MENU, user)
+
+
+def can_edit_floor(user=None):
+    """Lumen Restaurants: move, add and remove tables, areas, walls and doors on
+    the floor plan of the Tables screen. Managers, and whoever a restaurant
+    names."""
+    return allowed(EDIT_FLOOR, user)
 
 
 def can_move_cash(user=None):

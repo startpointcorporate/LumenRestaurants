@@ -84,6 +84,11 @@ def build_receipt_bytes(receipt, open_drawer=0):
     out += ALIGN_CENTER + BOLD_ON + DOUBLE_SIZE
     out += _text(receipt["company"]) + b"\n"
     out += NORMAL_SIZE + BOLD_OFF
+    if receipt.get("is_bill"):
+        # Lumen Restaurants: a table's bill before it is paid (restaurant.print_bill).
+        out += b"\n" + BOLD_ON + _text("BILL") + BOLD_OFF + b"\n"
+        if receipt.get("table_label"):
+            out += _text(f"Table {receipt['table_label']}") + b"\n"
     if receipt.get("order_no"):
         # The number the customer is called by: bigger than anything else on
         # the paper, because it is the one thing both sides read out loud.
@@ -157,6 +162,8 @@ def build_receipt_bytes(receipt, open_drawer=0):
     if receipt.get("loyalty_points_earned"):
         out += _text(f"Points earned: {receipt['loyalty_points_earned']}") + b"\n"
 
+    if receipt.get("is_bill"):
+        out += ALIGN_CENTER + b"\n" + _text("Not a tax invoice. Issued when paid.") + b"\n"
     out += ALIGN_CENTER + b"\n" + _text("Thank you!") + b"\n"
     out += b"\n" + receipt_images.mark_bytes() + b"\n" + _text("Lumen Restaurants") + b"\n"
     out += FEED_CUT

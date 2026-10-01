@@ -11,7 +11,13 @@
   "area",
   "column_break_1",
   "seats",
-  "disabled"
+  "disabled",
+  "section_plan",
+  "shape",
+  "rotation",
+  "column_break_plan",
+  "pos_x",
+  "pos_y"
  ],
  "fields": [
   {
@@ -56,11 +62,44 @@
    "fieldname": "disabled",
    "fieldtype": "Check",
    "label": "Disabled"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_plan",
+   "fieldtype": "Section Break",
+   "label": "Floor plan"
+  },
+  {
+   "description": "How the table is drawn on the floor plan. Empty: square, or a rectangle from 6 seats.",
+   "fieldname": "shape",
+   "fieldtype": "Select",
+   "label": "Shape",
+   "options": "\nRound\nSquare\nRectangle\nBooth"
+  },
+  {
+   "fieldname": "rotation",
+   "fieldtype": "Int",
+   "label": "Rotation (degrees)"
+  },
+  {
+   "fieldname": "column_break_plan",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Where the table stands on the floor plan. Set by dragging it on the Tables screen, 0 and 0 until it is placed.",
+   "fieldname": "pos_x",
+   "fieldtype": "Int",
+   "label": "Across"
+  },
+  {
+   "fieldname": "pos_y",
+   "fieldtype": "Int",
+   "label": "Down"
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-09-23 00:00:00.000000",
+ "modified": "2026-10-01 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Lumen Restaurants",
  "name": "POS Restaurant Table",

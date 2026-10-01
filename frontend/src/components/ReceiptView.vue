@@ -14,6 +14,13 @@
         {{ t('Tax ID') }}: {{ s.receipt_tax_id }}
       </div>
       <div v-if="receipt.is_return" class="return-stamp">{{ t('REFUND') }}</div>
+      <!-- Lumen Restaurants 0.1.0-r14: a table's bill, before it is paid. -->
+      <template v-if="receipt.is_bill">
+        <div class="bill-stamp">{{ t('floor:Bill') }}</div>
+        <div v-if="receipt.table_label" class="muted small">
+          {{ receipt.table_label }}<span v-if="receipt.guests"> · {{ t('{n} guests', { n: receipt.guests }) }}</span>
+        </div>
+      </template>
       <div v-if="receipt.order_no" class="order-no-box">
         <span class="onb-label">{{ t('Order number') }}</span>
         <span class="onb-num">{{ receipt.order_no }}</span>
@@ -125,6 +132,10 @@
       </template>
     </div>
 
+    <div v-if="receipt.is_bill" class="bill-note small">
+      <div>{{ t('Not a tax invoice. The tax invoice is issued when the bill is paid.') }}</div>
+      <div v-if="receipt.estimated">{{ t('An estimate: the till prices it when it is paid.') }}</div>
+    </div>
     <div class="receipt-foot muted small">
       <div v-if="s.receipt_footer" class="receipt-extra">{{ s.receipt_footer }}</div>
       {{ t('Thank you!') }}
@@ -217,6 +228,14 @@ function asImg(value) {
 .receipt-company { font-weight: 800; font-size: 15px; }
 .receipt-extra { white-space: pre-line; margin: 3px 0; }
 .return-stamp { color: var(--red); font-weight: 800; letter-spacing: 0.2em; }
+.bill-stamp { font-weight: 800; font-size: 14px; letter-spacing: 0.06em; margin: 4px 0 2px; }
+.bill-note {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  text-align: center;
+  color: var(--text-muted);
+}
 .receipt-table { width: 100%; border-collapse: collapse; }
 .receipt-table td {
   padding: 5px 0;

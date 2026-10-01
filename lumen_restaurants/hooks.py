@@ -18,14 +18,17 @@ before_app_install = "lumen_restaurants.site_guard.before_app_install"
 
 after_install = [
     "lumen_restaurants.install.after_install",
-    # Lumen Restaurants: the add-on fields (modifiers.py).
+    # Lumen Restaurants: the add-on fields (modifiers.py) and the floor plan's
+    # switch (floor.py).
     "lumen_restaurants.modifiers.ensure_setup",
+    "lumen_restaurants.floor.ensure_setup",
 ]
 # Runs on every app update (Frappe Cloud deploy), keeps the LumenPOS roles and
 # custom fields in place on existing sites without shell access.
 after_migrate = [
     "lumen_restaurants.install.ensure_setup",
     "lumen_restaurants.modifiers.ensure_setup",
+    "lumen_restaurants.floor.ensure_setup",
 ]
 
 # Self-healer: re-drive any register shift stuck in "Closing" (a consolidation

@@ -86,7 +86,7 @@ def day(pos_profile: str, date: str | None = None):
     }
     for row in rows:
         row["table_label"] = tables.get(row.table)
-        row["reservation_time"] = str(row.reservation_time)[:5]
+        row["reservation_time"] = restaurant._hhmm(row.reservation_time)
     requested = frappe.get_all(
         RES,
         filters={"pos_profile": pos_profile, "status": "Requested"},
@@ -99,7 +99,7 @@ def day(pos_profile: str, date: str | None = None):
     )
     _attach_extras(requested)
     for row in requested:
-        row["reservation_time"] = str(row.reservation_time)[:5]
+        row["reservation_time"] = restaurant._hhmm(row.reservation_time)
     return {"date": str(date), "rows": rows, "requested": requested, "now": now_datetime()}
 
 
@@ -339,7 +339,7 @@ def book_online(pos_profile: str | None = None, customer_name: str | None = None
         frappe.throw(_("Pick a time"))
     opens, closes = get_time(str(page.open_time)), get_time(str(page.close_time))
     if not (opens <= moment <= closes):
-        frappe.throw(_("We take bookings between {0} and {1}").format(str(page.open_time)[:5], str(page.close_time)[:5]))
+        frappe.throw(_("We take bookings between {0} and {1}").format(restaurant._hhmm(page.open_time), restaurant._hhmm(page.close_time)))
     # Only the times the page offers: one off the grid would sit in a slot of
     # its own and get round the capacity of the real one next to it.
     step = max(cint(page.slot_minutes) or 30, 10)

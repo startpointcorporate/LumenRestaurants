@@ -22,11 +22,12 @@ from the same install.
 
 from __future__ import annotations
 
+import datetime
 import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, get_fullname, now_datetime
+from frappe.utils import cint, flt, get_fullname, get_time, now_datetime, nowdate, nowtime
 
 from lumen_restaurants.api import permissions
 
@@ -89,25 +90,166 @@ def _fullnames(users):
     return {user: get_fullname(user) for user in {u for u in users if u}}
 
 
+# A booking holds its table on the floor from an hour before its time until
+# half an hour after it: the guests are late, or nobody has marked a no-show.
+HOLD_BEFORE = 60
+HOLD_AFTER = 30
+
+
+def _has_fields(doctype, *fields):
+    """A site updated without a migrate lacks the newest fields: the floor
+    still answers, without them."""
+    try:
+        meta = frappe.get_meta(doctype)
+    except frappe.DoesNotExistError:
+        return False
+    return all(meta.has_field(field) for field in fields)
+
+
+def _layout(table):
+    """A table as the plan draws it. One never placed stands at 0, 0 and the
+    screen finds it a place; one with no shape is drawn square, or as a
+    rectangle from 6 seats."""
+    from lumen_restaurants.floor import SHAPES
+
+    table["shape"] = SHAPES.get(table.get("shape")) or ("rect" if cint(table.get("seats")) >= 6 else "square")
+    table["pos_x"] = cint(table.get("pos_x"))
+    table["pos_y"] = cint(table.get("pos_y"))
+    table["rotation"] = cint(table.get("rotation")) % 360
+    table["area"] = (table.get("area") or "").strip()
+
+
+def _hhmm(value):
+    """A Time from the database (a timedelta) as 21:05."""
+    return get_time(value).strftime("%H:%M") if value not in (None, "") else ""
+
+
+def _bookings(pos_profile, now, tables):
+    """Today's confirmed bookings: the ones holding a table right now, by table,
+    and every one still to come, earliest first."""
+    known = {t["name"]: t for t in tables}
+    rows = frappe.get_all(
+        "POS Table Reservation",
+        filters={"pos_profile": pos_profile, "reservation_date": now.date(), "status": "Confirmed"},
+        fields=["name", "customer_name", "reservation_time", "guests", "table", "source"],
+        order_by="reservation_time asc",
+        limit_page_length=0,
+    )
+    held, upcoming = {}, []
+    for row in rows:
+        at = datetime.datetime.combine(now.date(), get_time(row.reservation_time))
+        minutes = (at - now).total_seconds() / 60.0
+        if minutes < -HOLD_AFTER:
+            continue
+        table = known.get(row.table) or {}
+        info = {
+            "name": row.name,
+            "time": at.strftime("%H:%M"),
+            "guests": cint(row.guests),
+            "customer_name": row.customer_name,
+            "source": row.source,
+            "table": row.table if table else None,
+            "table_no": table.get("table_no"),
+            "area": table.get("area"),
+        }
+        upcoming.append(info)
+        if table and minutes <= HOLD_BEFORE and row.table not in held:
+            held[row.table] = info
+    return held, upcoming[:12]
+
+
+def _areas(pos_profile, tables):
+    """The outlet's areas in the order of their tabs, each with what is drawn
+    on it. An area its tables name that nobody has drawn yet follows, with
+    nothing on it (the screen gives it four walls and a door until a manager
+    saves the plan)."""
+    from lumen_restaurants.floor import KINDS
+
+    records = []
+    if frappe.db.table_exists("POS Floor Area"):
+        records = frappe.get_all(
+            "POS Floor Area",
+            filters={"pos_profile": pos_profile},
+            fields=["name", "area_name", "photo", "photo_opacity"],
+            order_by="sort_order asc, creation asc",
+            limit_page_length=0,
+        )
+    drawn = {}
+    if records:
+        for row in frappe.get_all(
+            "POS Floor Object",
+            filters={"parenttype": "POS Floor Area", "parent": ["in", [r.name for r in records]]},
+            fields=["parent", "kind", "label", "pos_x", "pos_y", "width", "depth", "rotation"],
+            order_by="idx asc",
+            limit_page_length=0,
+        ):
+            drawn.setdefault(row.parent, []).append(
+                {
+                    "kind": KINDS.get(row.kind, "wall"),
+                    "label": row.label or "",
+                    "x": cint(row.pos_x),
+                    "y": cint(row.pos_y),
+                    "w": cint(row.width),
+                    "h": cint(row.depth),
+                    "rot": cint(row.rotation) % 360,
+                }
+            )
+    out = [
+        {
+            "name": r.name,
+            "area_name": r.area_name,
+            "photo": r.photo or None,
+            "photo_opacity": cint(r.photo_opacity) or 50,
+            "objects": drawn.get(r.name, []),
+            "drawn": 1,
+        }
+        for r in records
+    ]
+    seen = {r.area_name.strip().casefold() for r in records}
+    for table in tables:
+        key = (table.get("area") or "").strip().casefold()
+        if key not in seen:
+            seen.add(key)
+            out.append(
+                {"name": None, "area_name": (table.get("area") or "").strip(), "photo": None, "photo_opacity": 50, "objects": [], "drawn": 0}
+            )
+    return out
+
+
 @frappe.whitelist()
 def get_floor(pos_profile: str):
     """Every table of this outlet and what is happening on it, plus the orders
-    that are not on a table at all (takeaway, delivery)."""
+    that are not on a table at all (takeaway, delivery).
+
+    Since 0.1.0-r14 also the floor plan: each table's shape and place, the
+    tables out of service (for the plan's edit mode), the areas with their
+    walls and doors, the bookings that hold a table now and the ones still to
+    come today, and whether this outlet draws the plan and this person may
+    change it."""
     _assert_outlet(pos_profile)
-    tables = frappe.get_all(
+    from lumen_restaurants import floor
+
+    layout = ["shape", "pos_x", "pos_y", "rotation"] if _has_fields(TABLE, "shape") else []
+    rows = frappe.get_all(
         TABLE,
-        filters={"pos_profile": pos_profile, "disabled": 0},
-        fields=["name", "table_no", "area", "seats"],
+        filters={"pos_profile": pos_profile},
+        fields=["name", "table_no", "area", "seats", "disabled", *layout],
         order_by="area asc, table_no asc",
         limit_page_length=0,
     )
+    for row in rows:
+        _layout(row)
+    tables = [row for row in rows if not cint(row.disabled)]
+    order_fields = [
+        "name", "table", "table_label", "order_type", "guests", "customer",
+        "customer_name", "total", "opened_at", "opened_by", "note", "app_type",
+    ]
+    if _has_fields(ORDER, "bill_printed_at"):
+        order_fields.append("bill_printed_at")
     orders = frappe.get_all(
         ORDER,
         filters={"pos_profile": pos_profile, "status": "Open"},
-        fields=[
-            "name", "table", "table_label", "order_type", "guests", "customer",
-            "customer_name", "total", "opened_at", "opened_by", "note", "app_type",
-        ],
+        fields=order_fields,
         order_by="opened_at asc",
         limit_page_length=0,
     )
@@ -121,7 +263,7 @@ def get_floor(pos_profile: str):
         # v16 as soon as one table had an order (LumenPOS inbox, 2026-09-28).
         # NOT "as lines": lines is a reserved word in MariaDB and the whole
         # floor screen dies with a syntax error.
-        rows = frappe.db.sql(
+        rows_count = frappe.db.sql(
             """select parent, count(name) as line_count
             from `tabPOS Restaurant Order Item`
             where parent in %(orders)s
@@ -129,20 +271,29 @@ def get_floor(pos_profile: str):
             {"orders": [o.name for o in orders]},
             as_dict=True,
         )
-        counts = {row["parent"]: row["line_count"] for row in rows}
+        counts = {row["parent"]: row["line_count"] for row in rows_count}
     for order in orders:
         order["opened_by_name"] = names.get(order.opened_by) or order.opened_by
         order["lines"] = counts.get(order.name, 0)
     by_table = {o.table: o for o in orders if o.table}
+    now = now_datetime()
+    held, upcoming = _bookings(pos_profile, now, rows)
     for table in tables:
         table["order"] = by_table.get(table["name"])
+        table["booking"] = None if table["order"] else held.get(table["name"])
+    plan_on = floor.plan_on(pos_profile)
     return {
         "tables": tables,
+        # The plan's edit mode shows them dashed, the floor never.
+        "off_tables": [row for row in rows if cint(row.disabled)],
         # Takeaway and delivery sit beside the floor, they have no table.
         "loose": [o for o in orders if not o.table],
         # The clock the elapsed times are measured against is the SERVER's, so
         # a tablet with a wrong clock still shows the right "sitting for".
-        "now": now_datetime(),
+        "now": now,
+        "areas": _areas(pos_profile, rows),
+        "upcoming": upcoming,
+        "plan": {"on": plan_on, "can_edit": bool(plan_on and permissions.can_edit_floor())},
     }
 
 
@@ -380,7 +531,12 @@ def save_order(name: str, cart: dict | list | str | None = None, customer: str |
             cart = json.loads(cart or "{}")
         typed_now = _check_typed_prices(doc, json.loads(doc.cart or "{}"), cart)
         doc.cart = json.dumps(cart)
+        billed = _bill_lines(doc)
         _derive_items(doc, cart)
+        # The printed bill no longer says what the table owes: the table stops
+        # waiting to pay until the bill is printed again (0.1.0-r14).
+        if doc.get("bill_printed_at") and _bill_lines(doc) != billed:
+            doc.bill_printed_at = None
     if customer is not None:
         doc.customer = customer or None
         doc.customer_name = (
@@ -449,6 +605,8 @@ def merge_orders(source: str, target: str):
     dst.cart = json.dumps(dst_cart)
     _derive_items(dst, dst_cart)
     dst.guests = cint(dst.guests) + cint(src.guests)
+    # A bill printed for either table no longer covers the two (0.1.0-r14).
+    dst.bill_printed_at = None
     dst.save()
     src.status = "Merged"
     src.merged_into = dst.name
@@ -479,6 +637,186 @@ def cancel_order(name: str, reason: str | None = None):
     doc.closed_at = now_datetime()
     doc.save()
     return _as_dict(doc)
+
+
+# ---------------------------------------------------------------------------
+# The bill (0.1.0-r14): what the table owes before it pays, priced exactly as
+# the sale will be, and printed with our mark at its foot like every receipt.
+
+
+def _bill_lines(doc):
+    """What a printed bill shows of an order, to tell when it has changed."""
+    return [(row.item_code, flt(row.qty), flt(row.rate, 2)) for row in doc.items or []]
+
+
+def _cart_payload(doc):
+    """The sale an order would make, as the till sends it (cart.js
+    _basePayload), built from the order's own cart."""
+    cart = json.loads(doc.cart or "{}")
+    items = []
+    for line in cart.get("lines") or []:
+        row = {
+            "item_code": line.get("item_code"),
+            "qty": line.get("qty"),
+            "manual_discount_percent": line.get("manual_discount_percent") or 0,
+            "price_override": line.get("price_override"),
+            "serial_nos": line.get("serial_nos") or [],
+            "bundle_key": line.get("bundle_key") or None,
+        }
+        if line.get("lr_line"):
+            row.update({"lr_line": line["lr_line"], "lr_mods": line.get("lr_mods") or [], "lr_note": line.get("note") or ""})
+        if line.get("lr_addon_of"):
+            row["lr_addon_of"] = line["lr_addon_of"]
+        items.append(row)
+    return {
+        "pos_profile": doc.pos_profile,
+        "customer": doc.customer or None,
+        "items": items,
+        "coupon_codes": cart.get("coupon_codes") or [],
+        "sales_person": cart.get("sales_person"),
+        "app_type": cart.get("app_type") or doc.app_type,
+        "order_id": cart.get("order_id") or doc.order_id,
+        "order_discount_percent": cart.get("order_discount_percent") or 0,
+        "note": cart.get("note") or None,
+        # A price typed on the order was checked when it was typed.
+        "order": doc.name,
+    }
+
+
+def _bill(doc):
+    """The bill of an open order, in the shape of a receipt (sales.get_receipt)
+    so the till prints it the same way. Priced by the sale's own code without
+    saving anything, as quote_sale is; when that cannot price it (no customer
+    and no walk-in customer on the outlet, say) the order's own figures are
+    used and the bill says it is an estimate."""
+    from lumen_restaurants import modifiers
+    from lumen_restaurants.api import sales
+    from lumen_restaurants.api.settings import effective_receipt
+
+    profile = frappe.get_cached_doc("POS Profile", doc.pos_profile)
+    company = doc.company or profile.company
+    receipt_settings = effective_receipt(doc.pos_profile)
+    if not receipt_settings.get("receipt_tax_id"):
+        receipt_settings["receipt_tax_id"] = frappe.get_cached_value("Company", company, "tax_id") or ""
+    bill = {
+        "is_bill": 1,
+        "name": doc.name,
+        "order": doc.name,
+        "pos_profile": doc.pos_profile,
+        "table_label": doc.table_label,
+        "guests": cint(doc.guests),
+        "receipt_settings": receipt_settings,
+        "custom_fields": [],
+        "company": company,
+        "customer": doc.customer,
+        "customer_name": doc.customer_name or "",
+        "posting_date": nowdate(),
+        "posting_time": nowtime(),
+        "currency": profile.currency,
+        "items": [],
+        "taxes": [],
+        "payments": [],
+        "applied_promotions": [],
+        "discount_amount": 0,
+        "net_total": 0,
+        "grand_total": 0,
+        "rounded_total": 0,
+        "estimated": 0,
+    }
+    if not doc.items:
+        return bill
+    try:
+        invoice, _customer = sales._build_sale_invoice(
+            profile, _cart_payload(doc), validate_serials=False, check_passcode=False,
+            session_name=sales._quote_session(profile.name),
+        )
+    except Exception:
+        # Not this call's error to show: the order's own lines stand in.
+        frappe.local.message_log = []
+        bill.update(
+            {
+                "estimated": 1,
+                "items": [
+                    {"item_code": row.item_code, "item_name": row.item_name, "qty": flt(row.qty), "rate": flt(row.rate), "amount": flt(row.amount)}
+                    for row in doc.items
+                ],
+                "net_total": flt(doc.total, 2),
+                "grand_total": flt(doc.total, 2),
+                "rounded_total": flt(doc.total, 2),
+            }
+        )
+        return bill
+    prec = invoice.precision("grand_total")
+    bill.update(
+        {
+            "currency": invoice.currency,
+            "customer_name": invoice.customer_name or bill["customer_name"],
+            "sales_person": invoice.sales_team[0].sales_person if invoice.get("sales_team") else None,
+            "items": [
+                {
+                    "item_code": row.item_code,
+                    "item_name": row.item_name,
+                    "qty": flt(row.qty),
+                    "rate": flt(row.rate),
+                    "amount": flt(row.amount),
+                    "discount_amount": flt(row.discount_amount),
+                    **modifiers.receipt_item(row, doc.pos_profile),
+                }
+                for row in invoice.items
+            ],
+            "taxes": [
+                {
+                    "description": tax.description,
+                    "tax_amount": flt(tax.tax_amount, prec),
+                    "rate": flt(tax.rate),
+                    "included": cint(tax.included_in_print_rate),
+                }
+                for tax in invoice.taxes or []
+                if flt(tax.tax_amount)
+            ],
+            "applied_promotions": json.loads(sales._get_custom(invoice, ("lumenpos_promotions",)) or "[]"),
+            "discount_amount": flt(invoice.discount_amount, prec),
+            "net_total": flt(invoice.net_total, prec),
+            "grand_total": flt(invoice.grand_total, prec),
+            "rounded_total": flt(invoice.rounded_total, prec),
+        }
+    )
+    return bill
+
+
+@frappe.whitelist()
+def get_bill(name: str):
+    """What an open order owes, as the guests will pay it. Nothing is saved."""
+    return _bill(_open_doc(name, "read"))
+
+
+@frappe.whitelist()
+def print_bill(name: str, printer: int | str | bool = 0):
+    """The guests asked for the bill. It is marked on the order, so the floor
+    shows the table waiting to pay, and comes back to be printed: by the
+    outlet's receipt printer when the till asks and there is one, else by the
+    till's browser. Our mark is at its foot either way, as on every receipt."""
+    doc = _open_doc(name)
+    if doc.status != "Open":
+        frappe.throw(_("This order is {0}").format(_(doc.status)))
+    if not doc.items:
+        frappe.throw(_("Nothing to bill yet: the order has no items"))
+    bill = _bill(doc)
+    if doc.meta.has_field("bill_printed_at"):
+        doc.db_set("bill_printed_at", now_datetime())
+    printed, error = False, None
+    ip = frappe.db.get_value("POS Profile", doc.pos_profile, "lumenpos_printer_ip") if cint(printer) else None
+    if ip:
+        from lumen_restaurants.api import printing
+
+        port = frappe.db.get_value("POS Profile", doc.pos_profile, "lumenpos_printer_port") or 9100
+        try:
+            printing._send(ip, int(port), printing.build_receipt_bytes(bill))
+            printed = True
+        except Exception as e:
+            frappe.local.message_log = []
+            error = str(e)
+    return {"bill": bill, "printed": printed, "printer_error": error}
 
 
 def close_order(name, invoice, amount):

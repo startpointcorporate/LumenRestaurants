@@ -9,7 +9,7 @@
 // maps win on the few keys that overlap. `en` is intentionally empty: for
 // English we fall back to the key itself.
 // Lumen Restaurants: the Menu page and the add-ons (messages-restaurant.js).
-import { restaurantAddonsAr } from './messages-restaurant.js'
+import { restaurantAddonsAr, restaurantEn } from './messages-restaurant.js'
 
 // Common chrome, nav, and the most-used labels.
 const common = {
@@ -2452,6 +2452,6 @@ const prefixedAr = {
 }
 
 export const messages = {
-  en: { ...prefixedEn },
+  en: { ...restaurantEn, ...prefixedEn },
   ar: { ...restaurantAddonsAr, ...common, ...settings, ...register, ...features, ...sell, ...txn, ...misc, ...approvals, ...returns, ...customersScreen, ...lifecycle, ...serialsAndGroups, ...permissions, ...insights, ...generalLayout, ...currencies, ...customerForm, ...salespeopleAndCheck, ...helpForStaff, ...prefixedAr },
 }

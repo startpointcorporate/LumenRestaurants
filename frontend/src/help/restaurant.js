@@ -98,20 +98,44 @@ const RESTAURANT_SCREENS = [
     route: '/tables',
     title: 'The floor',
     steps: [
-      'Every table of the outlet. A free table says so. A table with an order shows its total, how long it has been open and who opened it.',
+      ['Each area is a tab, its tables drawn where they stand. {plan} and {list} switch the view, and a phone opens on the list.', { plan: 'Plan', list: 'List' }],
+      'The colour of a table says what is happening there: free, occupied in blue, waiting to pay in amber, booked in violet.',
+      'The badge on a table is how long its guests have been sitting, or the time of its booking.',
       'Tap a free table to start its order: the number of guests and a note, then the order screen opens.',
-      'Tap a table with an order to go on with it.',
-      'Orders that are not at a table show apart.',
+      ['Tap a table with an order to see it priced as the guests will pay it, then {open} to go on with it.', { open: 'Open the order' }],
+      'Orders that are not at a table show under the plan.',
+    ],
+  },
+  {
+    route: '/tables',
+    title: 'The bill and the payment',
+    steps: [
+      ['{print} prints what the table owes, with our mark at its foot. It is not a tax invoice: the receipt of the payment is.', { print: 'Print the bill' }],
+      'The table turns amber, waiting to pay. A dish added after it turns the table back until the bill is printed again.',
+      ['{pay} opens the payment window over the plan. The receipt follows, and the table is free again.', { pay: 'Pay' }],
+      ['A booked table offers {seated} when its guests arrive: the booking is marked and their order opens.', { seated: 'Seated' }],
     ],
   },
   {
     route: '/tables',
     title: 'Move, merge or cancel',
     steps: [
-      ['{more} on a table with an order: {move}, {merge} or {cancel}.', { more: 'More', move: 'Move to another table', merge: 'Merge into another order', cancel: 'Cancel the order' }],
+      ['{move} or {merge} in the panel of a table with an order, then tap the table it goes to on the plan.', { move: 'Move', merge: 'Merge' }],
+      ['{off} in the bar above the plan takes the order off the floor.', { off: 'Off the floor (takeaway counter)' }],
       'Merging moves every line onto the other order, and this one is marked merged.',
       'An order that was never paid can be cancelled, with a reason when it has dishes on it.',
       'Who may do each is set in Settings, General, Approvals and access.',
+    ],
+  },
+  {
+    route: '/tables',
+    title: 'Edit the floor plan',
+    steps: [
+      ['{edit} opens the edit mode, for the people allowed to edit the floor plan.', { edit: 'Edit the plan' }],
+      'Drag a table or an item to move it. Tap it to change its number, shape, seats, rotation or area, or to take it out of service.',
+      ['{table} and {item} add tables, walls, doors, windows, plants and the places guests look for.', { table: 'Add a table', item: 'Add an item' }],
+      ['{photo} puts a photo of your real floor under the plan, and {area} adds a tab.', { photo: 'Plan photo', area: 'New area' }],
+      ['Nothing changes for anyone else until {save}.', { save: 'Save the plan' }],
     ],
   },
   {
@@ -244,6 +268,8 @@ const SHOP_ONLY = new Set([
 ])
 
 const OURS = [
+  { version: '0.1.0-r14', title: 'The floor plan', text: 'The Tables screen draws each area with its tables where they stand. Tap a table for its order, its bill and its payment.', route: '/tables', when: restaurant },
+  { version: '0.1.0-r14', title: 'Draw your floor', text: 'Edit the plan on the Tables screen moves, adds and turns tables, and draws the walls, doors and the rest of your place.', route: '/tables', when: (s) => restaurant(s) && Boolean(s.permissions.can_edit_floor) },
   { version: '0.1.0-r13', title: 'Help on the restaurant screens', text: 'Tap ? on the order screen, the tables, the kitchen, bookings and the Menu page for their help, and take the tour of an order.', tour: 'sell', when: (s) => restaurant(s) && Boolean(s.help.in_till) },
   { version: '0.1.0-r13', title: 'Who served the order', text: 'Pick the salesperson under the customer on the order screen. Your restaurant may make it required in Settings.', when: (s) => restaurant(s) && salespeople(s) },
   { version: '0.1.0-r12', title: 'Refunds to store credit', text: 'Saving the General settings used to turn Allow refunding to Store Credit back on. If your restaurant gives money back only, check it is off in Settings, General, Returns and refunds.', route: '/settings', when: (s) => Boolean(s.permissions.settings) },

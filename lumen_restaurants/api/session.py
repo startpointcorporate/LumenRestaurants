@@ -228,6 +228,8 @@ def get_user_permissions():
         "can_cancel_order": caps_mod.can_cancel_order(),
         # Lumen Restaurants: the Menu page (api/menu.py re-checks it).
         "can_edit_menu": caps_mod.can_edit_menu(),
+        # Lumen Restaurants 0.1.0-r14: the floor plan (api/floor.py re-checks it).
+        "can_edit_floor": caps_mod.can_edit_floor(),
         "sales_by_person": caps_mod.can_see_sales_by_person(),
         "system_check": caps_mod.can_see_system_check(),
         # ERPNext's document permission AND the shop's own rule, both must pass.

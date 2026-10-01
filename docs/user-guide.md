@@ -1,6 +1,6 @@
 # Lumen Restaurants: Complete User Guide
 
-*Applies to Lumen Restaurants v0.1.0-r13, built from LumenPOS v0.58.0. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r14, built from LumenPOS v0.58.0. This document is updated with every feature change.*
 
 **Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
 own.** Everything this guide says about LumenPOS applies to it: the till is the
@@ -762,6 +762,72 @@ delivery**), big menu tiles by category, a note on any line (no onions), and
 no retail furniture. Everything still posts through the same sale, so
 promotions, loyalty, cashback, the Z-report and returns work unchanged.
 
+### The floor plan (0.1.0-r14)
+
+The Tables screen draws each area of the outlet as a plan: the hall, the
+family section, the terrace, each a tab with its count of busy tables. Every
+table stands where it stands in the room, in its shape (round, square,
+rectangle or booth) with its chairs, among the walls, doors, windows, plants
+and the places guests look for (the cashier, the kitchen, the restrooms, the
+hand wash). **Plan** and **List** switch the view, and a phone opens on the
+list. An outlet that does not want the plan switches it off and keeps the list
+only: Settings, General, Restaurant, *Show the tables as a floor plan* (on by
+default, per outlet).
+
+The colour says what is happening at each table: free (white), occupied
+(blue), **bill requested** (amber, with a receipt mark) and booked (violet).
+The badge above a table shows how long its guests have been sitting, or the
+time of its booking. A booking holds its table from an hour before its time
+until half an hour after it. Beside the plan, **Right now** sums up the floor:
+the tables with an order, the guests, the value of the open orders, the
+longest sitting, and today's bookings still to come.
+
+Tap a table:
+
+- **Free:** the number of guests and a note, then **Start the order** opens
+  the order screen.
+- **Booked:** the booking (its time, the party size, the name, where it came
+  from) and **Seated** when the guests arrive: the booking is marked Seated and
+  their order opens.
+- **With an order:** the order priced exactly as the guests will pay it (the
+  till's own pricing, offers included), then **Pay**, which opens the till's
+  payment window over the plan, **Print the bill**, **Open the order**,
+  **Move**, **Merge**, and **Cancel the order** for whoever may.
+
+**Print the bill** prints what the table owes on the outlet's receipt printer,
+or through the browser where there is none, with the restaurant's logo at the
+top and our mark at the foot, as on every receipt. It says it is not a tax
+invoice: the tax invoice is the receipt of the payment. The table turns amber,
+waiting to pay. A dish added after the bill, or two orders merged, turns it
+back until the bill is printed again.
+
+**Move** and **Merge** are picked on the plan: the free tables (to move) or the
+tables with an order (to merge) are marked, and a tap on one finishes it. A move
+can also take the order off the floor, to the takeaway counter.
+
+**Edit the plan**, for whoever may *Edit the floor plan* (managers until
+somebody is named), opens the edit mode:
+
+- drag a table or anything else to move it, it snaps to the grid,
+- tap a table to change its number, shape, seats, rotation or area, to take it
+  out of service, or to delete it,
+- **Add a table** (round, square, rectangle, booth) and **Add an item** (wall,
+  door, window, fence, plant, cashier, kitchen, restrooms, hand wash) put the
+  new one on a free spot of the floor, and a door can carry a name (Entrance),
+- **Plan photo** puts a photo or a drawing of the real floor under the plan,
+  with how strongly it shows,
+- **New area** adds a tab, and an area with no tables can be renamed or
+  deleted,
+- **Save the plan** saves all of it at once. Nothing changes for anyone else
+  until then, and **Cancel** throws the changes away.
+
+A table with an open order cannot be taken out of service or deleted, and a
+table with past orders or bookings stays in the records (take it out of
+service instead). Two tables with one number, or two areas with one name,
+refuse the save. The plan photo is kept private and shown to the staff who see
+the floor. Tables added under Settings, General, Restaurant still work and take
+a free place on the plan until somebody moves them.
+
 ### Takeaway and the order number
 
 A takeaway or delivery order is paid first. The moment the money is in, the
@@ -1373,13 +1439,14 @@ plus Fatima" is two rows rather than a role invented for one person.
 | **Move or merge tables** | Moving an order to another table, or pouring two together |
 | **Cancel a table order** | Throwing away an order nobody paid for |
 | **Edit the menu** | The Menu page: dishes, their prices and their add-ons. Closed until somebody is named, managers always pass |
+| **Edit the floor plan** | The Tables screen's edit mode: tables, areas, walls, doors, the rest and the plan photo. Closed until somebody is named, managers always pass |
 
 Rules for the same action are an OR: any row that matches lets the person
 through. **An action with no row is open to everyone**, so nothing locks up the
-day you update. Four stay shut until somebody is named: *Return past the
+day you update. Five stay shut until somebody is named: *Return past the
 window* (everyone else sends an approval request), *See sales by salesperson*,
-*See the system check*, and *Edit the menu*, which only managers have until
-somebody is named.
+*See the system check*, *Edit the menu* and *Edit the floor plan*, which only
+managers have until somebody is named.
 System and LumenPOS Managers always pass.
 
 The till hides what a person may not do (the cash in/out panel, the reprint
@@ -1460,6 +1527,7 @@ which both LumenPOS roles are given.
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r14 | **The floor plan.** The Tables screen draws each area with its tables in their places, shapes and chairs, the walls, doors and the rest around them, and the colour of each table says whether it is free, occupied, waiting to pay or booked. A table's panel shows its order priced as it will be paid, pays it in the till's own payment window, **prints the bill** (not a tax invoice, our mark at its foot, the table turns amber) and moves or merges it by tapping the other table on the plan. A booked table offers **Seated**. **Right now**, beside the plan, sums up the floor and lists today's coming bookings. **Edit the plan**, for whoever may *Edit the floor plan* (a new permission, managers until somebody is named), drags, adds, turns and renumbers tables, draws walls, doors, windows, plants and the places guests look for, puts a photo of the real floor under the plan, and adds areas. Each outlet can switch the plan off and keep the list. Also fixed: a booking before 10 in the morning showed its time cut ("9:30:") on the Bookings screen, and the add-on switches in Settings, General, Restaurant showed bare checkboxes with their texts run together. |
 | 0.1.0-r13 | **LumenPOS 0.57.0 and 0.58.0, brought in** (see the LumenPOS releases below): the salesperson on every sale (optional unless Settings make it required), sales by salesperson in Insights, the System check in Settings, four more languages, and help on every screen with short tours and what is new. **For restaurants:** the order screen has the salesperson row under the customer, kept with a table order. The help covers the restaurant screens (the order screen, the tables, the kitchen, bookings, the booking page and the Menu page) in English and Arabic, the tour of an order walks the restaurant order screen, and what is new tells restaurant staff about the restaurant's own features. The System check and the help name Lumen Restaurants. |
 | 0.1.0-r12 | **LumenPOS 0.56.1 and 0.56.2, brought in** (see the LumenPOS releases below). **What comes back is on sale again at once**, on every ERPNext version: a dish or a drink sent back shows on the till again and sells at once, a returned serial number too, and the shift still closes. **The Hold button** works (the fix made here in r10 is now LumenPOS's own). **A gift card carries no tax** where the outlet adds VAT, and **a return gives back only the tax its sale charged**: a sale made before the outlet had VAT no longer refunds VAT on top. **Tested for restaurants:** a drink sold at a table with its last can, sent back, shown on the till again and ordered again at the same table in one shift, and the shift closes with the stock never below zero. **Settings keep a shop's refund rule:** the settings screen no longer turns *Allow refunding to Store Credit* back on every time it is saved (it showed the switch on whatever the shop had chosen). |
 | 0.1.0-r11 | **The order number follows the shift.** A takeaway number no longer starts again at 1 at midnight while the shift carries on: a shift that sells on past midnight keeps counting until it closes, and the next day's first shift starts again at 1. Two shifts on one day (a morning and an evening one) share the day's numbers, as before. **A price typed on the restaurant screen**, as on the shop screen since 0.55.0: where the outlet allows it (POS Profile, *Allow User to Edit Rate*), whoever may *Edit price / discount* taps **Price** on a line of the order. The price holds for the item on every line of the order (a return takes an item back at one price), and a paid add-on keeps the menu's. On a table order it is checked when it is typed and stays on the order with the name of whoever typed it, in the audit log too, so a cashier without the right can still take the money, and nobody without it can change the price. |

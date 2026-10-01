@@ -121,6 +121,19 @@ items, test, then fill in the entry's last column (our commit and the date).
      TOPICS for anything that says something else at a restaurant (REPLACED
      and SHOP_ONLY there), and give our own new whitelisted functions type
      hints behind `from __future__ import annotations`.
+   - Keep both, the floor plan (0.1.0-r14): `api/permissions.py` and
+     `pos_capability_rule.json` (`EDIT_FLOOR`, "Edit the floor plan",
+     closed by default), `api/session.py` (`can_edit_floor`), `hooks.py`
+     (`floor.ensure_setup` in both lists), `api/printing.py` (the bill's
+     BILL and "Not a tax invoice" lines), `components/ReceiptView.vue` (the
+     bill's stamp, table and note), `SettingsView.vue` (`FloorSettings` in
+     the Restaurant section, "Edit the floor plan" in `capabilityOptions`),
+     `messages.js` (`restaurantEn` spread into the English dictionary) and
+     `translations/ar.csv` (the plan's and the bill's server messages). Ours,
+     never conflicting: `floor.py`, `api/floor.py`, the doctypes
+     `pos_floor_area` and `pos_floor_object`, `frontend/src/floor/`,
+     `views/TablesView.vue` (all ours since the restaurant left LumenPOS),
+     `components/FloorSettings.vue` and `components/restaurant-settings.css`.
    - `SettingsView.vue` `load()` (0.1.0-r12): our line reading
      `allow_store_credit_refund` (LumenPOS 0.56.2 and 0.58.0 leave it out, so
      every Save turned refunds to store credit back on). When LumenPOS adds the
