@@ -8,15 +8,18 @@
 // server could not be told, on this device too.
 import { defineStore } from 'pinia'
 import { call } from '../api'
-import { TOPICS, TOURS, WHATS_NEW } from '../help/content'
+// Lumen Restaurants: the help of the restaurant laid on LumenPOS's (help/restaurant.js).
+import { TOPICS, TOURS, WHATS_NEW } from '../help/restaurant'
 import { useSessionStore } from './session'
 
 const LOCAL = 'lumenpos-help-seen:'
 const MAX_NEWS = 8
 
-// "0.58.0" and a test bench's "0.58.0-r42" are the same release.
+// Lumen Restaurants: a release is "0.1.0-rN" and its N counts, so "0.1.0-r13"
+// is newer than "0.1.0-r12" (LumenPOS reads "-rN" as a test bench's build of
+// the same release). help/restaurant.js dates LumenPOS's news by our releases.
 export function compareVersions(a, b) {
-  const parts = (v) => String(v || '').split('-')[0].split('.').map((n) => parseInt(n, 10) || 0)
+  const parts = (v) => String(v || '').replace(/-r(\d+)$/, '.$1').split('.').map((n) => parseInt(n, 10) || 0)
   const x = parts(a)
   const y = parts(b)
   for (let i = 0; i < Math.max(x.length, y.length); i++) {

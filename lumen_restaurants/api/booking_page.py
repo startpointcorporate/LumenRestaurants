@@ -14,6 +14,8 @@ the page, so the figure a customer sees when booking is the figure the till
 charges when they sit down.
 """
 
+from __future__ import annotations
+
 import json
 
 import frappe
@@ -122,7 +124,7 @@ def apply(doc, page):
 
 
 @frappe.whitelist()
-def get_page(pos_profile):
+def get_page(pos_profile: str):
     _require("read")
     _outlet(pos_profile)
     doc = load(pos_profile)
@@ -132,7 +134,7 @@ def get_page(pos_profile):
 
 
 @frappe.whitelist()
-def save_page(pos_profile, page):
+def save_page(pos_profile: str, page: dict | list | str):
     _require("write")
     _outlet(pos_profile)
     if isinstance(page, str):
@@ -146,7 +148,7 @@ def save_page(pos_profile, page):
 
 
 @frappe.whitelist()
-def copy_design(source, target):
+def copy_design(source: str, target: str):
     """A chain designs one page and pours it into its other branches. The
     target keeps its own publish switch: copying never switches a page on."""
     _require("write")
@@ -163,7 +165,7 @@ def copy_design(source, target):
 
 
 @frappe.whitelist()
-def item_info(pos_profile, item_code):
+def item_info(pos_profile: str, item_code: str):
     """What the designer shows the moment an item is added to the page."""
     _require("read")
     profile = _outlet(pos_profile)

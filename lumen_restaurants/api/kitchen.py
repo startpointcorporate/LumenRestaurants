@@ -16,6 +16,8 @@ time the waiter presses "send to kitchen", so a meal can fire mains first and
 dessert later as separate tickets under the same table.
 """
 
+from __future__ import annotations
+
 import json
 
 import frappe
@@ -158,7 +160,7 @@ def after_sale(invoice, profile, meta):
 
 
 @frappe.whitelist()
-def send_to_kitchen(order, items, note=None):
+def send_to_kitchen(order: str, items: dict | list | str, note: str | None = None):
     """A table sends what was just added: the waiter's "fire". `items` is the
     DELTA the till worked out (qty minus what was already sent per line)."""
     if isinstance(items, str):
@@ -188,7 +190,7 @@ def send_to_kitchen(order, items, note=None):
 
 
 @frappe.whitelist()
-def board(pos_profile):
+def board(pos_profile: str):
     """Everything the kitchen screen shows, one request every few seconds."""
     restaurant._assert_outlet(pos_profile)
     tickets = frappe.get_all(
@@ -233,7 +235,7 @@ def board(pos_profile):
 
 
 @frappe.whitelist()
-def set_ticket_status(name, status):
+def set_ticket_status(name: str, status: str):
     """Advance a ticket. The kitchen taps, the times write themselves."""
     doc = frappe.get_doc(TICKET, name)
     doc.check_permission("write")
@@ -250,7 +252,7 @@ def set_ticket_status(name, status):
 
 
 @frappe.whitelist()
-def ready_calls(pos_profile):
+def ready_calls(pos_profile: str):
     """What the cashier should be calling out: tickets sitting on Ready."""
     restaurant._assert_outlet(pos_profile)
     return frappe.get_all(

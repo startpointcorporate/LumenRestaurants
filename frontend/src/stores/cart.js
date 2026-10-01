@@ -1064,6 +1064,8 @@ export const useCartStore = defineStore('cart', {
       this.orderId = cart.order_id || order.order_id || ''
       this.couponCodes = cart.coupon_codes || []
       this.orderDiscountPercent = cart.order_discount_percent || 0
+      // The table's own salesperson when it has one, else whoever is on this till.
+      if (cart.sales_person) this.salesPerson = cart.sales_person
       this.order = { ...order }
       orderSig = JSON.stringify(this.orderSnapshot())
       if (order.customer) {
@@ -1120,6 +1122,8 @@ export const useCartStore = defineStore('cart', {
         order_id: this.orderId,
         coupon_codes: this.couponCodes,
         order_discount_percent: this.orderDiscountPercent,
+        // Lumen Restaurants: who served the table travels with its order.
+        sales_person: this.salesPerson || null,
       }
     },
 

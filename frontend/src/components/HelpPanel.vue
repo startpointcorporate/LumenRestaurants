@@ -40,9 +40,9 @@
         </div>
 
         <button v-if="help.allNews.length" type="button" class="help-news-link" @click="help.showAllNews()">
-          <Icon name="star" /> {{ t('What is new in LumenPOS') }}
+          <Icon name="star" /> {{ t('What is new in LumenPOS').replace('LumenPOS', 'Lumen Restaurants') }}
         </button>
-        <p class="muted small help-version">LumenPOS {{ help.version }}</p>
+        <p class="muted small help-version">Lumen Restaurants {{ help.version }}</p>
       </div>
     </aside>
   </div>
@@ -52,7 +52,7 @@
 import { computed, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { t } from '../i18n'
-import { SCREENS } from '../help/content'
+import { SCREENS } from '../help/restaurant'
 import { useHelpStore } from '../stores/help'
 import Icon from './Icon.vue'
 

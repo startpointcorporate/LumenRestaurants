@@ -211,7 +211,7 @@ def auto_print_kitchen(ticket):
 
 
 @frappe.whitelist()
-def print_kitchen_ticket(ticket):
+def print_kitchen_ticket(ticket: str):
     """The reprint button on the kitchen screen."""
     doc = frappe.get_doc("POS Kitchen Ticket", ticket)
     doc.check_permission("read")

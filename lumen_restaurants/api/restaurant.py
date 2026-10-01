@@ -20,6 +20,8 @@ Restaurant mode is per outlet: the POS Profile field `lumenpos_restaurant_mode`
 from the same install.
 """
 
+from __future__ import annotations
+
 import json
 
 import frappe
@@ -88,7 +90,7 @@ def _fullnames(users):
 
 
 @frappe.whitelist()
-def get_floor(pos_profile):
+def get_floor(pos_profile: str):
     """Every table of this outlet and what is happening on it, plus the orders
     that are not on a table at all (takeaway, delivery)."""
     _assert_outlet(pos_profile)
@@ -175,14 +177,14 @@ def _as_dict(doc, with_cart=False):
 
 @frappe.whitelist()
 def open_order(
-    pos_profile,
-    table=None,
-    order_type="Dine in",
-    guests=0,
-    customer=None,
-    note=None,
-    app_type=None,
-    order_id=None,
+    pos_profile: str,
+    table: str | None = None,
+    order_type: str = "Dine in",
+    guests: int | str | bool = 0,
+    customer: str | None = None,
+    note: str | None = None,
+    app_type: str | None = None,
+    order_id: str | None = None,
 ):
     """Start serving. No money moves, so no register session is needed: a
     waiter with a tablet can open a table before the till is even manned."""
@@ -218,13 +220,13 @@ def open_order(
 
 
 @frappe.whitelist()
-def get_order(name):
+def get_order(name: str):
     """Reopen an order on any device, exactly as it was left."""
     return _as_dict(_open_doc(name, "read"), with_cart=True)
 
 
 @frappe.whitelist()
-def list_orders(pos_profile, status="Open", limit=50):
+def list_orders(pos_profile: str, status: str = "Open", limit: int | str | bool = 50):
     _assert_outlet(pos_profile)
     return frappe.get_all(
         ORDER,
@@ -364,7 +366,7 @@ def typed_on_order(payload, rows):
 
 
 @frappe.whitelist()
-def save_order(name, cart=None, customer=None, guests=None, note=None, order_type=None):
+def save_order(name: str, cart: dict | list | str | None = None, customer: str | None = None, guests: int | str | bool | None = None, note: str | None = None, order_type: str | None = None):
     """Keep the order up to date as the waiter rings items in.
 
     The till calls this on every change (debounced), so an order survives a
@@ -409,7 +411,7 @@ def save_order(name, cart=None, customer=None, guests=None, note=None, order_typ
 
 
 @frappe.whitelist()
-def move_order(name, table=None):
+def move_order(name: str, table: str | None = None):
     """Move an order to another table, or off the floor entirely (which is what
     a takeaway is)."""
     _assert_can(permissions.MOVE_TABLE)
@@ -427,7 +429,7 @@ def move_order(name, table=None):
 
 
 @frappe.whitelist()
-def merge_orders(source, target):
+def merge_orders(source: str, target: str):
     """Pour one order into another: two tables joined, or a guest who moved.
 
     The source keeps its number and its history, marked Merged and pointing at
@@ -458,7 +460,7 @@ def merge_orders(source, target):
 
 
 @frappe.whitelist()
-def cancel_order(name, reason=None):
+def cancel_order(name: str, reason: str | None = None):
     """Nobody ate: the guests left, or the order was rung up by mistake.
 
     A cancelled order that had items on it has to say why. That line is the
@@ -501,7 +503,7 @@ def close_order(name, invoice, amount):
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def list_tables(pos_profile):
+def list_tables(pos_profile: str):
     _assert_outlet(pos_profile)
     return frappe.get_all(
         TABLE,
@@ -513,7 +515,7 @@ def list_tables(pos_profile):
 
 
 @frappe.whitelist()
-def save_table(pos_profile, table_no, area=None, seats=4, name=None, disabled=0):
+def save_table(pos_profile: str, table_no: str, area: str | None = None, seats: int | str | bool = 4, name: str | None = None, disabled: int | str | bool = 0):
     """Add or edit a table. Governed by the ordinary DocType permissions, so a
     shop can let a supervisor rearrange the floor without making them a manager."""
     _assert_outlet(pos_profile)
@@ -535,7 +537,7 @@ def save_table(pos_profile, table_no, area=None, seats=4, name=None, disabled=0)
 
 
 @frappe.whitelist()
-def delete_table(name):
+def delete_table(name: str):
     from lumen_restaurants.api.settings import _require
 
     _require(TABLE, "delete")

@@ -16,6 +16,8 @@ of the till does. get_modifiers is the till's read of the add-ons, open to
 every cashier of the outlet.
 """
 
+from __future__ import annotations
+
 import json
 
 import frappe
@@ -43,7 +45,7 @@ def _load(value, default):
 
 
 @frappe.whitelist()
-def get_modifiers(pos_profile):
+def get_modifiers(pos_profile: str):
     """The add-ons the till offers at this outlet (modifiers.till_data)."""
     restaurant._assert_outlet(pos_profile)
     return modifiers.till_data(pos_profile)
@@ -195,7 +197,7 @@ def _groups(profile):
 
 
 @frappe.whitelist()
-def get_menu(pos_profile):
+def get_menu(pos_profile: str):
     """Everything the Menu page shows: the outlet's sections, its dishes with
     their prices, and every add-on group with its choices and its ties."""
     profile = _guard(pos_profile)
@@ -328,7 +330,7 @@ def _check_dishes(profile, codes):
 
 
 @frappe.whitelist()
-def save_dish(pos_profile, dish):
+def save_dish(pos_profile: str, dish: dict | list | str):
     """Add a dish, or change one: its name, section and price, and the add-on
     groups tied to it alone (the section's own groups come with it)."""
     profile = _guard(pos_profile)
@@ -386,7 +388,7 @@ def _tie_single(item_code, wanted):
 
 
 @frappe.whitelist()
-def set_on_sale(pos_profile, items, on_sale):
+def set_on_sale(pos_profile: str, items: dict | list | str, on_sale: int | str | bool):
     """Take dishes off sale, or put them back. It is ERPNext's own switch on
     the item, so a dish off sale is off at every outlet."""
     profile = _guard(pos_profile)
@@ -399,7 +401,7 @@ def set_on_sale(pos_profile, items, on_sale):
 
 
 @frappe.whitelist()
-def new_section(pos_profile, name):
+def new_section(pos_profile: str, name: str):
     """A new section for the menu: an Item Group next to the outlet's other
     sections, and on the outlet's own list when it keeps one, so the till shows
     it at once."""
@@ -459,7 +461,7 @@ def _addon_item(title, uom):
 
 
 @frappe.whitelist()
-def save_group(pos_profile, group):
+def save_group(pos_profile: str, group: dict | list | str):
     """Add an add-on group or change one: its name, its rules, its choices and
     their prices at this outlet. A choice given a price is billed as an item
     (made here on first use), a choice at 0 is a free instruction."""
@@ -515,7 +517,7 @@ def save_group(pos_profile, group):
 
 
 @frappe.whitelist()
-def delete_group(pos_profile, name):
+def delete_group(pos_profile: str, name: str):
     """Remove an add-on group. Sales, orders and tickets keep the choices they
     were made with (they carry the words, not a link)."""
     _guard(pos_profile)
@@ -556,7 +558,7 @@ def _promote(doc):
 
 
 @frappe.whitelist()
-def tie_group(pos_profile, name, sections=None, items=None):
+def tie_group(pos_profile: str, name: str, sections: dict | list | str | None = None, items: dict | list | str | None = None):
     """Say exactly which sections and which single dishes the group shows with."""
     profile = _guard(pos_profile)
     sections = [s for s in _load(sections, []) if s]
@@ -575,7 +577,7 @@ def tie_group(pos_profile, name, sections=None, items=None):
 
 
 @frappe.whitelist()
-def bulk_tie(pos_profile, name, items, tie=1):
+def bulk_tie(pos_profile: str, name: str, items: dict | list | str, tie: int | str | bool = 1):
     """Tie the group to the dishes picked on the Dishes tab, or untie it. A dish
     untied from a whole section leaves the rest of its section tied one by one."""
     profile = _guard(pos_profile)
@@ -612,13 +614,13 @@ def bulk_tie(pos_profile, name, items, tie=1):
 
 
 @frappe.whitelist()
-def get_outlet_options(pos_profile):
+def get_outlet_options(pos_profile: str):
     restaurant._assert_outlet(pos_profile)
     return modifiers.outlet_options(pos_profile)
 
 
 @frappe.whitelist()
-def save_outlet_options(pos_profile, options):
+def save_outlet_options(pos_profile: str, options: dict | list | str):
     """The three add-on switches of an outlet. A manager's call."""
     restaurant._assert_outlet(pos_profile)
     if not permissions.is_manager():

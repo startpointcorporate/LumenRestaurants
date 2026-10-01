@@ -11,6 +11,8 @@ themselves. This module adds them where the page comes from an outlet's own
 Print Format (the POS Profile's): the till's print and the emailed receipt.
 ERPNext's own screens, and its desk print of an invoice, stay ERPNext's.
 """
+from __future__ import annotations
+
 import base64
 from functools import lru_cache
 
@@ -41,7 +43,7 @@ def with_mark(html):
 
 
 @frappe.whitelist()
-def print_html(invoice):
+def print_html(invoice: str):
     """A sale in its outlet's own Print Format, our mark at the foot, for the
     till to print (it used to open /printview, where the mark was missing)."""
     from lumen_restaurants.api.sales import _doctype_of

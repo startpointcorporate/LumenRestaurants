@@ -30,8 +30,8 @@
       </template>
       <template v-else>
         <div class="hc-badge"><Icon name="star" :size="26" /></div>
-        <h2 id="hc-title" class="hc-title">{{ t('What is new in LumenPOS') }}</h2>
-        <p class="hc-lead muted">LumenPOS {{ help.version }}</p>
+        <h2 id="hc-title" class="hc-title">{{ t('What is new in LumenPOS').replace('LumenPOS', 'Lumen Restaurants') }}</h2>
+        <p class="hc-lead muted">Lumen Restaurants {{ help.version }}</p>
         <ul class="hc-list">
           <li v-for="item in items" :key="item.version + item.title" class="hc-item">
             <div class="hc-item-body">
@@ -60,7 +60,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '../i18n'
-import { TOURS } from '../help/content'
+import { TOURS } from '../help/restaurant'
 import { useHelpStore } from '../stores/help'
 import Icon from './Icon.vue'
 

@@ -772,6 +772,22 @@ presses **Ready** and the sell screen shows a blue call strip: shout the
 number, hand the bag over, press **Handed over**. Dine-in tickets carry the
 table name instead, a table needs no number.
 
+### Who served the order, and the help
+
+Where the outlet has salespeople, the order screen shows **Salesperson** under
+the customer, as the shop screen does (LumenPOS 0.57.0). It is optional unless
+the restaurant makes it required in Settings, General, Features: then **Pay**
+waits until one is picked, and the server refuses a sale without one. On a
+table order the salesperson stays with the order, so whoever takes the money
+sees who served the table. Sales by salesperson are in Insights.
+
+**?** at the top of every screen opens its help (LumenPOS 0.58.0), the
+restaurant screens included: the order screen, the tables, the kitchen,
+bookings, the booking page and the Menu page, in English and Arabic (the other
+languages show the English). The tour of an order walks the restaurant order
+screen at a restaurant outlet. After an update each person sees once what is
+new for them, restaurant news included.
+
 ### Open past midnight
 
 A restaurant open after midnight keeps its shift. Tables opened before midnight
@@ -1444,6 +1460,7 @@ which both LumenPOS roles are given.
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r13 | **LumenPOS 0.57.0 and 0.58.0, brought in** (see the LumenPOS releases below): the salesperson on every sale (optional unless Settings make it required), sales by salesperson in Insights, the System check in Settings, four more languages, and help on every screen with short tours and what is new. **For restaurants:** the order screen has the salesperson row under the customer, kept with a table order. The help covers the restaurant screens (the order screen, the tables, the kitchen, bookings, the booking page and the Menu page) in English and Arabic, the tour of an order walks the restaurant order screen, and what is new tells restaurant staff about the restaurant's own features. The System check and the help name Lumen Restaurants. |
 | 0.1.0-r12 | **LumenPOS 0.56.1 and 0.56.2, brought in** (see the LumenPOS releases below). **What comes back is on sale again at once**, on every ERPNext version: a dish or a drink sent back shows on the till again and sells at once, a returned serial number too, and the shift still closes. **The Hold button** works (the fix made here in r10 is now LumenPOS's own). **A gift card carries no tax** where the outlet adds VAT, and **a return gives back only the tax its sale charged**: a sale made before the outlet had VAT no longer refunds VAT on top. **Tested for restaurants:** a drink sold at a table with its last can, sent back, shown on the till again and ordered again at the same table in one shift, and the shift closes with the stock never below zero. **Settings keep a shop's refund rule:** the settings screen no longer turns *Allow refunding to Store Credit* back on every time it is saved (it showed the switch on whatever the shop had chosen). |
 | 0.1.0-r11 | **The order number follows the shift.** A takeaway number no longer starts again at 1 at midnight while the shift carries on: a shift that sells on past midnight keeps counting until it closes, and the next day's first shift starts again at 1. Two shifts on one day (a morning and an evening one) share the day's numbers, as before. **A price typed on the restaurant screen**, as on the shop screen since 0.55.0: where the outlet allows it (POS Profile, *Allow User to Edit Rate*), whoever may *Edit price / discount* taps **Price** on a line of the order. The price holds for the item on every line of the order (a return takes an item back at one price), and a paid add-on keeps the menu's. On a table order it is checked when it is typed and stays on the order with the name of whoever typed it, in the audit log too, so a cashier without the right can still take the money, and nobody without it can change the price. |
 | 0.1.0-r10 | **LumenPOS 0.54.1 to 0.56.0, brought in.** Everything LumenPOS added up to 0.56.0 is in Lumen Restaurants too (see the LumenPOS releases below): an outlet's item groups cover the groups beneath them, offers and cashback on a group reach its sub-groups, a shift whose opening entry was cancelled in ERPNext closes, a shift can run past midnight on ERPNext 16, a shift several cashiers or waiters sold on closes, the hold deposit item is never sold as a product, selling in another currency without a connection, a price typed at the shop till, returns without a connection, queued sales sent in the background, a warning when the browser may clear the offline data, and a sale that never posts twice. **The Menu page follows the item group tree.** An outlet listing *All Item Groups* sees its whole menu there, and one listing a parent section (Food, with Burgers and Drinks beneath it) sees one section holding the dishes of the groups beneath it, as the till sells them. A dish is filed in a group without sub-groups, and a new section made there goes beneath the parent. The gift-card and hold deposit items never show as dishes. **Tested for restaurants:** a table opened before midnight and paid after it, two waiters on one shift that closes, and a sale with add-ons taken back without a connection for exactly what ERPNext refunds. A sale with a service charge still needs a connection to be taken back. |

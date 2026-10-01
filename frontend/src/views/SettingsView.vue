@@ -2254,7 +2254,7 @@
         <p class="sec-note">{{ t('What may stop LumenPOS working on this site, and what to do about it. Send a screenshot of this page, or Copy for support, with any problem you report.') }}</p>
         <div class="sc-bar">
           <span v-if="check" class="sc-versions">
-            <bdi>LumenPOS {{ check.versions.lumenpos }}</bdi> · <bdi>ERPNext {{ check.versions.erpnext }}</bdi> · <bdi>Frappe {{ check.versions.frappe }}</bdi>
+            <bdi>Lumen Restaurants {{ check.versions.lumenpos }}</bdi> · <bdi>ERPNext {{ check.versions.erpnext }}</bdi> · <bdi>Frappe {{ check.versions.frappe }}</bdi>
           </span>
           <span style="flex: 1" />
           <button class="btn btn-outline" :disabled="checking || session.offline" @click="runCheck">
@@ -3133,7 +3133,7 @@ async function copyCheck() {
   const v = c.versions
   const lines = [
     t('System check') + ', ' + c.site + ', ' + c.checked_at,
-    'LumenPOS ' + v.lumenpos + ', ERPNext ' + v.erpnext + ', Frappe ' + v.frappe + ', Python ' + v.python,
+    'Lumen Restaurants ' + v.lumenpos + ', ERPNext ' + v.erpnext + ', Frappe ' + v.frappe + ', Python ' + v.python,
   ]
   for (const area of CHECK_AREAS) {
     const rows = checkRows(area.key)

@@ -28,6 +28,13 @@ TESTED = {13: "13.55.2", 14: "14.92.14", 15: "15.120.0", 16: "16.36.0"}
 PROBLEM, WARN, INFO, OK = "problem", "warn", "info", "ok"
 
 
+def _named(text):
+    """Lumen Restaurants: our product's name in a text LumenPOS names itself in.
+    LumenPOS's words stay the translation key, so every language still
+    translates it (each keeps the name in Latin letters)."""
+    return text.replace("LumenPOS", "Lumen Restaurants")
+
+
 def _row(area, level, title, detail="", items=None, fix=""):
     return {"area": area, "level": level, "title": title, "detail": detail, "items": items or [], "fix": fix}
 
@@ -55,12 +62,12 @@ def _check_versions(versions):
     major = _version_tuple(versions["erpnext"])[0]
     tested = TESTED.get(major)
     if not tested:
-        return [_row("versions", WARN, _("ERPNext {0} has not been tested with LumenPOS").format(versions["erpnext"]),
-                     _("LumenPOS is tested on ERPNext 13 to 16."))]
+        return [_row("versions", WARN, _named(_("ERPNext {0} has not been tested with LumenPOS")).format(versions["erpnext"]),
+                     _named(_("LumenPOS is tested on ERPNext 13 to 16.")))]
     if _version_tuple(versions["erpnext"]) > _version_tuple(tested):
-        return [_row("versions", INFO, _("ERPNext {0} is newer than the release LumenPOS was last tested on ({1})").format(
+        return [_row("versions", INFO, _named(_("ERPNext {0} is newer than the release LumenPOS was last tested on ({1})")).format(
             versions["erpnext"], tested), _("Usually fine. If something stops working after an ERPNext update, send this screen."))]
-    return [_row("versions", OK, _("ERPNext {0}, tested with LumenPOS").format(versions["erpnext"]))]
+    return [_row("versions", OK, _named(_("ERPNext {0}, tested with LumenPOS")).format(versions["erpnext"]))]
 
 
 def _check_pos_settings():
@@ -243,7 +250,7 @@ def _check_errors():
     since = add_days(now_datetime(), -7)
     rows = frappe.db.sql(
         """select method, error from `tabError Log`
-        where creation >= %s and (method like 'LumenPOS%%' or error like '%%/lumenpos/%%')
+        where creation >= %s and (method like 'LumenPOS%%' or error like '%%/lumen_restaurants/%%')
         order by creation desc limit 500""",
         since,
         as_dict=True,
@@ -259,12 +266,12 @@ def _check_errors():
         groups[key] = groups.get(key, 0) + 1
     if groups:
         top = sorted(groups.items(), key=lambda kv: -kv[1])[:8]
-        out.append(_row("errors", WARN, _("LumenPOS errors in the last 7 days: {0}").format(sum(groups.values())),
+        out.append(_row("errors", WARN, _named(_("LumenPOS errors in the last 7 days: {0}")).format(sum(groups.values())),
                         _("Grouped, most frequent first."),
                         items=["%s x %s: %s" % (n, method, last) for (method, last), n in top],
                         fix=_("Send this screen with the Error Log entries (ERPNext, Error Log).")))
     else:
-        out.append(_row("errors", OK, _("No LumenPOS errors in the last 7 days")))
+        out.append(_row("errors", OK, _named(_("No LumenPOS errors in the last 7 days"))))
     if slow:
         out.append(_row("errors", INFO, _("Slow sales logged in the last 7 days: {0}").format(slow),
                         _("A sale that took longer than usual is written to the Error Log with its timings.")))
@@ -295,7 +302,7 @@ def _check_jobs(since):
         since,
     )
     if failed:
-        out.append(_row("errors", WARN, _("LumenPOS background jobs failed in the last 7 days"),
+        out.append(_row("errors", WARN, _named(_("LumenPOS background jobs failed in the last 7 days")),
                         items=["%s x %s" % (n, method) for method, n in failed],
                         fix=_("Send this screen. The jobs run again on their own.")))
     last = frappe.db.sql(
@@ -305,7 +312,7 @@ def _check_jobs(since):
     )
     when = last[0][0] if last else None
     if when and get_datetime(when) < add_to_date(now_datetime(), hours=-2):
-        out.append(_row("errors", WARN, _("LumenPOS background jobs have not run since {0}").format(str(when)[:16]),
+        out.append(_row("errors", WARN, _named(_("LumenPOS background jobs have not run since {0}")).format(str(when)[:16]),
                         _("They should run every 10 minutes. The workers may be stopped."),
                         fix=_("Check the site's background workers (on Frappe Cloud, the bench's Jobs).")))
     return out

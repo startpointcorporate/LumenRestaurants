@@ -15,7 +15,7 @@
           <Icon name="check" /> {{ t('Save') }}
         </button>
       </div>
-      <div v-else class="rtype">
+      <div v-else class="rtype" data-tour="order-type">
         <button :class="{ active: cart.serviceType === 'Dine in' }" @click="pickDineIn">
           {{ t('Dine in') }}
         </button>
@@ -44,14 +44,16 @@
         <span v-else class="muted small">{{ t('The order number prints with the payment') }}</span>
       </div>
 
-      <div class="rcustomer" role="button" tabindex="0" @click="customerOpen = true">
+      <div class="rcustomer" data-tour="cart-customer" role="button" tabindex="0" @click="customerOpen = true">
         <Icon name="person" />
         <span v-if="cart.customer">{{ cart.customer.customer_name }}</span>
         <span v-else class="muted">{{ t('Customer (optional)') }}</span>
         <button v-if="cart.customer" class="btn-ghost" @click.stop="cart.setCustomer(null)"><Icon name="close" /></button>
       </div>
+      <!-- Lumen Restaurants: who served the order (LumenPOS 0.57.0's salesperson). -->
+      <SalespersonRow />
 
-      <div class="rlines">
+      <div class="rlines" data-tour="cart-lines">
         <div v-if="!cart.lines.length" class="rempty muted">
           {{ t('Tap the menu to start the order') }}
         </div>
@@ -118,7 +120,7 @@
         </template>
       </div>
 
-      <div class="rtotals">
+      <div class="rtotals" data-tour="cart-totals">
         <div class="rt-row" v-if="cart.taxBreakdown.exclusiveTotal > 0">
           <span>{{ t('Tax') }}</span><span>{{ money(cart.taxBreakdown.exclusiveTotal) }}</span>
         </div>
@@ -132,12 +134,13 @@
         <button
           v-if="cart.order"
           class="btn btn-outline rfire"
+          data-tour="kitchen-send"
           :disabled="firing || !unsentCount"
           @click="fire"
         >
           <Icon name="bulb" /> {{ firing ? t('Sending…') : unsentCount ? t('Send to kitchen ({n})', { n: unsentCount }) : t('Kitchen has it all') }}
         </button>
-        <button class="btn btn-primary rpay" :disabled="!cart.lines.length || !session.registerOpen" @click="onPay">
+        <button class="btn btn-primary rpay" data-tour="cart-pay" :disabled="!cart.lines.length || !session.registerOpen" @click="onPay">
           {{ t('Pay') }} · {{ money(cart.total) }}
         </button>
         <p v-if="!session.registerOpen" class="muted small center">{{ t('Open the register to take payments') }}</p>
@@ -158,7 +161,7 @@
       </div>
 
       <div class="rmenu-head">
-        <div class="rsearch">
+        <div class="rsearch" data-tour="sell-search">
           <Icon name="search" />
           <input
             :value="catalog.search"
@@ -169,7 +172,7 @@
       </div>
 
       <div class="rmenu-body">
-        <div class="rcats">
+        <div class="rcats" data-tour="sell-groups">
           <button class="rcat" :class="{ active: !catalog.itemGroup }" @click="catalog.setGroup('')">
             {{ t('All') }}
           </button>
@@ -183,7 +186,7 @@
             {{ group }}
           </button>
         </div>
-        <div class="rgrid">
+        <div class="rgrid" data-tour="sell-products">
           <button v-for="item in menuItems" :key="item.item_code" class="ritem" @click="add(item)">
             <span class="ri-ph" :style="phStyle(item)">
               <img v-if="item.image" :src="item.image" loading="lazy" />
@@ -225,6 +228,7 @@ import CustomerModal from '../components/CustomerModal.vue'
 import PaymentOverlay from '../components/PaymentOverlay.vue'
 import ReceiptModal from '../components/ReceiptModal.vue'
 import ModifierSheet from '../components/ModifierSheet.vue'
+import SalespersonRow from '../components/SalespersonRow.vue'
 import { useModifierStore } from '../stores/modifiers'
 import {
   addDish, updateDish, setDishQty, removeDish, addonsOf, freeChoices, picksFrom, defaultPicks, missingGroups,
@@ -390,6 +394,10 @@ const wasTableOrder = ref(false)
 function onPay() {
   if (cart.serviceType === 'Delivery' && cart.appType && cart.activeApp?.require_order_id && !cart.orderId.trim()) {
     return session.notify(t('Enter the {channel} order ID first', { channel: cart.appType }), true)
+  }
+  // Where the restaurant made the salesperson required (the server refuses it too).
+  if (session.settings.salesperson_mode === 'Required' && session.salesPersons.length && !cart.salesPerson) {
+    return session.notify(t('Pick the salesperson first'), true)
   }
   wasTableOrder.value = Boolean(cart.order)
   paymentOpen.value = true

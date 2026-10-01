@@ -103,6 +103,24 @@ items, test, then fill in the entry's last column (our commit and the date).
      `restaurant.assert_one_price_per_item` at a restaurant outlet and
      `restaurant.typed_on_order` next to `permissions.can_edit_price()`).
      LumenPOS's `stores/cart.js` `setLinePrice` is what our screen calls.
+   - Keep both, LumenPOS 0.57.0 and 0.58.0 (0.1.0-r13): `stores/help.js` (it
+     imports TOPICS, TOURS and WHATS_NEW from our `help/restaurant.js`, and
+     `compareVersions` counts our "-rN"), `HelpPanel.vue` and `HelpCard.vue`
+     (SCREENS and TOURS from `help/restaurant.js`, "Lumen Restaurants" in
+     front of the version and in the title), `api/system_check.py` (`_named`
+     around the texts naming LumenPOS, the error log searched under
+     `/lumen_restaurants/`), `SettingsView.vue` (the System check's version
+     line), `permissions.py` and `pos_capability_rule.json` (our four
+     restaurant capabilities next to LumenPOS's, CLOSED_BY_DEFAULT with
+     Edit the menu), `stores/cart.js` (`orderSnapshot` and `openOrder` carry
+     the table's salesperson). Ours, never conflicting:
+     `help/restaurant.js`, `components/SalespersonRow.vue`, the data-tour
+     markers of `RestaurantSellView.vue`. **With every LumenPOS merge:** add
+     its release to `ourRelease()` in `help/restaurant.js` (LumenPOS's news is
+     dated by the release of ours that brought it), read its new WHATS_NEW and
+     TOPICS for anything that says something else at a restaurant (REPLACED
+     and SHOP_ONLY there), and give our own new whitelisted functions type
+     hints behind `from __future__ import annotations`.
    - `SettingsView.vue` `load()` (0.1.0-r12): our line reading
      `allow_store_credit_refund` (LumenPOS 0.56.2 and 0.58.0 leave it out, so
      every Save turned refunds to store credit back on). When LumenPOS adds the

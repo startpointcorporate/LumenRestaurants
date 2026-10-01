@@ -9,6 +9,8 @@ the reservations screen until somebody confirms or declines: the page promises
 the customer a call back, never a table. Guests never read anything.
 """
 
+from __future__ import annotations
+
 import json
 
 import frappe
@@ -59,7 +61,7 @@ def _slot_load(pos_profile, date):
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def day(pos_profile, date=None):
+def day(pos_profile: str, date: str | None = None):
     """One day of the book, plus the tray of online requests (any day)."""
     restaurant._assert_outlet(pos_profile)
     date = getdate(date) if date else getdate(nowdate())
@@ -124,14 +126,14 @@ def _attach_extras(rows):
 
 
 @frappe.whitelist()
-def requested_count(pos_profile):
+def requested_count(pos_profile: str):
     """The badge on the rail: online requests waiting for a person."""
     restaurant._assert_outlet(pos_profile)
     return frappe.db.count(RES, {"pos_profile": pos_profile, "status": "Requested"})
 
 
 @frappe.whitelist()
-def save_reservation(payload):
+def save_reservation(payload: dict | list | str):
     """Create or edit one, from the till. Staff entries are Confirmed at birth:
     a person just took them."""
     if isinstance(payload, str):
@@ -159,7 +161,7 @@ def save_reservation(payload):
 
 
 @frappe.whitelist()
-def set_reservation_status(name, status):
+def set_reservation_status(name: str, status: str):
     """Confirm a request, seat an arrival, record a no-show, or cancel.
 
     Seating with a table attached opens the table order there and then, so the
@@ -283,7 +285,7 @@ def _clean_items(page, items, people):
 
 
 @frappe.whitelist(allow_guest=True)
-def availability(pos_profile=None, date=None, guests=None):
+def availability(pos_profile: str | None = None, date: str | None = None, guests: int | str | bool | None = None):
     """Which slots on a day can still take this party. Counts only, never a
     name: the page greys out a full slot instead of letting a guest find out
     at the door."""
@@ -304,9 +306,9 @@ def availability(pos_profile=None, date=None, guests=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def book_online(pos_profile=None, customer_name=None, phone=None, reservation_date=None,
-                reservation_time=None, guests=None, note=None, website=None,
-                answers=None, items=None):
+def book_online(pos_profile: str | None = None, customer_name: str | None = None, phone: str | None = None, reservation_date: str | None = None,
+                reservation_time: str | None = None, guests: int | str | bool | None = None, note: str | None = None, website: str | None = None,
+                answers: dict | list | str | None = None, items: dict | list | str | None = None):
     """The public form posts here. Writes ONE booking against the page as its
     owner designed it, and reads nothing back but a reference.
 
