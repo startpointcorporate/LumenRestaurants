@@ -7,7 +7,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, date_diff, flt, now_datetime, nowdate
 
-from lumen_restaurants import cashback, cashback_rules, coupons, currency, gift_cards, store_credit
+from lumen_restaurants import cashback, cashback_rules, coupons, currency, deposits, gift_cards, store_credit
 from lumen_restaurants.price_books import effective_prices, resolve_price_list, standard_prices
 from lumen_restaurants.promotions.engine import evaluate
 from lumen_restaurants.promotions.loader import get_active_promotions
@@ -895,6 +895,16 @@ def sell_gift_card(payload):
             "income_account": gift_card_account,
         },
     )
+    # Clearing the tax table below does not hold: ERPNext puts the outlet's
+    # tax template back on any sale whose table is empty (POS Invoice and Sales
+    # Invoice alike, v13 to v16), so at a VAT outlet a card of 100 came to 115.
+    # The line says it itself instead, as a hold's deposit does. Read from the
+    # database, as ERPNext reads it, not from the cached profile.
+    zero = deposits.zero_tax_template(
+        profile.company, frappe.db.get_value("POS Profile", profile.name, "taxes_and_charges")
+    )
+    if zero:
+        invoice.items[-1].item_tax_template = zero
     if payload.get("sales_person"):
         invoice.append(
             "sales_team",
@@ -2056,7 +2066,8 @@ def _stock_after(doc):
         from lumen_restaurants.api import catalog
 
         by_warehouse = {}
-        for line in doc.items or []:
+        # a bundle's components move too (its Packed Item rows)
+        for line in list(doc.items or []) + list(doc.get("packed_items") or []):
             by_warehouse.setdefault(line.warehouse, []).append(line.item_code)
         out = {}
         for warehouse, codes in by_warehouse.items():
@@ -2571,6 +2582,19 @@ def _build_return_doc(original, sale_doctype, invoice, items, serials, pos_profi
             row.serial_and_batch_bundle = None
             row.use_serial_batch_fields = 1
             row.serial_no = "\n".join(row_serials)
+    # A credit note gives back the tax its sale charged, no more. ERPNext
+    # refills an empty tax table from the POS Profile's CURRENT template, so a
+    # sale that carried no tax (made before the outlet had a template, or at an
+    # outlet without one) came back taxed: a sale of 90 refunded 108. Its lines
+    # say it instead, as a gift card's and a deposit's do.
+    if not original.get("taxes"):
+        zero = deposits.zero_tax_template(
+            handling_profile.company,
+            frappe.db.get_value("POS Profile", handling_profile.name, "taxes_and_charges"),
+        )
+        if zero:
+            for row in return_doc.items:
+                row.item_tax_template = zero
 
     return_doc.payments = []
     _set_custom(return_doc, ("lumenpos_session",), session["name"])
@@ -2786,6 +2810,7 @@ def create_return(
     original_key=None,
     offline_refund=None,
     _split_fn=None,
+    _post_now=True,
 ):
     """Create a POS return (credit note) against a submitted POS sale.
 
@@ -2816,6 +2841,14 @@ def create_return(
     exchange needs it because the split depends on a figure only ERPNext knows
     once the document is built, "everything up to the new sale goes to the
     exchange clearing tender, the rest is a real refund".
+
+    _post_now: the return is posted at once, with its sale, where ERPNext holds
+    its goods until then (on 13 and 14 any stock item, on 15 and 16 a serial
+    number), so they are back on sale in the same shift
+    (register.post_returns_now). That commits, so a Python caller that goes on
+    writing in the same request (an exchange, a hold being cancelled, the demo
+    builder) passes False, and an exchange posts its credit note itself once
+    the whole exchange stands.
     """
     _require_sell()
     from lumen_restaurants.api import permissions
@@ -3052,6 +3085,10 @@ def create_return(
         pos_profile=original.get("pos_profile"),
     )
 
+    if _post_now:
+        from lumen_restaurants.api import register
+
+        register.post_returns_now([return_doc.name])
     receipt = get_receipt(return_doc.name)
     receipt["stock_after"] = _stock_after(return_doc)
     if offline:

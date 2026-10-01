@@ -362,9 +362,6 @@ def _assert_hold_prices(profile, customer, items):
             )
 
 
-# The whitelist belongs to create_layaway: LumenPOS 0.55.0 put the helper above
-# between the two, which exposed the helper and left the till unable to start a
-# hold ("not whitelisted"). Told the LumenPOS conversation through the owner.
 @frappe.whitelist()
 def create_layaway(payload):
     """Start a hold: reserve the goods, take the first instalment.
@@ -542,6 +539,7 @@ def cancel_layaway(layaway, refund_mode=None, refund_payments=None, reason=None,
             return_reason=reason or _("Hold cancelled"),
             pos_profile=acting.name,
             refund_payments=refund_payments or None,
+            _post_now=False,
         )
         row.refunded = 1
         refunds.append(credit["name"])
