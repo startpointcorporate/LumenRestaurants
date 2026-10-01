@@ -1,11 +1,15 @@
 # Copyright (c) 2026 Lumen Solutions
 # SPDX-License-Identifier: AGPL-3.0-only
 # "LumenPOS" is a trademark of Lumen Solutions. See TRADEMARKS.md.
+from __future__ import annotations
+
 import frappe
 from frappe import _
 from frappe.utils import flt
 
 from lumen_restaurants.promotions.loader import get_active_promotions
+from lumen_restaurants.api import salespeople
+from lumen_restaurants.api.help import state as help_state
 
 
 @frappe.whitelist()
@@ -18,7 +22,7 @@ def ping():
 
 
 @frappe.whitelist()
-def get_bootstrap(pos_profile=None):
+def get_bootstrap(pos_profile: str | None = None):
     """Everything the POS needs to start: profile, payment modes, item groups,
     promotions, currency and the current register session."""
     if not frappe.has_permission("POS Invoice", "read"):
@@ -131,13 +135,17 @@ def get_bootstrap(pos_profile=None):
         "store_credit_mode": "Store Credit",
         "cashback_mode": "Cashback",
         "gift_card_mode": _gift_card_mode(),
-        "sales_persons": _sales_persons(),
+        # Nobody to pick from when the shop does not use salespeople.
+        "sales_persons": _sales_persons() if salespeople.mode() != "Off" else [],
         "pin_set": _pin_set(),
         "settings": _client_settings(profile_name),
         "bundles": get_bundles(profile_name),
         # Other currencies: which ones, their walk-in customer and drawer, and
         # the rate this shift sells at (lumen_restaurants.currency).
         "multi_currency": _multi_currency(profile, session),
+        # Help for staff: the shop's switches and what this person has seen
+        # (lumen_restaurants.api.help).
+        "help": help_state(),
     }
     if data["restaurant_mode"]:
         # Lumen Restaurants: at a restaurant outlet the shop features a
@@ -220,6 +228,8 @@ def get_user_permissions():
         "can_cancel_order": caps_mod.can_cancel_order(),
         # Lumen Restaurants: the Menu page (api/menu.py re-checks it).
         "can_edit_menu": caps_mod.can_edit_menu(),
+        "sales_by_person": caps_mod.can_see_sales_by_person(),
+        "system_check": caps_mod.can_see_system_check(),
         # ERPNext's document permission AND the shop's own rule, both must pass.
         "open_register": bool(has("POS Opening Entry", "create")) and caps_mod.can_open_register(),
         "close_register": bool(has("POS Closing Entry", "create")) and caps_mod.can_close_register(),
@@ -381,6 +391,7 @@ def _client_settings(profile_name=None):
         "enable_service_charge": 1 if doc.get("enable_service_charge") else 0,
         "service_charge_percent": flt(doc.get("service_charge_percent")),
         "enable_price_checker": 1 if doc.get("enable_price_checker") else 0,
+        "salesperson_mode": salespeople.mode(),
         "enable_layaway": 1 if doc.get("enable_layaway") else 0,
         "layaway_days": cint(doc.get("layaway_days")) or 0,
         "layaway_min_percent": flt(doc.get("layaway_min_percent")),
@@ -485,7 +496,7 @@ def _offline_facts(doc, profile_name):
 
 
 @frappe.whitelist()
-def unlock_till(passcode=None):
+def unlock_till(passcode: str | None = None):
     """Unlock the till lock screen with the caller's OWN personal PIN.
 
     No manager bypass and no shared code: the lock screen protects an unattended
@@ -516,13 +527,13 @@ def unlock_till(passcode=None):
 
 
 @frappe.whitelist()
-def get_promotions(pos_profile):
+def get_promotions(pos_profile: str):
     """Lightweight refresh endpoint so the client can re-pull promotions."""
     return get_active_promotions(pos_profile)
 
 
 @frappe.whitelist()
-def check_coupon(pos_profile, code):
+def check_coupon(pos_profile: str, code: str):
     """Validate a coupon code and hand back its promotion. Coupon-locked
     promotions are never shipped in the bootstrap payload, so this is the
     only way a client learns about one, and only with the right code."""

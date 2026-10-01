@@ -1239,7 +1239,7 @@
       <!-- The new-customer form (lumen_restaurants.customer_form) -->
       <div class="sec-card" v-show="generalSection === 'customers'">
         <div class="sec-title"><Icon name="person" /> {{ t('New customer form') }}</div>
-        <p class="sec-note">{{ t('What the till asks when a cashier adds a customer. Each field can be hidden, optional or required, for individuals and for companies apart. The address is the Saudi national address; a shop elsewhere can keep only the parts it needs.') }}</p>
+        <p class="sec-note">{{ t('What the till asks when a cashier adds a customer. Each field can be hidden, optional or required, for individuals and for companies apart. The address is the Saudi national address. A shop elsewhere can keep only the parts it needs.') }}</p>
         <div class="cf-table">
           <div class="cf-head">
             <span>{{ t('Field') }}</span>
@@ -1356,7 +1356,7 @@
 
           <div class="sub-label">{{ t('Exchange rates') }}</div>
           <p class="muted small" style="margin: 0 0 8px">
-            {{ t('The selling rate from today on, kept in ERPNext (Currency Exchange). A shift keeps the rate it started selling at; the next shift takes the new one.') }}
+            {{ t('The selling rate from today on, kept in ERPNext (Currency Exchange). A shift keeps the rate it started selling at. The next shift takes the new one.') }}
           </p>
           <div v-if="!rateRows.length" class="muted small">{{ t('Save the currencies first, then set their rates here.') }}</div>
           <p v-if="settingsInfo.auto_rates_enabled && rateRows.some((r) => r.auto)" class="muted small" style="margin: 0 0 8px">
@@ -1513,6 +1513,15 @@
               <span class="setting-desc">{{ t('Adds a Price check button on the sell screen to look up an item\'s price and stock without selling it.') }}</span>
             </span>
           </label>
+          <label class="field span-2" style="display:block; margin: 6px 0 10px">
+            <span class="setting-title">{{ t('Salesperson at the till') }}</span>
+            <select v-model="generalForm.salesperson_mode" class="cf-in" style="width: 100%; margin-top: 4px">
+              <option value="Optional">{{ t('Optional, the cashier may pick who sold') }}</option>
+              <option value="Required">{{ t('Required, no sale without a salesperson') }}</option>
+              <option value="Off">{{ t('Off, the till does not ask') }}</option>
+            </select>
+            <span class="setting-desc">{{ t('Salespeople are ERPNext\'s Sales Persons. The salesperson is saved on the invoice with ERPNext\'s commission rate, and the Salespeople page shows sales, returns and commission per person. Required is checked on the server too.') }}</span>
+          </label>
           <label class="setting-row">
             <input type="checkbox" class="setting-toggle" v-model="generalForm.enable_insights" :true-value="1" :false-value="0" />
             <span class="setting-text">
@@ -1634,6 +1643,40 @@
         </div>
         <p class="muted hint-row" style="margin-top: 12px">
           {{ t('While every language is ticked, a language added by a later update is offered by itself.') }}
+        </p>
+      </div>
+
+      <!-- Help for staff (0.58.0) -->
+      <div class="sec-card" v-show="generalSection === 'help'">
+        <div class="sec-title"><Icon name="help" /> {{ t('Help for staff') }}</div>
+        <p class="sec-note">{{ t('Help on every screen of the till, in the language each person picks. It only shows and explains: nothing is sold or changed.') }}</p>
+        <div class="setting-list">
+          <label class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.help_in_till" :true-value="1" :false-value="0" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Help in the till') }}</span>
+              <span class="setting-desc">{{ t('A ? button on every screen opens that screen\'s help, with short tours over the real buttons.') }}</span>
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.help_offer_tour" :true-value="1" :false-value="0" :disabled="!generalForm.help_in_till" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Offer the tour to new staff') }}</span>
+              <span class="setting-desc">{{ t('Someone who has not seen the help yet is offered a one-minute tour the first time they open the till.') }}</span>
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.help_whats_new" :true-value="1" :false-value="0" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Show what is new after an update') }}</span>
+              <span class="setting-desc">{{ t('After an update, each person sees once what is new for them, with a Show me where a tour exists.') }}</span>
+            </span>
+          </label>
+        </div>
+        <p class="muted hint-row" style="margin-top: 12px">
+          <button type="button" class="btn btn-outline" :disabled="!session.help.in_till" @click="help.startTour('basics')">
+            <Icon name="play" /> {{ t('Take the tour now') }}
+          </button>
         </p>
       </div>
 
@@ -1894,7 +1937,7 @@
             <input type="checkbox" class="setting-toggle" v-model="generalForm.restrict_refund_to_paid_mode" :true-value="1" :false-value="0" />
             <span class="setting-text">
               <span class="setting-title">{{ t('Restrict refunds to the original payment method') }}</span>
-              <span class="setting-desc">{{ t('A sale can only be refunded to a method the customer actually paid with (Store Credit is always allowed). Add exceptions below.') }}</span>
+              <span class="setting-desc">{{ t('A sale can only be refunded to a method the customer actually paid with. Add exceptions below.') }}</span>
             </span>
           </label>
           <label class="setting-row">
@@ -2205,6 +2248,53 @@
     </section>
 
     <!-- ============ STATUS ============ -->
+    <section v-if="activeTab === 'System check'" class="tab-body">
+      <div class="sec-card">
+        <div class="sec-title"><Icon name="shield" /> {{ t('System check') }}</div>
+        <p class="sec-note">{{ t('What may stop LumenPOS working on this site, and what to do about it. Send a screenshot of this page, or Copy for support, with any problem you report.') }}</p>
+        <div class="sc-bar">
+          <span v-if="check" class="sc-versions">
+            <bdi>LumenPOS {{ check.versions.lumenpos }}</bdi> · <bdi>ERPNext {{ check.versions.erpnext }}</bdi> · <bdi>Frappe {{ check.versions.frappe }}</bdi>
+          </span>
+          <span style="flex: 1" />
+          <button class="btn btn-outline" :disabled="checking || session.offline" @click="runCheck">
+            <Icon name="refresh" /> {{ checking ? t('Checking…') : t('Check again') }}
+          </button>
+          <button class="btn btn-outline" :disabled="!check" @click="copyCheck"><Icon name="report" /> {{ t('Copy for support') }}</button>
+        </div>
+        <div v-if="session.offline" class="muted small">{{ t('The system check needs a connection.') }}</div>
+        <div v-else-if="checkError" class="neg small">{{ checkError }}</div>
+        <div v-else-if="!check" class="muted small">{{ t('Loading…') }}</div>
+        <template v-else>
+          <div class="sc-chips">
+            <span class="sc-chip problem">{{ t('Problems: {n}', { n: check.counts.problem }) }}</span>
+            <span class="sc-chip warn">{{ t('Attention: {n}', { n: check.counts.warn }) }}</span>
+            <span class="sc-chip info">{{ t('Notes: {n}', { n: check.counts.info }) }}</span>
+            <span class="sc-chip ok">{{ t('OK: {n}', { n: check.counts.ok }) }}</span>
+            <span class="muted small">{{ t('Checked at {time}', { time: check.checked_at }) }}</span>
+          </div>
+          <template v-for="area in CHECK_AREAS" :key="area.key">
+            <div v-if="checkRows(area.key).length" class="sc-area">
+              <div class="sc-area-title">{{ t(area.label) }}</div>
+              <div v-for="(row, i) in checkRows(area.key)" :key="area.key + i" class="sc-row" :class="row.level">
+                <span class="sc-mark" :class="row.level">
+                  <Icon :name="row.level === 'ok' ? 'check' : row.level === 'info' ? 'bulb' : 'warning'" />
+                </span>
+                <div class="sc-text">
+                  <div class="sc-title"><bdi>{{ row.title }}</bdi> <span class="sc-level" :class="row.level">{{ t(LEVEL_LABEL[row.level]) }}</span></div>
+                  <div v-if="row.detail" class="sc-detail"><bdi>{{ row.detail }}</bdi></div>
+                  <ul v-if="row.items.length" class="sc-items">
+                    <li v-for="(item, j) in row.items" :key="j"><bdi>{{ item }}</bdi></li>
+                  </ul>
+                  <div v-if="row.fix" class="sc-fix"><b>{{ t('What to do:') }}</b>&nbsp;<bdi>{{ row.fix }}</bdi></div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </template>
+      </div>
+    </section>
+
     <section v-if="activeTab === 'Status'" class="tab-body">
       <div class="status-grid">
         <div class="stat sec-card"><div class="stat-label">{{ t('Lumen Restaurants version') }}</div><div class="stat-value">{{ settingsInfo.version || '-' }}</div></div>
@@ -2274,6 +2364,7 @@ import { call } from '../api'
 import { money, shortTime, parseMoney, isolate, rateText } from '../format'
 import { useSessionStore } from '../stores/session'
 import { useCatalogStore } from '../stores/catalog'
+import { useHelpStore } from '../stores/help'
 import { catalogCount, storagePersisted, customerCount } from '../offline'
 import LinkPicker from '../components/LinkPicker.vue'
 import ScopePicker from '../components/ScopePicker.vue'
@@ -2282,10 +2373,11 @@ import ReceiptView from '../components/ReceiptView.vue'
 import { t, LANGUAGES } from '../i18n'
 
 const session = useSessionStore()
+const help = useHelpStore()
 const catalog = useCatalogStore()
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-const ALL_TABS = ['Promotions', 'Cashback', 'Bundles', 'Price Books', 'Loyalty & Gift Cards', 'General', 'Audit Log', 'Status']
+const ALL_TABS = ['Promotions', 'Cashback', 'Bundles', 'Price Books', 'Loyalty & Gift Cards', 'General', 'Audit Log', 'System check', 'Status']
 const perms = computed(() => session.permissions || {})
 
 function tabAllowed(tab) {
@@ -2297,6 +2389,7 @@ function tabAllowed(tab) {
   if (tab === 'Loyalty & Gift Cards') return p.loyalty || p.gift_cards
   if (tab === 'General') return p.settings
   if (tab === 'Audit Log') return Boolean(p.is_manager)
+  if (tab === 'System check') return Boolean(p.system_check)
   return true // Status is read-only info
 }
 const tabs = computed(() => ALL_TABS.filter(tabAllowed))
@@ -2378,6 +2471,9 @@ const capabilityOptions = [
   'Reprint a receipt',
   'Open the register',
   'Close the register',
+  'Hold goods for a customer',
+  'See sales by salesperson',
+  'See the system check',
   // Lumen Restaurants: the restaurant's own actions.
   'Open a table order',
   'Move or merge tables',
@@ -2417,6 +2513,9 @@ const generalForm = ref({
   offline_returns: 1,
   background_upload: 1,
   warn_unprotected_storage: 1,
+  help_in_till: 1,
+  help_offer_tour: 1,
+  help_whats_new: 1,
   shift_scope: 'Per outlet',
   one_shift_per_user: 0,
   carry_shift_past_midnight: 1,
@@ -2434,6 +2533,7 @@ const generalForm = ref({
   service_charge_percent: 0,
   service_charge_account: '',
   enable_price_checker: 1,
+  salesperson_mode: 'Optional',
   enable_insights: 1,
   enable_cashback: 1,
   enable_xreport: 1,
@@ -2544,6 +2644,7 @@ const generalSections = [
   { key: 'restaurant', label: 'Restaurant', icon: 'table' },
   { key: 'receipt', label: 'Receipt', icon: 'image' },
   { key: 'languages', label: 'Languages', icon: 'globe' },
+  { key: 'help', label: 'Help for staff', icon: 'help' },
   { key: 'money', label: 'Accounts and gift cards', icon: 'bank' },
   { key: 'approvals', label: 'Approvals and access', icon: 'shield' },
 ]
@@ -2991,7 +3092,66 @@ const loadMoreAudit = () => loadAudit(true)
 // Load the audit log the first time its tab is opened (and refresh on re-entry).
 watch(activeTab, (tab) => {
   if (tab === 'Audit Log') loadAudit(false)
+  if (tab === 'System check' && !check.value) runCheck()
 })
+
+// ---- system check (lumen_restaurants.api.system_check) ----
+const check = ref(null)
+const checking = ref(false)
+const checkError = ref('')
+const CHECK_AREAS = [
+  { key: 'shifts', label: 'Shifts' },
+  { key: 'outlets', label: 'Outlets' },
+  { key: 'settings', label: 'Settings' },
+  { key: 'errors', label: 'Errors and background jobs' },
+  { key: 'versions', label: 'Versions' },
+]
+const LEVEL_ORDER = { problem: 0, warn: 1, info: 2, ok: 3 }
+const LEVEL_LABEL = { problem: 'Problem', warn: 'Attention', info: 'Note', ok: 'OK' }
+const checkRows = (area) =>
+  (check.value?.rows || [])
+    .filter((r) => r.area === area)
+    .sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
+
+async function runCheck() {
+  if (session.offline) return
+  checking.value = true
+  checkError.value = ''
+  try {
+    check.value = await call('lumen_restaurants.api.system_check.run', {})
+  } catch (e) {
+    checkError.value = e.message || String(e)
+  } finally {
+    checking.value = false
+  }
+}
+
+// The page as plain text, to paste into a message to support.
+async function copyCheck() {
+  const c = check.value
+  if (!c) return
+  const v = c.versions
+  const lines = [
+    t('System check') + ', ' + c.site + ', ' + c.checked_at,
+    'LumenPOS ' + v.lumenpos + ', ERPNext ' + v.erpnext + ', Frappe ' + v.frappe + ', Python ' + v.python,
+  ]
+  for (const area of CHECK_AREAS) {
+    const rows = checkRows(area.key)
+    if (!rows.length) continue
+    lines.push('', t(area.label))
+    for (const r of rows) {
+      lines.push('[' + t(LEVEL_LABEL[r.level]) + '] ' + r.title + (r.detail ? ': ' + r.detail : ''))
+      for (const item of r.items || []) lines.push('  - ' + item)
+      if (r.fix) lines.push('  ' + t('What to do:') + ' ' + r.fix)
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'))
+    session.notify(t('Copied. Paste it into your message to support.'))
+  } catch {
+    session.notify(t('This browser did not allow copying. Take a screenshot instead.'), true)
+  }
+}
 
 // Payment methods offered in the refund-rule dropdowns.
 const payModeOptions = computed(() => {
@@ -3067,6 +3227,10 @@ async function load() {
     offline_returns: info.offline_returns === 0 ? 0 : 1,
     background_upload: info.background_upload === 0 ? 0 : 1,
     warn_unprotected_storage: info.warn_unprotected_storage === 0 ? 0 : 1,
+    // A server from before 0.58.0 does not send these: on, their default.
+    help_in_till: info.help_in_till === 0 ? 0 : 1,
+    help_offer_tour: info.help_offer_tour === 0 ? 0 : 1,
+    help_whats_new: info.help_whats_new === 0 ? 0 : 1,
     shift_scope: info.shift_scope || 'Per outlet',
     one_shift_per_user: info.one_shift_per_user ? 1 : 0,
     // A server from before 0.55.0 does not send it: on, its default.
@@ -3085,6 +3249,7 @@ async function load() {
     service_charge_percent: info.service_charge_percent || 0,
     service_charge_account: info.service_charge_account || '',
     enable_price_checker: info.enable_price_checker ?? 1,
+    salesperson_mode: info.salesperson_mode || 'Optional',
     enable_insights: info.enable_insights ?? 1,
     enable_cashback: info.enable_cashback ?? 1,
     enable_xreport: info.enable_xreport ?? 1,
@@ -3118,9 +3283,8 @@ async function load() {
     gift_card_account: info.gift_card_account || '',
     gift_card_item: info.gift_card_item || '',
     restrict_refund_to_paid_mode: info.restrict_refund_to_paid_mode ?? 1,
-    // Read like every other switch: left out, the form kept its default (on)
-    // and every Save turned refunds to store credit back on.
-    allow_store_credit_refund: info.allow_store_credit_refund ?? 1,
+    // Not read here from 0.29.0 to 0.57.0: every Save of this tab switched it off.
+    allow_store_credit_refund: info.allow_store_credit_refund ? 1 : 0,
     refund_rules: JSON.parse(JSON.stringify(info.refund_rules || [])),
     return_reasons: [...(info.return_reasons || [])],
     approvers: (info.approvers || []).map((approver) => ({
@@ -3851,6 +4015,14 @@ async function saveGeneral() {
     session.settings.enable_service_charge = info.enable_service_charge || 0
     session.settings.service_charge_percent = info.service_charge_percent || 0
     session.settings.enable_price_checker = info.enable_price_checker ?? 1
+    session.settings.salesperson_mode = info.salesperson_mode || 'Optional'
+    // The "?" comes and goes with the switch, no reload needed.
+    session.help = {
+      ...session.help,
+      in_till: info.help_in_till ? 1 : 0,
+      offer_tour: info.help_offer_tour ? 1 : 0,
+      whats_new: info.help_whats_new ? 1 : 0,
+    }
     session.settings.enable_insights = info.enable_insights ?? 1
     session.settings.enable_cashback = info.enable_cashback ?? 1
     session.settings.enable_xreport = info.enable_xreport ?? 1
@@ -4025,6 +4197,32 @@ const filteredBooks = computed(() => {
 .idx-table td { padding: 5px 6px; border-bottom: 1px solid var(--border-subtle); }
 .idx-doctype { font-weight: 600; }
 .idx-cols { font-family: var(--mono); }
+/* System check (0.57.0) */
+.sc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 12px; }
+.sc-versions { font-size: 13px; color: var(--text-muted); }
+.sc-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.sc-chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+.sc-chip.problem, .sc-level.problem { background: rgba(224, 65, 63, 0.14); color: var(--red); }
+.sc-chip.warn, .sc-level.warn { background: rgba(201, 130, 27, 0.16); color: var(--amber); }
+.sc-chip.info, .sc-level.info { background: var(--surface-2); color: var(--text-muted); }
+.sc-chip.ok, .sc-level.ok { background: rgba(20, 99, 255, 0.12); color: var(--brand-dark); }
+.sc-area { margin-top: 16px; }
+.sc-area-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+.sc-row { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: 10px; margin-bottom: 6px; }
+.sc-row.problem { border-color: rgba(224, 65, 63, 0.5); }
+.sc-row.warn { border-color: rgba(201, 130, 27, 0.5); }
+.sc-mark { flex: none; display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; }
+.sc-mark.problem { color: var(--red); }
+.sc-mark.warn { color: var(--amber); }
+.sc-mark.info { color: var(--text-muted); }
+.sc-mark.ok { color: var(--brand); }
+.sc-text { min-width: 0; flex: 1; }
+.sc-title { font-weight: 600; font-size: 13.5px; }
+.sc-level { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; margin-inline-start: 6px; white-space: nowrap; }
+.sc-detail { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+.sc-items { margin: 6px 0 0; padding-inline-start: 18px; font-size: 12px; color: var(--text-muted); }
+.sc-items li { overflow-wrap: anywhere; }
+.sc-fix { font-size: 12.5px; margin-top: 6px; }
 .idx-badge {
   font-size: 11px;
   font-weight: 700;
