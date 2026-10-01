@@ -3118,6 +3118,9 @@ async function load() {
     gift_card_account: info.gift_card_account || '',
     gift_card_item: info.gift_card_item || '',
     restrict_refund_to_paid_mode: info.restrict_refund_to_paid_mode ?? 1,
+    // Read like every other switch: left out, the form kept its default (on)
+    // and every Save turned refunds to store credit back on.
+    allow_store_credit_refund: info.allow_store_credit_refund ?? 1,
     refund_rules: JSON.parse(JSON.stringify(info.refund_rules || [])),
     return_reasons: [...(info.return_reasons || [])],
     approvers: (info.approvers || []).map((approver) => ({

@@ -103,6 +103,11 @@ items, test, then fill in the entry's last column (our commit and the date).
      `restaurant.assert_one_price_per_item` at a restaurant outlet and
      `restaurant.typed_on_order` next to `permissions.can_edit_price()`).
      LumenPOS's `stores/cart.js` `setLinePrice` is what our screen calls.
+   - `SettingsView.vue` `load()` (0.1.0-r12): our line reading
+     `allow_store_credit_refund` (LumenPOS 0.56.2 and 0.58.0 leave it out, so
+     every Save turned refunds to store credit back on). When LumenPOS adds the
+     same line, keep one of the two. Their quality gate's "settings round trip"
+     rule finds any such key.
    - `api/menu.py` (ours) follows LumenPOS's item group rules: `_listed` reads
      the outlet's list as `catalog.item_groups_under` does, and the dishes skip
      `catalog.internal_item_codes()`. When LumenPOS changes either helper, look
