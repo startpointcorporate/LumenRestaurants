@@ -142,5 +142,7 @@ items, test, then fill in the entry's last column (our commit and the date).
    `tools/` folder run on our sites as they are, with the project folder's
    `reference/bench-scripts/`: `lp_fixtures.py` makes their shop outlet
    ("LumenPOS Smoke", LP-PLAIN) once per site, and `lp_suite.sh <bench> <site>
-   <suite.py>` renames their imports to ours and runs them. Bump the version (`x.y.z-rN` for previews) and add the
+   <suite.py>` renames their imports to ours and runs them (a suite a note
+   names but did not copy is taken from LumenPOS's `/opt/benchtest/`, read
+   only). Bump the version (`x.y.z-rN` for previews) and add the
    changelog row in `docs/user-guide.md` in the same commit as the code.
