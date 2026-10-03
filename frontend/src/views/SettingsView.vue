@@ -1151,7 +1151,7 @@
             <p class="muted small" style="margin: 0">{{ t("Who may sell on account, take customer payments and set a customer's credit is set in Approvals and access, Permissions. Until someone is named there, only managers can.") }}</p>
           </div>
           <div class="credit-setup">
-            <div class="sub-label">{{ t('Set up by LumenPOS') }}</div>
+            <div class="sub-label">{{ named(t('Set up by LumenPOS')) }}</div>
             <div v-for="row in settingsInfo.credit_setup || []" :key="row.company" class="credit-setup-row">
               <bdi class="credit-company">{{ row.company }}</bdi>
               <span v-if="row.ready" class="muted small">{{ t('Payment method {mode}, account {account}', { mode: row.mode, account: row.account }) }}</span>
@@ -1459,7 +1459,7 @@
             <input type="checkbox" class="setting-toggle" v-model="generalForm.carry_shift_past_midnight" :true-value="1" :false-value="0" />
             <span class="setting-text">
               <span class="setting-title">{{ t('Keep a shift open past midnight') }}</span>
-              <span class="setting-desc">{{ t('ERPNext 16 takes sales only on a shift opened the same day. On (the default): at the first sale after midnight LumenPOS closes the day in ERPNext and opens the next one by itself, and the shift carries on and is counted once, at its own close. Off: a shift from an earlier day has to be closed before it can sell again.') }}</span>
+              <span class="setting-desc">{{ named(t('ERPNext 16 takes sales only on a shift opened the same day. On (the default): at the first sale after midnight LumenPOS closes the day in ERPNext and opens the next one by itself, and the shift carries on and is counted once, at its own close. Off: a shift from an earlier day has to be closed before it can sell again.')) }}</span>
             </span>
           </label>
           <!-- lumen_restaurants.accounting_periods (0.58.1) -->
@@ -2344,7 +2344,7 @@
     <section v-if="activeTab === 'System check'" class="tab-body">
       <div class="sec-card">
         <div class="sec-title"><Icon name="shield" /> {{ t('System check') }}</div>
-        <p class="sec-note">{{ t('What may stop LumenPOS working on this site, and what to do about it. Send a screenshot of this page, or Copy for support, with any problem you report.') }}</p>
+        <p class="sec-note">{{ named(t('What may stop LumenPOS working on this site, and what to do about it. Send a screenshot of this page, or Copy for support, with any problem you report.')) }}</p>
         <div class="sc-bar">
           <span v-if="check" class="sc-versions">
             <bdi>Lumen Restaurants {{ check.versions.lumenpos }}</bdi> · <bdi>ERPNext {{ check.versions.erpnext }}</bdi> · <bdi>Frappe {{ check.versions.frappe }}</bdi>
@@ -2739,6 +2739,10 @@ async function saveTables() {
 // till shows them in its own language, so this screen shows them translated too.
 // A reason left as it was is saved back as its English text, so it stays
 // translated everywhere; a reason the manager rewrites is kept as written.
+// Lumen Restaurants: a text that names LumenPOS as the product, shown with our
+// name. LumenPOS's words stay the translation keys, so every language still
+// translates (as system_check._named does on the server).
+const named = (text) => String(text).split('LumenPOS').join('Lumen Restaurants')
 const reasonKeys = ref([])
 const reasonByShown = computed(() => {
   const map = new Map()

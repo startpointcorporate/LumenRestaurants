@@ -521,7 +521,7 @@ onUnmounted(() => clearInterval(readyTimer))
 .rmenu-head { padding: 12px 12px 0; }
 .rsearch { display: flex; align-items: center; gap: 7px; border: 1px solid var(--border); border-radius: 11px; padding: 0 12px; }
 .rsearch .icon { color: var(--text-muted); }
-.rsearch input { flex: 1; border: 0; background: transparent; padding: 10px 0; font: inherit; font-size: 14px; outline: none; }
+.rsearch input { flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; padding: 10px 0; font: inherit; font-size: 14px; outline: none; }
 .rmenu-body { flex: 1; display: flex; min-height: 0; }
 .rcats { width: 108px; flex: none; overflow: auto; padding: 12px 8px; display: flex; flex-direction: column; gap: 6px; border-inline-end: 1px solid var(--border-subtle); }
 .rcat {

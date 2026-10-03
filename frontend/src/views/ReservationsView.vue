@@ -294,10 +294,10 @@ onUnmounted(() => clearInterval(poll))
 .resv-card { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .resv-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .rh-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
-.rh-days { display: flex; gap: 6px; align-items: center; margin-inline-start: auto; }
+.rh-days { display: flex; gap: 6px; align-items: center; margin-inline-start: auto; flex-wrap: wrap; min-width: 0; max-width: 100%; }
 .day-btn { border: 1px solid var(--border); background: var(--card-bg); border-radius: 999px; padding: 8px 16px; font: inherit; font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer; }
 .day-btn.active { background: var(--brand); border-color: var(--brand); color: #fff; }
-.rh-days input { padding: 7px 9px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; }
+.rh-days input { min-width: 0; max-width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; }
 .resv-body { flex: 1; overflow: auto; padding: 14px; background: var(--page-bg); }
 .tray { border: 1.5px dashed var(--brand-soft); background: rgba(20, 99, 255, 0.05); border-radius: 14px; padding: 10px 12px 4px; margin-bottom: 14px; }
 .tray-title { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--brand-dark); margin: 2px 2px 8px; }

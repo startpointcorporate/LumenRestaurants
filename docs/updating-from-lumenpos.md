@@ -134,6 +134,31 @@ items, test, then fill in the entry's last column (our commit and the date).
      `pos_floor_area` and `pos_floor_object`, `frontend/src/floor/`,
      `views/TablesView.vue` (all ours since the restaurant left LumenPOS),
      `components/FloorSettings.vue` and `components/restaurant-settings.css`.
+   - Keep both, LumenPOS 0.58.1 to 0.60.1 (0.1.0-r15): `SettingsView.vue`
+     (our Restaurant card, closed by its own `</div>`, then LumenPOS's Sales on
+     account card; the `restaurant` and `credit` sections both after
+     `holds`; our tables functions and LumenPOS's reason helpers; our
+     `.add-row` and `.table-row` styles with LumenPOS's new ones; our
+     `named()` around three texts that name LumenPOS as the product),
+     `pos_capability_rule.json` and `permissions.py` (LumenPOS's three of
+     sales on account, then our five, all in CLOSED_BY_DEFAULT but LumenPOS's
+     open ones), the dictionary line of `messages.js` (`restaurantEn` and
+     `restaurantAddonsAr` spread in front), `translations/ar.csv` (both
+     sides' rows, sorted). `patches.txt` did not follow the rename this time:
+     LumenPOS's new line came as `lumenpos/patches.txt`, copied into ours by
+     hand. Ours, never conflicting: `restaurant_defaults.py` and the patch
+     `patches/lr_r15/restaurant_shift_scope.py` (a restaurant site starts on
+     one shift per outlet, LumenPOS's own default and code untouched),
+     `receipt_print.owed_html` (what a sale on account owes, on an outlet's
+     own Print Format and the emailed receipt). LumenPOS's `ReceiptModal.vue`
+     asks `printing.allow_reprint` before every print path, ours included.
+   - **LumenPOS's quality gate on our copy** (`ERPNext POS/quality/gate.mjs`,
+     read only): it expects LumenPOS's folders, so point it at a folder of
+     junctions (`lumenpos` to our `lumen_restaurants`, plus `frontend`,
+     `docs`, `scripts`) with `--repo <that folder> --bench <none>`. Its
+     "patches and hooks" rule then fails on our dotted names, and "languages"
+     cannot load `messages-restaurant.js`: both are the gate, not us. Every
+     other rule applies as it is.
    - `SettingsView.vue` `load()` (0.1.0-r12): our line reading
      `allow_store_credit_refund` (LumenPOS 0.56.2 and 0.58.0 leave it out, so
      every Save turned refunds to store credit back on). When LumenPOS adds the
