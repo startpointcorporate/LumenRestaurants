@@ -190,7 +190,7 @@
           <span v-for="k in LEGEND" :key="k" class="lg">
             <span class="sw" :class="'s-' + k"></span>{{ statusLabel(k) }} <b>{{ legend[k] }}</b>
           </span>
-          <span class="lg"><FloorIcon name="person" />{{ t('Guests now') }} <b>{{ legend.guests }}</b></span>
+          <span class="lg"><FloorIcon name="person" />{{ legendGuests }} <b>{{ legend.guests }}</b></span>
         </div>
         <div v-if="data.loose.length && !editing" class="loose">
           <span>{{ t('Not at a table') }}</span>
@@ -666,6 +666,12 @@ const legend = computed(() => {
     if (tb.order) out.guests += tb.order.guests || 0
   }
   return out
+})
+// The legend counts the area on screen, Right now the whole floor: one label
+// each, so the two counts of guests never read as the same thing.
+const legendGuests = computed(() => {
+  const a = areaSel.value && areaSel.value !== 'all' ? data.areas.find((x) => x.key === areaSel.value) : null
+  return a ? t('Guests in {area}', { area: areaLabel(a) }) : t('Guests now')
 })
 const nowStats = computed(() => {
   const occ = data.tables.filter((tb) => tb.order)

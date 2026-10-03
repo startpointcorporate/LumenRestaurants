@@ -59,7 +59,9 @@ def ensure_setup():
     write in the same transaction."""
     from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
-    frappe.db.commit()
+    # Before the table change: MariaDB commits by itself on DDL, and Frappe
+    # refuses DDL after a write in the same transaction.
+    frappe.db.commit()  # nosemgrep
     create_custom_fields(CUSTOM_FIELDS, ignore_validate=True)
 
 

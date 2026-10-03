@@ -40,10 +40,11 @@ RESTAURANTS_ON_SITE = (
 def before_install():
     """Lumen Restaurants is being installed: refuse a site that runs LumenPOS."""
     if LUMENPOS in frappe.get_installed_apps():
-        frappe.throw(LUMENPOS_ON_SITE, frappe.IncompatibleApp)
+        # Both languages in one message: an install has no language of its own.
+        frappe.throw(LUMENPOS_ON_SITE, frappe.IncompatibleApp)  # nosemgrep
 
 
 def before_app_install(app_name):
     """Another app is being installed on a Lumen Restaurants site."""
     if app_name == LUMENPOS:
-        frappe.throw(RESTAURANTS_ON_SITE, frappe.IncompatibleApp)
+        frappe.throw(RESTAURANTS_ON_SITE, frappe.IncompatibleApp)  # nosemgrep

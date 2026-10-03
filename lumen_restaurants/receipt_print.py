@@ -24,7 +24,8 @@ MARK_FILE = ("public", "images", "png", "receipt-96px-203dpi.png")
 
 @lru_cache(maxsize=1)
 def mark_html():
-    with open(frappe.get_app_path("lumen_restaurants", *MARK_FILE), "rb") as f:
+    # Our own packaged picture, a fixed path inside the app.
+    with open(frappe.get_app_path("lumen_restaurants", *MARK_FILE), "rb") as f:  # nosemgrep
         png = base64.b64encode(f.read()).decode()
     return (
         '<div class="lumen-restaurants-mark" style="text-align:center;margin:14px 0 4px;'

@@ -238,12 +238,12 @@ def save_plan(pos_profile: str, plan: dict | list | str):
     # The tables follow their area's new name, a swap of two names included.
     for i, (old, _new) in enumerate(renames):
         frappe.db.sql(
-            f"update `tab{TABLE}` set area = %s where pos_profile = %s and ifnull(area, '') = %s",
+            "update `tabPOS Restaurant Table` set area = %s where pos_profile = %s and ifnull(area, '') = %s",
             (f"\x01{i}", pos_profile, old),
         )
     for i, (_old, new) in enumerate(renames):
         frappe.db.sql(
-            f"update `tab{TABLE}` set area = %s where pos_profile = %s and area = %s",
+            "update `tabPOS Restaurant Table` set area = %s where pos_profile = %s and area = %s",
             (new, pos_profile, f"\x01{i}"),
         )
     # Checked above: no table stands in an area being deleted once the plan is

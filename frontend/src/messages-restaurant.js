@@ -224,6 +224,7 @@ export const restaurantAddonsAr = {
   'Bill requested': 'طلب الحساب',
   'Booked': 'محجوزة',
   'Guests now': 'الضيوف الآن',
+  'Guests in {area}': 'الضيوف في {area}',
   'Sitting for': 'مدة الجلوس',
   'Opened by': 'فتحه',
   '{n}m': '{n} د',

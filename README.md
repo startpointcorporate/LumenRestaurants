@@ -38,10 +38,15 @@ with its parking, price checker and serial numbers.
 
 ## Install
 
+On Frappe Cloud, install Lumen Restaurants from the Marketplace. On a bench of
+your own:
+
 ```bash
-bench get-app <the Lumen Restaurants repository>
+bench get-app https://github.com/ma7mod7osam/LumenRestaurants
 bench --site <site> install-app lumen_restaurants
 ```
+
+The front end ships built, so no Node or npm is needed on the bench.
 
 The till is at `/pos`, and it can be installed on a tablet or a phone as its own
 app. The public booking pages are at `/book/<outlet>`.

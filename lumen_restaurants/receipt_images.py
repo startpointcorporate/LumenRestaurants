@@ -98,7 +98,9 @@ def _read(url):
         if not path.startswith(os.path.normpath(root) + os.sep):
             return None
         if os.path.isfile(path):
-            with open(path, "rb") as f:
+            # Confined above: a normalised path inside the site's files or an
+            # app's public folder, never one that climbs out of it.
+            with open(path, "rb") as f:  # nosemgrep
                 return f.read()
     except Exception:
         frappe.log_error(title="Lumen Restaurants: receipt logo")

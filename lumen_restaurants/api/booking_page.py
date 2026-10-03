@@ -59,6 +59,13 @@ def load(pos_profile):
     if frappe.db.exists(PAGE, pos_profile):
         return frappe.get_doc(PAGE, pos_profile)
     doc = frappe.new_doc(PAGE)
+    # Frappe 13 to 15 give every Time field of a new document the time of day,
+    # whatever its default says (16 reads the default), so a new page opened
+    # and closed at the minute it was started and took no booking: put the
+    # doctype's own hours back.
+    for df in doc.meta.get("fields", {"fieldtype": "Time"}):
+        if df.default and df.default.lower() != "now":
+            doc.set(df.fieldname, df.default)
     doc.pos_profile = pos_profile
     company = frappe.db.get_value("POS Profile", pos_profile, "company")
     doc.title = company or pos_profile

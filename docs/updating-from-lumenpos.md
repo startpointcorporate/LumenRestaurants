@@ -26,9 +26,10 @@ other, before anything is written.
 
 ## Start from the inbox
 
-The LumenPOS conversation writes every batch of LumenPOS work, and every
-problem it finds that Lumen Restaurants must fix, to `inbox-from-lumenpos/` in
-the project folder (next to this repository). Read its `INDEX.md` first: each
+LumenPOS's maintainers write every batch of LumenPOS work, and every problem
+they find that Lumen Restaurants must fix, to `inbox-from-lumenpos/` in the
+project folder (next to this repository, not part of it). Read its `INDEX.md`
+first: each
 open entry names the LumenPOS commits, new fields, the files that will
 conflict and the **MUST FIX** items in our own code. Merge as below, fix those
 items, test, then fill in the entry's last column (our commit and the date).
@@ -52,7 +53,9 @@ items, test, then fill in the entry's last column (our commit and the date).
      `app-icon-180.png`, all from the logo kit), `lumen_restaurants/public/images/`
      (the logo kit itself), and the version in `lumen_restaurants/__init__.py`.
    - Delete again if a merge brings them back: `scripts/make_icons.mjs` and
-     `frontend/public/icon-192.png` / `icon-512.png` (LumenPOS's icons).
+     `frontend/public/icon-192.png` / `icon-512.png` (LumenPOS's icons), and
+     `docs/website-guide.md` (the text of LumenPOS's page on its website, which
+     names LumenPOS's repository, so `git rm` it when a merge changes it).
    - Keep both sides: `lumen_restaurants/hooks.py` (the title, the description
      and the two `site_guard` hooks), `lumen_restaurants/api/sales.py` (the
      emailed receipt attaches with our mark, `attach_with_mark`),
@@ -197,7 +200,7 @@ items, test, then fill in the entry's last column (our commit and the date).
      the wrong function in a merge ("DECORATOR THEFT"). It found one in
      LumenPOS 0.55.0 itself (`api/layaway.py`: `_assert_hold_prices` took the
      decorator of `create_layaway`, so a hold could not be started from the
-     till): put it back on the endpoint and tell the LumenPOS conversation.
+     till): put it back on the endpoint and tell LumenPOS's maintainers.
 7. **Test, then release.** Install on a throwaway site on the benches first,
    then the test sites. LumenPOS's own suites that come in the inbox's
    `tools/` folder run on our sites as they are, with the project folder's

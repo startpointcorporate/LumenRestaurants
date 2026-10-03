@@ -25,11 +25,10 @@ def get_context(context):
     from lumen_restaurants.api import booking_page, reservations
 
     outlet = frappe.form_dict.get("outlet") or ""
-    preview = (
-        frappe.form_dict.get("preview") in ("1", "true")
-        and frappe.session.user != "Guest"
-        and frappe.has_permission("POS Booking Page", "read")
-    )
+    # A preview shows the page as it is being designed, to whoever may read it.
+    preview = frappe.form_dict.get("preview") in ("1", "true") and frappe.session.user != "Guest"
+    if preview:
+        preview = frappe.has_permission("POS Booking Page", "read")
     page = None
     if outlet and frappe.db.exists("POS Profile", outlet):
         page = booking_page.load(outlet) if preview else reservations._page(outlet)

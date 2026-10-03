@@ -17,6 +17,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, get_time, getdate, now_datetime, nowdate
 
+from frappe.rate_limiter import rate_limit
+
 from lumen_restaurants.api import restaurant
 
 RES = "POS Table Reservation"
@@ -284,7 +286,8 @@ def _clean_items(page, items, people):
     return out
 
 
-@frappe.whitelist(allow_guest=True)
+# The public booking page asks it: counts of a day's full slots, never a name.
+@frappe.whitelist(allow_guest=True)  # nosemgrep
 def availability(pos_profile: str | None = None, date: str | None = None, guests: int | str | bool | None = None):
     """Which slots on a day can still take this party. Counts only, never a
     name: the page greys out a full slot instead of letting a guest find out
@@ -305,7 +308,12 @@ def availability(pos_profile: str | None = None, date: str | None = None, guests
     return {"closed": False, "full": sorted(full)}
 
 
-@frappe.whitelist(allow_guest=True)
+# The public booking page posts it: one Requested booking, a honeypot against
+# bots, every field checked against the page, the daily limits per phone and
+# per address below, and at most 60 tries an hour from one address (Frappe's own
+# rate limiter): far above any guest, it stops a script hammering the page.
+@frappe.whitelist(allow_guest=True)  # nosemgrep
+@rate_limit(limit=60, seconds=60 * 60)
 def book_online(pos_profile: str | None = None, customer_name: str | None = None, phone: str | None = None, reservation_date: str | None = None,
                 reservation_time: str | None = None, guests: int | str | bool | None = None, note: str | None = None, website: str | None = None,
                 answers: dict | list | str | None = None, items: dict | list | str | None = None):

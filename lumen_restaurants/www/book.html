@@ -48,7 +48,8 @@
             padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .chip.on { border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
     .chip:disabled { opacity: .35; cursor: default; text-decoration: line-through; }
-    .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 188px; overflow: auto; }
+    .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 188px; overflow: auto;
+             scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
     .slots .chip { text-align: center; padding: 9px 2px; direction: ltr; }
     .empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
     .stepper { display: inline-flex; align-items: center; gap: 12px; }
@@ -210,6 +211,9 @@ function applyTheme() {
   root.setProperty("--on-brand", onColour(brand));
   root.setProperty("--card", card);
   var dark = luminance(card) < 0.35;
+  // The browser's own parts (a scroll bar, a list, a tick) follow the card:
+  // on a dark one they showed white on a computer.
+  root.setProperty("color-scheme", dark ? "dark" : "light");
   root.setProperty("--ink", dark ? "#f2f5fa" : "#101623");
   root.setProperty("--muted", dark ? "#a9b3c2" : "#66707f");
   root.setProperty("--line", dark ? "rgba(255,255,255,.16)" : "#e3e7ee");

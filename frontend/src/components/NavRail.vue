@@ -31,9 +31,13 @@
       <span>{{ t('Tables') }}</span>
     </router-link>
     <router-link v-if="session.restaurantMode" to="/reservations" class="rail-item" active-class="active">
-      <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <!-- The badge sits on the icon, as Approvals' does: outside an icon-wrap it
+           took the page's top right corner, half off the screen. -->
+      <span class="icon-wrap">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span v-if="requestedCount" class="badge">{{ requestedCount }}</span>
+      </span>
       <span>{{ t('Bookings') }}</span>
-      <span v-if="requestedCount" class="badge">{{ requestedCount }}</span>
     </router-link>
     <router-link v-if="session.restaurantMode" to="/kitchen" class="rail-item" active-class="active">
       <svg viewBox="0 0 24 24"><path d="M5 11a7 7 0 0 1 14 0v1H5zM4 15h16M7 19h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
