@@ -1109,6 +1109,58 @@
         </p>
         <button class="btn btn-primary" @click="$router.push('/booking-designer')">{{ t('Design the booking page') }}</button>
       </div>
+      <!-- Sales on account (lumen_restaurants.credit_sales, 0.60.0) -->
+      <div class="sec-card" v-show="generalSection === 'credit'" data-tour="settings-credit">
+        <div class="sec-title"><Icon name="clock" /> {{ t('Sales on account') }}</div>
+        <p class="sec-note">{{ t('A customer takes the goods now and pays later, all of it, or the rest after paying part.') }}</p>
+        <div class="setting-list">
+          <label class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.credit_sales_enabled" :true-value="1" :false-value="0" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Sell on account') }}</span>
+              <span class="setting-desc">{{ t('Off (the default): the till shows nothing about it.') }}</span>
+            </span>
+          </label>
+        </div>
+        <template v-if="generalForm.credit_sales_enabled">
+          <div class="field-grid" style="margin-top: 16px">
+            <label class="field">
+              <span>{{ t('Who can buy on account') }}</span>
+              <select v-model="generalForm.credit_customers">
+                <option value="Customers allowed on their card">{{ t('Only customers allowed on their card') }}</option>
+                <option value="Any named customer">{{ t('Any named customer') }}</option>
+              </select>
+              <span class="setting-desc">{{ t("Never the walk-in customer. A customer is allowed on their card in Customers, by whoever may set a customer's credit.") }}</span>
+            </label>
+            <label class="field">
+              <span>{{ t('Default credit limit') }}</span>
+              <input type="number" min="0" step="0.01" v-model.number="generalForm.credit_default_limit" />
+              <span class="setting-desc">{{ t("For a customer with no credit limit of their own in ERPNext (on the customer, its group or the company), in the company's currency. 0 = no limit.") }}</span>
+            </label>
+          </div>
+          <div class="how-box">
+            <div class="how-title">{{ t('How it works') }}</div>
+            <ol class="how-list">
+              <li>{{ t('At the payment screen, Put on account pays what the customer does not pay now. The sale is a POS invoice like any other.') }}</li>
+              <li>{{ t('At that moment the till books the debt on the customer in ERPNext, one Journal Entry per sale, so it shows on their account and in Accounts Receivable at once.') }}</li>
+              <li>{{ t('The till refuses a sale that would take the customer past their credit limit. Raise the limit on their card to allow more.') }}</li>
+              <li>{{ t('The customer pays later at the till (Customers, Take a payment) or in ERPNext. One payment can settle several sales, the oldest first.') }}</li>
+              <li>{{ t('A return of a sale still owing comes off the debt first, and only the rest goes back as money.') }}</li>
+              <li>{{ t('At the close, what was sold on account is shown but not counted, and the payments taken are in the drawer.') }}</li>
+            </ol>
+            <p class="muted small" style="margin: 0">{{ t("Who may sell on account, take customer payments and set a customer's credit is set in Approvals and access, Permissions. Until someone is named there, only managers can.") }}</p>
+          </div>
+          <div class="credit-setup">
+            <div class="sub-label">{{ t('Set up by LumenPOS') }}</div>
+            <div v-for="row in settingsInfo.credit_setup || []" :key="row.company" class="credit-setup-row">
+              <bdi class="credit-company">{{ row.company }}</bdi>
+              <span v-if="row.ready" class="muted small">{{ t('Payment method {mode}, account {account}', { mode: row.mode, account: row.account }) }}</span>
+              <span v-else-if="row.clash" class="credit-clash small">{{ t('A payment method named {mode} already exists, on account {account}. Rename it in ERPNext, then save again.', { mode: row.mode, account: row.account }) }}</span>
+              <span v-else class="muted small">{{ t('Set up when you save') }}</span>
+            </div>
+          </div>
+        </template>
+      </div>
       <!-- Delivery apps -->
       <div class="sec-card" v-show="generalSection === 'payments'">
         <div class="sec-title"><Icon name="bike" /> {{ t('Delivery apps') }}</div>
@@ -1389,8 +1441,8 @@
           <label class="field span-2" style="display:block; margin-bottom: 10px">
             <span class="setting-title">{{ t('A shift belongs to') }}</span>
             <select v-model="generalForm.shift_scope" class="cf-in" style="width: 100%; margin-top: 4px">
-              <option value="Per outlet">{{ t('The outlet, one shift per register, any cashier sells on it') }}</option>
               <option value="Per cashier">{{ t('The cashier, each opens their own shift and sells only on it') }}</option>
+              <option value="Per outlet">{{ t('The outlet, one shift per register, any cashier sells on it') }}</option>
             </select>
             <span class="setting-desc">{{ t('Per cashier lets several people share one counter, each with their own drawer and Z-report. On ERPNext 16 an outlet sells with only one open shift, so there each cashier needs their own POS Profile.') }}</span>
           </label>
@@ -1408,6 +1460,14 @@
             <span class="setting-text">
               <span class="setting-title">{{ t('Keep a shift open past midnight') }}</span>
               <span class="setting-desc">{{ t('ERPNext 16 takes sales only on a shift opened the same day. On (the default): at the first sale after midnight LumenPOS closes the day in ERPNext and opens the next one by itself, and the shift carries on and is counted once, at its own close. Off: a shift from an earlier day has to be closed before it can sell again.') }}</span>
+            </span>
+          </label>
+          <!-- lumen_restaurants.accounting_periods (0.58.1) -->
+          <label class="setting-row">
+            <input type="checkbox" class="setting-toggle" v-model="generalForm.warn_locked_periods" :true-value="1" :false-value="0" />
+            <span class="setting-text">
+              <span class="setting-title">{{ t('Warn about locked accounting periods') }}</span>
+              <span class="setting-desc">{{ t('When an ERPNext accounting period locks sales invoices, say so as a shift opens, and explain a close it stops. The system check lists such periods either way.') }}</span>
             </span>
           </label>
           <label class="setting-row">
@@ -1447,6 +1507,33 @@
               <span>{{ t('Notify role') }}</span>
               <LinkPicker doctype="Role" v-model="generalForm.variance_alert_role" :placeholder="t('e.g. LumenPOS Manager')" />
             </label>
+          </div>
+          <!-- A reason for a short or over at the close (lumen_restaurants.variance, 0.59.0). -->
+          <label class="field span-2" style="display:block; margin: 6px 0 10px">
+            <span class="setting-title">{{ t('Reason for a short or over') }}</span>
+            <select v-model="generalForm.variance_reason_mode" class="cf-in" style="width: 100%; margin-top: 4px">
+              <option value="Optional">{{ t('Optional, the cashier may give a reason') }}</option>
+              <option value="Required">{{ t('Required, the register does not close without one') }}</option>
+              <option value="Off">{{ t('Off, the till does not ask for a reason') }}</option>
+            </select>
+            <span class="setting-desc">{{ t('When a counted drawer is short or over at the close, the cashier writes a reason, or taps one from the list below, and can say what was done about it. Both stay with the shift and go in the variance email.') }}</span>
+          </label>
+          <div v-if="generalForm.variance_reason_mode !== 'Off'" class="vr-settings">
+            <label v-if="generalForm.variance_reason_mode === 'Required'" class="field" style="max-width: 320px; margin-bottom: 10px">
+              <span>{{ t('Ask only when the difference is more than (0 = any difference)') }}</span>
+              <input type="number" min="0" step="0.01" v-model.number="generalForm.variance_reason_threshold" />
+            </label>
+            <div class="sub-label">{{ t('Reasons for a short or over') }}</div>
+            <p class="muted hint-row" style="padding: 0 0 10px">{{ t('The cashier can also write a reason in their own words.') }}</p>
+            <div v-for="(r, i) in generalForm.variance_reasons" :key="'vr' + i" class="item-row">
+              <input
+                :value="shownReason(generalForm.variance_reasons[i])"
+                :placeholder="t('Reason (for example Counting mistake)')"
+                @input="generalForm.variance_reasons[i] = keptReason($event.target.value)"
+              />
+              <button class="btn-ghost" @click="generalForm.variance_reasons.splice(i, 1)"><Icon name="close" /></button>
+            </div>
+            <button class="btn btn-outline add-row" @click="generalForm.variance_reasons.push('')">{{ t('+ Add reason') }}</button>
           </div>
           <label class="setting-row">
             <input type="checkbox" class="setting-toggle" v-model="generalForm.offline_stock_only" :true-value="1" :false-value="0" />
@@ -1999,7 +2086,11 @@
           <b>{{ t('Other') }}</b> {{ t('for a free-text reason.') }}
         </p>
         <div v-for="(r, i) in generalForm.return_reasons" :key="i" class="item-row">
-          <input v-model="generalForm.return_reasons[i]" :placeholder="t('Reason (for example Damaged product)')" />
+          <input
+            :value="shownReason(generalForm.return_reasons[i])"
+            :placeholder="t('Reason (for example Damaged product)')"
+            @input="generalForm.return_reasons[i] = keptReason($event.target.value)"
+          />
           <button class="btn-ghost" @click="generalForm.return_reasons.splice(i, 1)"><Icon name="close" /></button>
         </div>
         <button
@@ -2477,6 +2568,9 @@ const capabilityOptions = [
   'Hold goods for a customer',
   'See sales by salesperson',
   'See the system check',
+  'Sell on account',
+  'Take customer payments',
+  "Set a customer's credit",
   // Lumen Restaurants: the restaurant's own actions.
   'Open a table order',
   'Move or merge tables',
@@ -2520,9 +2614,16 @@ const generalForm = ref({
   help_in_till: 1,
   help_offer_tour: 1,
   help_whats_new: 1,
-  shift_scope: 'Per outlet',
+  shift_scope: 'Per cashier',
   one_shift_per_user: 0,
   carry_shift_past_midnight: 1,
+  warn_locked_periods: 1,
+  variance_reason_mode: 'Optional',
+  variance_reason_threshold: 0,
+  variance_reasons: [],
+  credit_sales_enabled: 0,
+  credit_customers: 'Customers allowed on their card',
+  credit_default_limit: 0,
   variance_alert_enabled: 0,
   variance_alert_threshold: 0,
   variance_alert_role: '',
@@ -2634,6 +2735,21 @@ async function saveTables() {
     savingTables.value = false
   }
 }
+// Return reasons and reasons for a short or over are kept in English and every
+// till shows them in its own language, so this screen shows them translated too.
+// A reason left as it was is saved back as its English text, so it stays
+// translated everywhere; a reason the manager rewrites is kept as written.
+const reasonKeys = ref([])
+const reasonByShown = computed(() => {
+  const map = new Map()
+  for (const key of reasonKeys.value) {
+    const shown = t(key)
+    if (shown !== key && !map.has(shown)) map.set(shown, key)
+  }
+  return map
+})
+const shownReason = (value) => (value ? t(value) : '')
+const keptReason = (value) => reasonByShown.value.get(value) || value
 
 // ---- General is split into groups, like the tabs on the left ----
 const generalSections = [
@@ -2646,6 +2762,7 @@ const generalSections = [
   { key: 'returns', label: 'Returns and refunds', icon: 'refresh' },
   { key: 'holds', label: 'Holds and deposits', icon: 'bookmark' },
   { key: 'restaurant', label: 'Restaurant', icon: 'table' },
+  { key: 'credit', label: 'Sales on account', icon: 'clock' },
   { key: 'receipt', label: 'Receipt', icon: 'image' },
   { key: 'languages', label: 'Languages', icon: 'globe' },
   { key: 'help', label: 'Help for staff', icon: 'help' },
@@ -3065,6 +3182,7 @@ const previewReceipt = computed(() => ({
 const AUDIT_ACTIONS = [
   'Sale', 'Return', 'Over-limit discount', 'Price edit',
   'Register open', 'Register close', 'ERPNext day closed', 'Settings change', 'Email receipt', 'Till unlock',
+  'Customer payment', 'Customer credit', 'Reprint',
 ]
 const auditLogs = ref([])
 const auditFilter = ref({ action: '', from_date: '', to_date: '' })
@@ -3197,6 +3315,7 @@ async function load() {
   loadTables()
   const info = await call('lumen_restaurants.api.settings.get_settings')
   settingsInfo.value = info
+  reasonKeys.value = [...(info.variance_reasons || []), ...(info.return_reasons || [])]
   profileReceiptOverrides.value = info.profile_receipt_overrides || []
   loadFieldOptions('Sale Invoice')
   loadFieldOptions('POS Profile')
@@ -3235,10 +3354,20 @@ async function load() {
     help_in_till: info.help_in_till === 0 ? 0 : 1,
     help_offer_tour: info.help_offer_tour === 0 ? 0 : 1,
     help_whats_new: info.help_whats_new === 0 ? 0 : 1,
-    shift_scope: info.shift_scope || 'Per outlet',
+    shift_scope: info.shift_scope || 'Per cashier',
     one_shift_per_user: info.one_shift_per_user ? 1 : 0,
     // A server from before 0.55.0 does not send it: on, its default.
     carry_shift_past_midnight: info.carry_shift_past_midnight === 0 ? 0 : 1,
+    // And before 0.58.1.
+    warn_locked_periods: info.warn_locked_periods === 0 ? 0 : 1,
+    // And before 0.59.0 (lumen_restaurants.variance).
+    variance_reason_mode: info.variance_reason_mode || 'Optional',
+    variance_reason_threshold: info.variance_reason_threshold || 0,
+    variance_reasons: [...(info.variance_reasons || [])],
+    // And before 0.60.0 (lumen_restaurants.credit_sales).
+    credit_sales_enabled: info.credit_sales_enabled ? 1 : 0,
+    credit_customers: info.credit_customers || 'Customers allowed on their card',
+    credit_default_limit: info.credit_default_limit || 0,
     variance_alert_enabled: info.variance_alert_enabled || 0,
     variance_alert_threshold: info.variance_alert_threshold || 0,
     variance_alert_role: info.variance_alert_role || '',
@@ -4020,6 +4149,12 @@ async function saveGeneral() {
     session.settings.service_charge_percent = info.service_charge_percent || 0
     session.settings.enable_price_checker = info.enable_price_checker ?? 1
     session.settings.salesperson_mode = info.salesperson_mode || 'Optional'
+    session.settings.variance_reason_mode = info.variance_reason_mode || 'Optional'
+    session.settings.variance_reason_threshold = info.variance_reason_threshold || 0
+    session.settings.variance_reasons = info.variance_reasons || []
+    session.settings.credit_sales_enabled = info.credit_sales_enabled || 0
+    session.settings.credit_customers = info.credit_customers || 'Customers allowed on their card'
+    session.settings.credit_default_limit = info.credit_default_limit || 0
     // The "?" comes and goes with the switch, no reload needed.
     session.help = {
       ...session.help,
@@ -4607,6 +4742,31 @@ button.sec-title.collapsible + * { margin-top: 14px; }
   font-size: 13px;
 }
 .table-off { display: flex; align-items: center; gap: 6px; }
+/* The reasons for a short or over, under their mode (0.59.0). */
+.vr-settings { margin: 0 0 14px; padding-inline-start: 2px; }
+/* Sales on account (0.60.0): how it works, and what LumenPOS set up. */
+.how-box {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.how-title { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
+.how-list { margin: 0 0 8px; padding-inline-start: 20px; font-size: 13px; line-height: 1.6; color: var(--text); }
+.how-list li + li { margin-top: 3px; }
+.credit-setup { margin-top: 16px; }
+.credit-setup-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.credit-setup-row:last-child { border-bottom: none; }
+.credit-company { font-weight: 600; min-width: 140px; }
+.credit-clash { color: var(--red); font-weight: 600; }
 
 /* iOS-style settings list */
 .setting-list { display: flex; flex-direction: column; }

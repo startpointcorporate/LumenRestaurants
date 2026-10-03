@@ -35,11 +35,46 @@ def mark_html():
     )
 
 
-def with_mark(html):
-    """The page with our mark added just before </body>, or at its end."""
+def owed_html(doc):
+    """A sale on account (LumenPOS 0.60.0): what stays owed, on this sale and in
+    all, and a line for the customer to sign, as the till's own receipt and the
+    receipt printer show them. Nothing for any other sale, or a return."""
+    from frappe.utils import escape_html, fmt_money
+
+    from lumen_restaurants import credit_sales
+
+    if doc.get("is_return"):
+        return ""
+    try:
+        facts = credit_sales.receipt_facts(doc)
+    except Exception:
+        return ""
+    if not facts:
+        return ""
+    rows = [(frappe._("Owed on this sale"), fmt_money(facts.get("owed_on_sale"), currency=doc.currency))]
+    if facts.get("owed_total") is not None:
+        currency = frappe.get_cached_value("Company", doc.company, "default_currency")
+        rows.append((frappe._("Owed in all"), fmt_money(facts["owed_total"], currency=currency)))
+    cells = "".join(
+        f'<tr><td>{escape_html(label)}</td><td style="text-align:end;white-space:nowrap">{escape_html(value)}</td></tr>'
+        for label, value in rows
+    )
+    return (
+        '<div class="lumen-restaurants-owed" style="margin:12px 0 0;font:12px/1.5 Arial,sans-serif;'
+        'color:#000;page-break-inside:avoid">'
+        f'<table style="width:100%;border-collapse:collapse;font-weight:bold">{cells}</table>'
+        '<div style="margin-top:26px;padding-top:4px;border-top:1px solid #000;width:70%">'
+        f'{escape_html(frappe._("Customer signature"))}</div></div>'
+    )
+
+
+def with_mark(html, before=""):
+    """The page with our mark added just before </body>, or at its end, and
+    `before` it (what a sale on account still owes)."""
     html = html or ""
+    foot = (before or "") + mark_html()
     at = html.lower().rfind("</body>")
-    return html + mark_html() if at < 0 else html[:at] + mark_html() + html[at:]
+    return html + foot if at < 0 else html[:at] + foot + html[at:]
 
 
 @frappe.whitelist()
@@ -54,7 +89,10 @@ def print_html(invoice: str):
     doc = frappe.get_doc(doctype, invoice)
     doc.check_permission("print")
     print_format = frappe.db.get_value("POS Profile", doc.get("pos_profile"), "print_format")
-    return with_mark(frappe.get_print(doctype, invoice, print_format=print_format or None, doc=doc, no_letterhead=0))
+    return with_mark(
+        frappe.get_print(doctype, invoice, print_format=print_format or None, doc=doc, no_letterhead=0),
+        before=owed_html(doc),
+    )
 
 
 def attach_with_mark(doctype, name, doc, print_format=None):
@@ -64,7 +102,7 @@ def attach_with_mark(doctype, name, doc, print_format=None):
 
     frappe.local.flags.ignore_print_permissions = True
     try:
-        html = with_mark(frappe.get_print(doctype, name, print_format=print_format, doc=doc))
+        html = with_mark(frappe.get_print(doctype, name, print_format=print_format, doc=doc), before=owed_html(doc))
     finally:
         frappe.local.flags.ignore_print_permissions = False
     return frappe.attach_print(doctype, name, print_format=print_format, doc=doc, html=scrub_urls(html))

@@ -42,7 +42,7 @@ from frappe import _
 from frappe.utils import cint, flt, get_datetime, getdate, now_datetime, nowdate, nowtime
 
 from lumen_restaurants.api.session import get_open_session
-from lumen_restaurants import erpnext_compat
+from lumen_restaurants import credit_sales, erpnext_compat
 from lumen_restaurants.api import salespeople
 
 LIVE_STATES = ["Open", "Closing"]  # a shift that blocks opening another
@@ -116,6 +116,38 @@ def _in_window(recorded_at, since=None, until=None):
     if since is not None and when <= get_datetime(since):
         return False
     return until is None or when <= get_datetime(until)
+
+
+def _customer_payments(session_name, since=None, until=None):
+    """Customers' payments of what they owe taken in this shift (lumen_restaurants.api.
+    credit, 0.60.0, a Cash or Bank Entry each): ({mode: amount}, the list).
+    Each lies in the drawer of its payment method, so the close expects it
+    there. `since` and `until` keep to one ERPNext day of a shift that ran
+    past midnight (roll_day)."""
+    if not frappe.get_meta("Journal Entry").has_field("lumenpos_session"):
+        return {}, []  # not migrated yet
+    by_mode, listed = {}, []
+    for row in frappe.get_all(
+        "Journal Entry",
+        filters={"lumenpos_session": session_name, "docstatus": 1, "lumenpos_credit_kind": "Payment"},
+        fields=["name", "mode_of_payment", "total_debit", "lumenpos_credit_customer", "creation"],
+        order_by="creation asc",
+    ):
+        if not _in_window(row.creation, since, until):
+            continue
+        amount = flt(row.total_debit, 2)
+        by_mode[row.mode_of_payment] = flt(flt(by_mode.get(row.mode_of_payment)) + amount, 2)
+        listed.append(
+            {
+                "name": row.name,
+                "mode_of_payment": row.mode_of_payment,
+                "amount": amount,
+                "customer": row.lumenpos_credit_customer,
+                "customer_name": frappe.db.get_value("Customer", row.lumenpos_credit_customer, "customer_name"),
+                "recorded_at": str(row.creation),
+            }
+        )
+    return by_mode, listed
 
 
 def _drawer_movements(session_doc, mode, main_drawer, since=None, until=None):
@@ -510,6 +542,13 @@ def _maybe_alert_variance(doc):
             f"<td align='right'><b>{flt(r.difference):,.2f}</b></td></tr>"
             for r in rows
         )
+        # The cashier's reason and what was done, when given (0.59.0).
+        why = ""
+        if doc.get("variance_reason"):
+            why += f"<p><b>{_('Reason for the difference')}:</b> {frappe.utils.escape_html(_(doc.variance_reason))}"
+            if doc.get("variance_action"):
+                why += f"<br><b>{_('Action taken')}:</b> {frappe.utils.escape_html(doc.variance_action)}"
+            why += "</p>"
         frappe.sendmail(
             recipients=recipients,
             subject=_("Cash variance on {0} ({1})").format(doc.pos_profile, doc.name),
@@ -522,7 +561,7 @@ def _maybe_alert_variance(doc):
                 "<table border='1' cellpadding='6' cellspacing='0'>"
                 f"<tr><th>{_('Payment')}</th><th>{_('Currency')}</th><th>{_('Expected')}</th>"
                 f"<th>{_('Counted')}</th><th>{_('Difference')}</th></tr>"
-                f"{cells}</table>"
+                f"{cells}</table>{why}"
             ),
         )
     except Exception:
@@ -608,6 +647,12 @@ def get_session_summary(session: str):
     foreign = _foreign_drawers(doc.pos_profile)
     floats = _foreign_floats(doc)
     payments = _payments_by_mode(doc.name, sale_doctype, drawer)
+    # What was sold on account is owed, not in any drawer: shown, never
+    # counted (lumen_restaurants.credit_sales). What customers paid of their debts is.
+    on_account = flt(payments.pop(credit_sales.MODE_OF_PAYMENT, 0), 2)
+    received, received_rows = _customer_payments(doc.name)
+    for mode, amount in received.items():
+        payments[mode] = flt(flt(payments.get(mode)) + amount, 2)
     cash_in, cash_out = _drawer_movements(doc, drawer, drawer)
 
     expected, seen = [], set()
@@ -675,6 +720,11 @@ def get_session_summary(session: str):
             for m in (doc.cash_movements or [])
         ],
         "expected": expected,
+        # Sold on account in this shift (returns taken off), and customers'
+        # payments of their debts, already inside the expected figures above.
+        "on_account": on_account,
+        "customer_payments": received_rows,
+        "customer_payments_total": flt(sum(row["amount"] for row in received_rows), 2),
         # The ERPNext days the shift closed while it sold on past midnight.
         "erpnext_days": _days_info(doc),
         # Who sold what on this shift (empty when nobody was named).
@@ -746,10 +796,19 @@ def _has_expected_pending():
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def close_register(session: str, counted: dict | str, closing_note: str | None = None, expected_invoice_count: int | str | None = None):
+def close_register(
+    session: str,
+    counted: dict | str,
+    closing_note: str | None = None,
+    expected_invoice_count: int | str | None = None,
+    variance_reason: str | None = None,
+    variance_action: str | None = None,
+    expected_payment_count: int | str | None = None,
+):
     """Flip the session to 'Closing' (committed immediately, so it can never be
     sold-on or resumed again), then consolidate in a serialized background job.
-    The shift only reaches 'Closed' once consolidation succeeds."""
+    The shift only reaches 'Closed' once consolidation succeeds. A drawer counted
+    short or over carries the cashier's reason (lumen_restaurants.variance)."""
     if isinstance(counted, str):
         counted = json.loads(counted)
 
@@ -796,6 +855,18 @@ def close_register(session: str, counted: dict | str, closing_note: str | None =
                 ),
                 title=_("Closing figures out of date"),
             )
+    # The same for a customer's payment taken into a drawer from another till
+    # after the screen loaded (0.60.0).
+    if expected_payment_count not in (None, "") and cint(expected_payment_count) != len(
+        _customer_payments(doc.name)[1]
+    ):
+        frappe.throw(
+            _(
+                "A customer's payment was taken after the closing screen was loaded. "
+                "Refresh the closing screen, re-check the counts, then close again."
+            ),
+            title=_("Closing figures out of date"),
+        )
 
     # What each drawer should hold. Working it out must never keep a shift
     # open: with 0.52.0 on ERPNext 16 it failed right here on every shift, so
@@ -830,6 +901,12 @@ def close_register(session: str, counted: dict | str, closing_note: str | None =
                 "difference": flt(counted_amount - expected_amount, 2) if summary else 0,
             },
         )
+
+    # A short or over: the shop's reason, checked BEFORE anything is saved, so
+    # a close refused for want of one leaves the shift open (0.59.0).
+    from lumen_restaurants import variance
+
+    variance.apply(doc, variance_reason, variance_action, figures_known=bool(summary))
 
     # Nothing unconfirmed survives the shift: void pending / approved-but-unused
     # approval requests BEFORE the flip, so none can be spent on the next shift.
@@ -929,6 +1006,8 @@ def _close_result(doc, queued):
         ],
         "total_sales": doc.total_sales,
         "sales_count": doc.sales_count,
+        "variance_reason": doc.get("variance_reason"),
+        "variance_action": doc.get("variance_action"),
     }
 
 
@@ -1091,6 +1170,8 @@ def _fill_pending_figures(session_name, closing=None, quiet=False):
             recon = {r.mode_of_payment: flt(r.expected_amount) for r in closing.get("payment_reconciliation") or []}
         else:
             recon = {r["mode_of_payment"]: flt(r["expected_amount"]) for r in get_session_summary(session_name)["expected"]}
+        # Sold on account is owed, not counted (lumen_restaurants.credit_sales).
+        recon.pop(credit_sales.MODE_OF_PAYMENT, None)
         counted_modes = set()
         for row in doc.get("payment_counts") or []:
             counted_modes.add(row.mode_of_payment)
@@ -1564,6 +1645,10 @@ def _build_closing(session_doc, opening, counted=None, until=None):
     for mode, amount in _payments_by_mode(session_doc.name, sale_doctype, drawer, exclude=held).items():
         if amount:
             _accumulate_payment(closing, mode, amount)
+    # Customers' payments of their debts lie in the drawers too (0.60.0).
+    for mode, amount in _customer_payments(session_doc.name, since, until)[0].items():
+        if amount:
+            _accumulate_payment(closing, mode, amount)
 
     cash_modes = _cash_modes()
     foreign = _foreign_drawers(session_doc.pos_profile)
@@ -1606,7 +1691,8 @@ def _build_closing(session_doc, opening, counted=None, until=None):
                 break
 
     for row in closing.payment_reconciliation:
-        if counted is None:
+        # Nobody counts what was sold on account: it closes at what it is.
+        if counted is None or row.mode_of_payment == credit_sales.MODE_OF_PAYMENT:
             row.closing_amount = flt(row.expected_amount)
         else:
             row.closing_amount = flt(counted.get(row.mode_of_payment))
@@ -1793,7 +1879,12 @@ def _opening_closed(opening_name):
 
 
 def _short(value, length=480):
-    return str(value)[:length] if value is not None else None
+    # Kept as plain text: ERPNext's refusals carry HTML (the name of a closed
+    # accounting period in <strong>), which the Register page showed tags and
+    # all until 0.58.1.
+    from lumen_restaurants.accounting_periods import plain
+
+    return plain(value, length)
 
 
 # ---------------------------------------------------------------------------
@@ -1900,6 +1991,8 @@ def _carried_opening(opening, closing, now):
     method opening at what the day just closed says it should hold, cash or
     not, since the shift is counted once at its own close."""
     carried = {r.mode_of_payment: flt(r.expected_amount) for r in closing.payment_reconciliation}
+    # What was sold on account is owed, not held: nothing to carry.
+    carried.pop(credit_sales.MODE_OF_PAYMENT, None)
     modes = [r.mode_of_payment for r in opening.balance_details]
     modes += [mode for mode in carried if mode not in modes]
     entry = frappe.get_doc(
@@ -2031,6 +2124,9 @@ def _days_info(session_doc):
             "sales_count": cint(r.sales_count),
             "closing_status": r.closing_status,
             "closing_error": r.closing_error,
+            "closing_hint": _closing_hint(session_doc.pos_profile, r.closing_error)
+            if r.closing_status == "Failed"
+            else None,
         }
         for r in session_doc.get("erpnext_days") or []
     ]
@@ -2173,15 +2269,30 @@ def closing_entry_status(session: str):
     doc = frappe.db.get_value(
         "POS Register Session",
         session,
-        ["status", "closing_status", "closing_error", "pos_closing_entry"],
+        ["status", "closing_status", "closing_error", "pos_closing_entry", "pos_profile"],
         as_dict=True,
     ) or frappe._dict()
     return {
         "status": doc.status,
         "closing_status": doc.closing_status,
         "closing_error": doc.closing_error,
+        "closing_hint": _closing_hint(doc.pos_profile, doc.closing_error),
         "pos_closing_entry": doc.pos_closing_entry,
     }
+
+
+def _closing_hint(pos_profile, error):
+    """The ERPNext accounting period a failed close names, for the till to
+    explain (lumen_restaurants.accounting_periods), or None."""
+    if not error or not pos_profile:
+        return None
+    from lumen_restaurants import accounting_periods
+
+    try:
+        return accounting_periods.till_hint(frappe.get_cached_value("POS Profile", pos_profile, "company"), error)
+    except Exception:
+        # An explanation is a courtesy: never let it break the status itself.
+        return None
 
 
 @frappe.whitelist()
@@ -2233,7 +2344,9 @@ def list_sessions(pos_profile: str, limit: int | str = 20):
             "total_sales", "total_discounts", "sales_count", "status",
             "closing_status", "closing_error",
             "pos_opening_entry", "pos_closing_entry",
-        ] + (["expected_pending"] if _has_expected_pending() else []),
+        ] + (["expected_pending"] if _has_expected_pending() else [])
+        + (["variance_reason", "variance_action"]
+           if frappe.get_meta("POS Register Session").has_field("variance_reason") else []),
         order_by="closed_at desc",
         limit_page_length=min(int(limit), 50),
     )

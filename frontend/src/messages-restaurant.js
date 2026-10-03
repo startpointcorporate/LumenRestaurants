@@ -340,6 +340,11 @@ export const restaurantAddonsAr = {
   'The Tables screen draws each area with its tables where they stand. Tap a table for its order, its bill and its payment.': 'شاشة الطاولات ترسم كل منطقة وطاولاتها في أماكنها. اضغط على الطاولة لترى طلبها وحسابها وتدفع.',
   'Draw your floor': 'ارسم صالتك',
   'Edit the plan on the Tables screen moves, adds and turns tables, and draws the walls, doors and the rest of your place.': 'زر تعديل المخطط في شاشة الطاولات يحرك الطاولات ويضيفها ويديرها، ويرسم الجدران والأبواب وبقية المكان.',
+  // Paying on account at a restaurant (0.1.0-r15).
+  'Pay on account': 'الدفع الآجل',
+  'Pick the customer on the order first: a sale on account needs a named customer, never the walk-in.': 'اختر العميل في الطلب أولا: البيع الآجل يحتاج عميلا باسمه، ولا يكون للعميل النقدي أبدا.',
+  'At the payment screen, take what the guest pays now, then use {put} for the rest.': 'في شاشة الدفع استلم ما يدفعه الضيف الآن، ثم استخدم {put} للباقي.',
+  'A table order is paid on account the same way, from the order screen or from its panel on the Tables screen.': 'طلب الطاولة يدفع آجلا بالطريقة نفسها، من شاشة الطلب أو من لوحة الطاولة في شاشة الطاولات.',
 }
 
 // The English of the texts keyed with a context ("floor:"), spread into the

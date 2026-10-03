@@ -59,6 +59,8 @@ export const useSessionStore = defineStore('session', {
     storeCreditMode: 'Store Credit',
     cashbackMode: 'Cashback',
     giftCardMode: 'Gift Card',
+    // LumenPOS's tender for a sale on account (lumen_restaurants.credit_sales, 0.60.0).
+    creditMode: 'Credit Sale',
     salesPersons: [],
     allowNegativeStock: false,
     // Other currencies (LumenPOS Settings, General): which ones this till sells
@@ -110,6 +112,9 @@ export const useSessionStore = defineStore('session', {
     bundles: [],
     permissions: {},
     pendingClosing: null,
+    // An ERPNext accounting period that locks Sales Invoices today at this
+    // outlet's company (lumen_restaurants.accounting_periods): {period, from, to, ended}.
+    periodLock: null,
     offline: false,
     queuedCount: 0,
     // Of those, sales the server refused (offline.queueBreakdown): they never
@@ -136,6 +141,14 @@ export const useSessionStore = defineStore('session', {
       new Set(Object.values(s.profileCompanies || {})).size > 1 && s.profileCompanies?.[name]
         ? `${name} · ${s.profileCompanies[name]}`
         : name,
+    // A payment method as the till names it: the tender LumenPOS made for
+    // sales on account reads "On account" in every language, as on the
+    // payment screen. Takes one name or a comma-joined list of them.
+    modeLabel: (s) => (modes) =>
+      String(modes || '')
+        .split(', ')
+        .map((mode) => (mode && mode === s.creditMode ? t('On account') : mode))
+        .join(', '),
     // The money the main drawer holds, and that change is given in: the
     // company currency (lumen_restaurants.currency).
     localCurrency: (s) => s.multiCurrency?.company_currency || s.currency,
@@ -146,7 +159,7 @@ export const useSessionStore = defineStore('session', {
     // shift, so only they may ring one up (no manager bypass, handover is
     // close + reopen). Empty when the shift is the outlet's.
     sellBlockedBy: (s) => {
-      if ((s.settings?.shift_scope || 'Per outlet') !== 'Per cashier') return ''
+      if ((s.settings?.shift_scope || 'Per cashier') !== 'Per cashier') return ''
       const owner = s.registerSession?.opened_by
       return owner && owner !== s.user ? owner : ''
     },
@@ -272,6 +285,7 @@ export const useSessionStore = defineStore('session', {
       this.storeCreditMode = data.store_credit_mode || 'Store Credit'
       this.cashbackMode = data.cashback_mode || 'Cashback'
       this.giftCardMode = data.gift_card_mode || 'Gift Card'
+      this.creditMode = data.settings?.credit_mode || 'Credit Sale'
       this.salesPersons = data.sales_persons || []
       this.allowNegativeStock = Boolean(data.allow_negative_stock)
       this.multiCurrency = data.multi_currency || { enabled: 0, currencies: [] }
@@ -281,6 +295,7 @@ export const useSessionStore = defineStore('session', {
       this.bundles = data.bundles || []
       this.permissions = data.permissions || {}
       this.pendingClosing = data.pending_closing || null
+      this.periodLock = data.period_lock || null
       this.pinSet = data.pin_set !== false
       syncFromErp(data.desk_theme) // follow ERPNext theme unless overridden in LumenPOS
       setCurrency(data.currency)

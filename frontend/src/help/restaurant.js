@@ -61,6 +61,16 @@ const ORDER_SCREEN = [
     ],
   },
   {
+    title: 'Pay on account',
+    when: (s) => Boolean(s.settings.credit_sales_enabled) && Boolean(s.permissions.sell_on_account),
+    steps: [
+      'Pick the customer on the order first: a sale on account needs a named customer, never the walk-in.',
+      ['At the payment screen, take what the guest pays now, then use {put} for the rest.', { put: 'On account' }],
+      'A table order is paid on account the same way, from the order screen or from its panel on the Tables screen.',
+      'The receipt shows what is still owed, with a line for the customer to sign.',
+    ],
+  },
+  {
     title: 'A price for a dish',
     when: (s) => Boolean(s.permissions.can_change_price),
     steps: [
@@ -248,6 +258,7 @@ function ourRelease(lumenpos) {
   const v = parts(lumenpos)
   const at = (minor, patch = 0) => v[1] > minor || (v[1] === minor && (v[2] || 0) >= patch)
   if (v[0] !== 0) return '0.1.0-r1'
+  if (at(58, 1)) return '0.1.0-r15'
   if (at(57)) return '0.1.0-r13'
   if (at(56, 1)) return '0.1.0-r12'
   if (at(54, 1)) return '0.1.0-r10'

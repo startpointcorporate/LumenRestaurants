@@ -43,6 +43,9 @@ EDIT_MENU = "Edit the menu"
 EDIT_FLOOR = "Edit the floor plan"
 SALES_BY_PERSON = "See sales by salesperson"
 SYSTEM_CHECK = "See the system check"
+SELL_ON_ACCOUNT = "Sell on account"
+TAKE_PAYMENTS = "Take customer payments"
+SET_CREDIT = "Set a customer's credit"
 
 LEGACY_FIELD = {
     PRICE_EDIT: "price_edit_role",
@@ -54,11 +57,15 @@ LEGACY_FIELD = {
 # Capabilities nobody holds until someone is named. Everything else is open
 # until a shop decides otherwise, so installing LumenPOS never locks a till.
 # The two reports added in 0.57.0 show staff performance and the state of the
-# whole site, so they stay with the managers until a shop names someone.
+# whole site, so they stay with the managers until a shop names someone. So do
+# the three of sales on account (0.60.0): they lend the shop's money.
 # Editing the menu changes prices, so it starts closed too (Lumen Restaurants),
 # and so does editing the floor plan: the whole place sees it, managers only
 # until a restaurant names someone.
-CLOSED_BY_DEFAULT = {RETURN_EXCEED, SALES_BY_PERSON, SYSTEM_CHECK, EDIT_MENU, EDIT_FLOOR}
+CLOSED_BY_DEFAULT = {
+    RETURN_EXCEED, SALES_BY_PERSON, SYSTEM_CHECK, SELL_ON_ACCOUNT, TAKE_PAYMENTS, SET_CREDIT,
+    EDIT_MENU, EDIT_FLOOR,
+}
 
 
 def _roles(user=None):
@@ -255,3 +262,19 @@ def can_close_register(user=None):
     """Close a shift and count the drawer. ERPNext's own document permissions
     still apply on top."""
     return allowed(CLOSE_REGISTER, user)
+
+
+def can_sell_on_account(user=None):
+    """Put part or all of a sale on the customer's account (lumen_restaurants.credit_sales).
+    Nobody but a manager until a shop names someone."""
+    return allowed(SELL_ON_ACCOUNT, user)
+
+
+def can_take_customer_payments(user=None):
+    """Take a customer's payment of what they owe at the till."""
+    return allowed(TAKE_PAYMENTS, user)
+
+
+def can_set_customer_credit(user=None):
+    """Allow a customer on account and set their credit limit from the till."""
+    return allowed(SET_CREDIT, user)

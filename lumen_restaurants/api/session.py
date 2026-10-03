@@ -117,6 +117,7 @@ def get_bootstrap(pos_profile: str | None = None):
         "register_session": session,
         "other_open_registers": _other_open_registers(profile_name),
         "pending_closing": _pending_closing(profile_name),
+        "period_lock": _period_lock(profile),
         "permissions": {
             **get_user_permissions(),
             # Typing a price on a line: this outlet's own switch and the rule.
@@ -232,6 +233,10 @@ def get_user_permissions():
         "can_edit_floor": caps_mod.can_edit_floor(),
         "sales_by_person": caps_mod.can_see_sales_by_person(),
         "system_check": caps_mod.can_see_system_check(),
+        # Sales on account (0.60.0), each nobody's but a manager's until named.
+        "sell_on_account": caps_mod.can_sell_on_account(),
+        "take_customer_payments": caps_mod.can_take_customer_payments(),
+        "set_customer_credit": caps_mod.can_set_customer_credit(),
         # ERPNext's document permission AND the shop's own rule, both must pass.
         "open_register": bool(has("POS Opening Entry", "create")) and caps_mod.can_open_register(),
         "close_register": bool(has("POS Closing Entry", "create")) and caps_mod.can_close_register(),
@@ -267,13 +272,31 @@ def _pending_closing(pos_profile):
     )
     if not row:
         return None
+    from lumen_restaurants.api.register import _closing_hint
+
     return {
         "session": row.name,
         "closing_status": row.closing_status,
         "closing_error": row.closing_error,
+        # An ERPNext accounting period the failed close names (0.58.1).
+        "closing_hint": _closing_hint(pos_profile, row.closing_error) if row.closing_status == "Failed" else None,
         "pos_closing_entry": row.pos_closing_entry,
         "closed_at": str(row.closed_at) if row.closed_at else None,
     }
+
+
+def _period_lock(profile):
+    """An ERPNext accounting period that locks Sales Invoices today at this
+    outlet's company (0.58.1): the till says so when a shift opens, because the
+    close posts the shift's sales as one (and a Sales Invoice outlet's every
+    sale is one). None when nothing locks today, or the shop switched it off."""
+    from lumen_restaurants import accounting_periods
+
+    try:
+        return accounting_periods.till_lock(profile.company)
+    except Exception:
+        frappe.log_error(title="LumenPOS: reading accounting periods", message=frappe.get_traceback())
+        return None
 
 
 def get_bundles(pos_profile=None):
@@ -374,7 +397,7 @@ def _client_settings(profile_name=None):
 
     from frappe.utils import cint
 
-    from lumen_restaurants import languages
+    from lumen_restaurants import accounting_periods, credit_sales, languages, variance
     from lumen_restaurants.api import approval_requests
 
     doc = frappe.get_cached_doc("LumenPOS Settings")
@@ -387,8 +410,9 @@ def _client_settings(profile_name=None):
         "return_window_days": cint(doc.get("return_window_days")) or 0,
         "show_out_of_stock": 1 if doc.get("show_out_of_stock") else 0,
         "serial_scan_only": 1 if doc.get("serial_scan_only") else 0,
-        "shift_scope": doc.get("shift_scope") or "Per outlet",
+        "shift_scope": doc.get("shift_scope") or "Per cashier",
         "one_shift_per_user": 1 if doc.get("one_shift_per_user") else 0,
+        "warn_locked_periods": 1 if accounting_periods.switch() else 0,
         "enable_order_discount": 1 if doc.get("enable_order_discount") else 0,
         "enable_service_charge": 1 if doc.get("enable_service_charge") else 0,
         "service_charge_percent": flt(doc.get("service_charge_percent")),
@@ -425,6 +449,10 @@ def _client_settings(profile_name=None):
         "return_reasons": [
             r.reason for r in (doc.get("return_reasons") or []) if (r.reason or "").strip()
         ],
+        # A reason for a short or over at the close (lumen_restaurants.variance, 0.59.0).
+        **variance.client_facts(),
+        # Sales on account (lumen_restaurants.credit_sales, 0.60.0).
+        **credit_sales.client_facts(),
         "delivery_apps": [
             {
                 "app_name": row.app_name,
@@ -562,15 +590,19 @@ def check_coupon(pos_profile: str, code: str):
 
 
 def shift_scope():
-    """"Per outlet" (default). ONE shift per register; any assigned cashier
-    sells on it. "Per cashier", each cashier opens their OWN shift on that
-    register and sells only on their own, so several people can share one
-    counter and each still gets their own Z-report and drawer accountability."""
+    """"Per cashier" (the default since 0.60.1): each cashier opens their OWN
+    shift on that register and sells only on their own, so several people can
+    share one counter and each still gets their own Z-report and drawer
+    accountability. "Per outlet": ONE shift per register, any assigned cashier
+    sells on it. A site that had shifts before 0.60.1 keeps what it had (patch
+    v0_60.keep_shift_scope)."""
     try:
         return (
-            frappe.db.get_single_value("LumenPOS Settings", "shift_scope") or "Per outlet"
+            frappe.db.get_single_value("LumenPOS Settings", "shift_scope") or "Per cashier"
         )
     except Exception:
+        # The setting cannot be read at all: let any cashier sell rather than
+        # stop every sale but the opener's.
         return "Per outlet"
 
 

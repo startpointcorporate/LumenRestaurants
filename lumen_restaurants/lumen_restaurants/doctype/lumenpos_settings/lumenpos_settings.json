@@ -18,6 +18,10 @@
   "shift_scope",
   "one_shift_per_user",
   "carry_shift_past_midnight",
+  "warn_locked_periods",
+  "variance_reason_mode",
+  "variance_reason_threshold",
+  "variance_reasons",
   "variance_alert_enabled",
   "variance_alert_threshold",
   "variance_alert_role",
@@ -118,7 +122,11 @@
   "deposit_account",
   "deposit_item",
   "languages_section",
-  "till_languages"
+  "till_languages",
+  "credit_sales_section",
+  "credit_sales_enabled",
+  "credit_customers",
+  "credit_default_limit"
  ],
  "fields": [
   {
@@ -689,12 +697,12 @@
    "label": "Terms & conditions"
   },
   {
-   "default": "Per outlet",
-   "description": "Per outlet: ONE shift per register, whoever opens it, any assigned cashier can sell on it (default; how LumenPOS has always worked). Per cashier: each cashier opens their OWN shift on the register and can only sell on their own, so several people share one counter but each gets their own Z-report and is accountable for their own drawer.",
+   "default": "Per cashier",
+   "description": "Per cashier (default): each cashier opens their OWN shift on the register and can only sell on their own, so several people share one counter but each gets their own Z-report and is accountable for their own drawer. Per outlet: ONE shift per register, whoever opens it, any assigned cashier can sell on it.",
    "fieldname": "shift_scope",
    "fieldtype": "Select",
    "label": "A shift belongs to",
-   "options": "Per outlet\nPer cashier"
+   "options": "Per cashier\nPer outlet"
   },
   {
    "default": "0",
@@ -709,6 +717,36 @@
    "fieldname": "carry_shift_past_midnight",
    "fieldtype": "Check",
    "label": "Keep a shift open past midnight"
+  },
+  {
+   "default": "1",
+   "description": "When an ERPNext Accounting Period locks Sales Invoices today, the till says so as a shift opens (the close posts the shift's sales as a Sales Invoice, so it would fail), and a close it stopped names the period and how to unlock it. The system check lists such periods either way. Set from the till: Settings, General, Register and shifts.",
+   "fieldname": "warn_locked_periods",
+   "fieldtype": "Check",
+   "label": "Warn about locked accounting periods"
+  },
+  {
+   "default": "Optional",
+   "description": "When a counted drawer is short or over at the close. Optional (the default): the cashier may give a reason and say what was done. Required: the register does not close without a reason, checked on the server too. Off: the till does not ask. Set from the till: Settings, General, Register and shifts.",
+   "fieldname": "variance_reason_mode",
+   "fieldtype": "Select",
+   "label": "Reason for a short or over",
+   "options": "Optional\nRequired\nOff"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.variance_reason_mode=='Required'",
+   "description": "Required asks only when a difference is larger than this, in the company currency (a drawer in another currency at its shift rate). 0 = any difference.",
+   "fieldname": "variance_reason_threshold",
+   "fieldtype": "Currency",
+   "label": "Ask for a reason above"
+  },
+  {
+   "description": "Quick reasons the cashier can tap when a count is short or over. The cashier can also write a reason in their own words.",
+   "fieldname": "variance_reasons",
+   "fieldtype": "Table",
+   "label": "Reasons for a short or over",
+   "options": "POS Variance Reason"
   },
   {
    "default": "0",
@@ -870,12 +908,42 @@
    "fieldname": "till_languages",
    "fieldtype": "Small Text",
    "label": "Languages at the till"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "credit_sales_section",
+   "fieldtype": "Section Break",
+   "label": "Sales on account"
+  },
+  {
+   "default": "0",
+   "description": "A customer takes the goods now and pays later. The part not paid is paid with the \"Credit Sale\" payment method, and the till books the debt on the customer at once with a Journal Entry, so it shows on their account in ERPNext and can be paid at the till or in ERPNext. LumenPOS makes the payment method and its clearing account itself. Who may sell on account is set in Approvals and access, Permissions.",
+   "fieldname": "credit_sales_enabled",
+   "fieldtype": "Check",
+   "label": "Sell on account"
+  },
+  {
+   "default": "Customers allowed on their card",
+   "depends_on": "eval:doc.credit_sales_enabled",
+   "description": "Customers allowed on their card: only customers marked \"Allow sales on account at the till\". Any named customer: everyone but the walk-in customer.",
+   "fieldname": "credit_customers",
+   "fieldtype": "Select",
+   "label": "Who can buy on account",
+   "options": "Customers allowed on their card\nAny named customer"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.credit_sales_enabled",
+   "description": "For a customer with no credit limit of their own in ERPNext (on the customer, its group or the company), in the company's currency. 0 = no limit.",
+   "fieldname": "credit_default_limit",
+   "fieldtype": "Currency",
+   "label": "Default credit limit"
   }
  ],
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-01 18:00:00.000000",
+ "modified": "2026-10-03 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Lumen Restaurants",
  "name": "LumenPOS Settings",

@@ -1,6 +1,6 @@
 # Lumen Restaurants: Complete User Guide
 
-*Applies to Lumen Restaurants v0.1.0-r14, built from LumenPOS v0.58.0. This document is updated with every feature change.*
+*Applies to Lumen Restaurants v0.1.0-r15, built from LumenPOS v0.60.1. This document is updated with every feature change.*
 
 **Lumen Restaurants is LumenPOS with the restaurant built in, as an app of its
 own.** Everything this guide says about LumenPOS applies to it: the till is the
@@ -286,6 +286,62 @@ The displayed total always equals the invoice grand total.
 Everything the client computed is **re-validated server-side** at submit:
 prices, promotions, serials, balances, passcodes. The client math is
 display-only.
+
+### Selling on account (0.60.0)
+
+A customer takes the goods now and pays later: all of it, or the rest after paying
+part. The sale is a POS invoice like any other.
+
+**Turn it on** in **Settings, General, Sales on account**:
+
+- **Sell on account**: off by default. Off, the till shows nothing about it.
+- **Who can buy on account**: *Only customers allowed on their card* (the default:
+  a manager ticks **Allowed to buy on account** on the customer, in Customers), or
+  *Any named customer*. Never the walk-in customer.
+- **Default credit limit**: for a customer with no credit limit of their own in
+  ERPNext (on the customer, its group or the company), in the company's currency.
+  0 = no limit.
+- Who may sell on account, take customer payments and set a customer's credit is set
+  in **Approvals and access, Permissions** (see section 16). Until someone is named
+  there, only managers can.
+
+LumenPOS makes what it needs itself, in each company with an outlet: a payment method
+**Credit Sale** and a clearing account **POS Credit Sale Clearing**. The Settings card
+says what it set up. A payment method of that name that the shop made itself, on
+another account, is never taken over: the card says so, and the shop renames it.
+
+**At the till:** choose the customer, tap **Pay**, take what the customer pays now, then
+**Put … on account** for the rest. The card shows what the customer already owes and
+what their limit leaves. The receipt shows what is still owed on the sale and in all,
+with a line for the customer to sign.
+
+**What happens in ERPNext:** the part on account is paid on the invoice by the *Credit
+Sale* tender, and in the same moment LumenPOS books the debt on the customer with its own
+**Journal Entry** (the customer debited, the clearing account credited). So the debt
+shows on the customer's account and in Accounts Receivable at once, one entry per sale.
+When the shift closes, the merged invoice's *Credit Sale* payment clears the clearing
+account back to zero.
+
+**The limit:** ERPNext's own credit limit (the customer's, then its group's, then the
+company's), else LumenPOS's default. The till refuses a sale that would take the
+customer past it and says what is left. ERPNext refuses a limit below what is already
+owed.
+
+**Not allowed:** a walk-in customer, a customer not allowed on their card, more on
+account than the other tenders leave (no change comes out of a debt), a sale in a
+currency other than the company's, a sale made without a connection, a gift card or a
+hold on account, and the difference of an exchange.
+
+Why a tender and an entry, and not ERPNext 15/16's *Allow Partial Payment*: ERPNext 16
+refuses a POS invoice with nothing paid, ERPNext 13 and 14 refuse a POS return that does
+not refund in full, and ERPNext checks the credit limit only when a shift's invoices are
+merged, so a sale over the limit failed the whole close. This way every version takes a
+sale with nothing paid, a return comes off the debt, and the limit is checked at the sale.
+
+**Returns:** what comes back goes off what the customer still owes on that sale first,
+and only the rest goes back as money (out of the drawer), never onto the customer's account. A sale already paid off comes
+back as money in full. A sale still owing is not exchanged: take it back, then sell the
+new goods.
 
 ### Selling in other currencies
 
@@ -828,6 +884,17 @@ refuse the save. The plan photo is kept private and shown to the staff who see
 the floor. Tables added under Settings, General, Restaurant still work and take
 a free place on the plan until somebody moves them.
 
+### One shift for the outlet (0.1.0-r15)
+
+A restaurant outlet sells on one shift: whoever opens the register in the
+morning opens it for the outlet, and every waiter and cashier assigned to the
+outlet takes money on it until it closes. That is how a Lumen Restaurants site
+starts (Settings, General, Register and shifts, *A shift belongs to*: the
+outlet). LumenPOS starts a shop on one shift per cashier instead, each with
+their own drawer, which a restaurant can still choose there. On ERPNext 16 an
+outlet allows one open shift at a time, so with one shift per cashier only the
+waiter who opened it could take money.
+
 ### Takeaway and the order number
 
 A takeaway or delivery order is paid first. The moment the money is in, the
@@ -1057,6 +1124,12 @@ A serialized item can never be sold without its exact serials:
   creates a **POS Opening Entry**. One live shift per register, if you
   already have one, you're offered **Continue that shift** or (only when the
   testing toggle in Settings → General is ON) **Open a new one anyway**.
+- **Whose shift it is** (Settings, General, Register and shifts, *A shift belongs to*). *The
+  cashier* (the default since 0.60.1): each cashier opens their own shift on the register and sells
+  only on it, with their own drawer and Z-report. *The outlet*: one shift per register, and any
+  assigned cashier sells on it. A site that already had shifts before 0.60.1 keeps the way it worked
+  (where nothing was chosen, that was *The outlet*). On ERPNext 16 an outlet sells on one open shift
+  at a time, so with *The cashier* each cashier there needs their own POS Profile.
 - **Shifts at other outlets.** One person may hold open shifts at several
   outlets at once (a manager covering branches), and the Open Register screen
   lists them as a reminder, each with a button to its Register page. A shop that
@@ -1086,6 +1159,32 @@ A serialized item can never be sold without its exact serials:
   Entry** when it consolidates (a Sales Invoice outlet's cash shift, which has
   none, gets them once they can be worked out again), and the variance alert
   goes out then.
+- **A reason for a short or over.** When a counted drawer differs from what it
+  should hold, the close panel asks why: the cashier writes the reason in their
+  own words, or taps one of the shop's reasons, and can say what was done about
+  it (for example recounted, reported to the manager). Both stay with the shift, show under its difference in **Previous
+  sessions** and go in the variance email. Settings, General, Register and
+  shifts: **Reason for a short or over** is *Optional* (the default, offered and
+  never forced), *Required* (the register does not close without one, checked
+  on the server too) or *Off*. With *Required*, **Ask only when the difference is more than** spares
+  small differences (in the company currency, a drawer in another currency at
+  its shift rate). The quick reasons start with six common ones the shop can change.
+  A manager closing someone else's shift answers the same question.
+- **An ERPNext accounting period that locks sales.** In ERPNext an *Accounting
+  Period* locks the month it covers: ERPNext ticks every document in it as
+  Closed when it is made, Sales Invoice among them. A POS Invoice is never
+  locked, so the till sells all day, but the close posts the shift's sales as a
+  Sales Invoice and ERPNext refuses it ("You cannot create a Sales Invoice
+  within the closed Accounting Period ..."). With **Warn about locked
+  accounting periods** on (Settings, General, Register and shifts, on by
+  default), the Open Register screen says so before the shift starts, and a
+  close it stopped names the period and what to do: a period made ahead of time
+  is deleted in ERPNext (ERPNext 15 and 16 do not let anyone edit a period that
+  has not ended), a period over a month that is really over has Sales Invoice
+  unticked while the shift is retried. Then **Retry closing**. The system check
+  lists every such period whatever the switch says. There is no need to "open"
+  a month in ERPNext: posting is allowed whenever the Fiscal Year covers the
+  date.
 - **A shift past midnight (ERPNext 16).** ERPNext 16 takes sales only on a shift
   opened the same day. With **Keep a shift open past midnight** on (Settings,
   General, Register and shifts, on by default and shown on ERPNext 16 only), the
@@ -1287,8 +1386,8 @@ behaviour: it sells offline as long as the tab stays open.)
 | **Bundles** | Fixed-price bundles: components, price, outlets. |
 | **Price Books** | Items with special prices for a period (validity + priority + outlets/customer groups); add items or **Excel/CSV import**. No ERPNext price list created, the master is never changed. |
 | **Loyalty & Gift Cards** | Create/view loyalty programs; search/disable gift cards. |
-| **General** | Split into groups, one at a time, each saying what it is for: **Features** (what the till offers, plus the one-tap favourites), **Register and shifts** (shift ownership, one shift per person, a shift past midnight on ERPNext 16, variance and overdue alerts, offline cache, returns without a connection, sending in the background, the storage warning), **Payments and delivery** (delivery apps with their price lists and per-method rules), **Other currencies** (the switch, the currencies the till sells in, their rates), **Customers** (what the new-customer form asks, field by field), **Companies** (whether gift cards, cashback and store credit are shared by the group or kept per company, what waits to be booked between companies and **Book now**), **Returns and refunds** (return window, return reasons, **what cannot be returned**, and the refund method rules), **Receipt**, **Languages** (which languages cashiers may pick), **Help for staff** (the ? help and its tours, the tour offered to new staff, what is new after an update, and a button to take the tour), **Accounts and gift cards** (per-company accounts, including the two that carry balances spent across the group, gift card expiry), **Approvals and access** (discount limit and over-limit method, master passcode, approver PINs, the shared Approver Role, permissions, audit log). One Save button covers them all. |
-| **System check** | (Managers, and anyone named for *See the system check*.) What may stop LumenPOS working on this site and what to do, on one screen to read or photograph: the versions (and whether ERPNext is newer than the release LumenPOS was last tested on), ERPNext 16 set to refuse POS Invoices, change in another currency the books cannot take, each outlet's setup and how its prices carry tax (included or added on top), shifts stuck in Closing or open for more than a day, opening entries from an earlier day blocking an outlet on ERPNext 16, sales older than 3 days not in the books, currencies not set up, automatic rates not updating, missing performance indexes, LumenPOS errors and failed background jobs of the last 7 days, background jobs not running. **Copy for support** copies it as text. |
+| **General** | Split into groups, one at a time, each saying what it is for: **Features** (what the till offers, plus the one-tap favourites), **Register and shifts** (shift ownership, one shift per person, a shift past midnight on ERPNext 16, locked accounting periods, the reason for a short or over and its list, variance and overdue alerts, offline cache, returns without a connection, sending in the background, the storage warning), **Payments and delivery** (delivery apps with their price lists and per-method rules), **Other currencies** (the switch, the currencies the till sells in, their rates), **Customers** (what the new-customer form asks, field by field), **Companies** (whether gift cards, cashback and store credit are shared by the group or kept per company, what waits to be booked between companies and **Book now**), **Returns and refunds** (return window, return reasons, **what cannot be returned**, and the refund method rules), **Receipt**, **Languages** (which languages cashiers may pick), **Help for staff** (the ? help and its tours, the tour offered to new staff, what is new after an update, and a button to take the tour), **Accounts and gift cards** (per-company accounts, including the two that carry balances spent across the group, gift card expiry), **Approvals and access** (discount limit and over-limit method, master passcode, approver PINs, the shared Approver Role, permissions, audit log). One Save button covers them all. |
+| **System check** | (Managers, and anyone named for *See the system check*.) What may stop LumenPOS working on this site and what to do, on one screen to read or photograph: the versions (and whether ERPNext is newer than the release LumenPOS was last tested on), ERPNext 16 set to refuse POS Invoices, change in another currency the books cannot take, each outlet's setup and how its prices carry tax (included or added on top), shifts stuck in Closing or open for more than a day, accounting periods that lock sales today or will, opening entries from an earlier day blocking an outlet on ERPNext 16, sales older than 3 days not in the books, currencies not set up, automatic rates not updating, missing performance indexes, LumenPOS errors and failed background jobs of the last 7 days, background jobs not running. **Copy for support** copies it as text. |
 | **Status** | Version, outlet, price list, connection, cache size, queue, printer, register state. |
 | **Approvals** | (Approvers only) Live tray of pending **discount and return** requests to Approve / Reject, shown in the left rail when discount requests are enabled or returns are window-limited. |
 
@@ -1429,12 +1528,15 @@ plus Fatima" is two rows rather than a role invented for one person.
 | **Return past the window** | Returning a sale older than the return window WITHOUT an approval request |
 | **Exchange goods** | The one-step exchange (needs *Make returns* as well) |
 | **Cash in / out** | Putting money in the drawer or taking it out mid-shift |
-| **Reprint a receipt** | Printing a receipt again later (and with it, kicking the drawer). The receipt for the sale just made always prints |
+| **Reprint a receipt** | Printing a receipt again: from History or Customers, or a second time from the sale's own screen (and with it, kicking the drawer). The first print of the sale just made always goes through. From 0.60.0 the till asks the server before every copy, in the browser too, and each one is in the audit log |
 | **Open the register** | Starting a shift |
 | **Close the register** | Counting the drawer and closing |
 | **Hold goods for a customer** | Starting a hold, taking an instalment, handing over and cancelling |
 | **See sales by salesperson** | The Salespeople page, and the commission on the shift report |
 | **See the system check** | Settings, System check |
+| **Sell on account** | Putting part or all of a sale on the customer's account (0.60.0) |
+| **Take customer payments** | Taking a customer's payment of what they owe into the drawer (0.60.0) |
+| **Set a customer's credit** | Allowing a customer on account and setting their credit limit, from Customers (0.60.0) |
 | **Open a table order** | Starting to serve a table, a takeaway or a delivery (restaurant outlets) |
 | **Move or merge tables** | Moving an order to another table, or pouring two together |
 | **Cancel a table order** | Throwing away an order nobody paid for |
@@ -1443,10 +1545,10 @@ plus Fatima" is two rows rather than a role invented for one person.
 
 Rules for the same action are an OR: any row that matches lets the person
 through. **An action with no row is open to everyone**, so nothing locks up the
-day you update. Five stay shut until somebody is named: *Return past the
+day you update. Eight stay shut until somebody is named: *Return past the
 window* (everyone else sends an approval request), *See sales by salesperson*,
-*See the system check*, *Edit the menu* and *Edit the floor plan*, which only
-managers have until somebody is named.
+*See the system check*, the three of sales on account, *Edit the menu* and
+*Edit the floor plan*, which only managers have until somebody is named.
 System and LumenPOS Managers always pass.
 
 The till hides what a person may not do (the cash in/out panel, the reprint
@@ -1477,12 +1579,18 @@ stays open.
 | An offline sale was refused and the shift will not close | From 0.55.0 a refused sale no longer holds the close: the Register page shows it apart with its reason. Take its cash out of the drawer before you count, close, and put the cash back once the next shift is open: the sale is sent again then. |
 | "Customer Deposit" shows on the sell screen, with a price | It is LumenPOS's own item for deposits on holds, and ERPNext's *Auto Insert Item Price If Missing* (Stock Settings) saved the first deposit's amount as its price. From 0.55.0 it is kept off the sell screen and a sale refuses it. Take deposits from the Holds screen. |
 | Closing fails with "Cannot link cancelled document: POS Opening Entry" | The shift's POS Opening Entry was cancelled in ERPNext (ERPNext 13 to 15 allow that even with sales on it), and ERPNext refuses to close a shift against a cancelled entry. From 0.54.1 LumenPOS closes it against the entry's **amendment**, ERPNext's own way back: it uses one made by hand, or makes one (for example *POS-OPE-2026-00014-1*), and leaves a note on the shift. Press **Retry closing**, or let the self-healer do it. |
+| **Close Register** stays greyed out after counting | The shop asks for a reason when a drawer is short or over (Settings, General, Register and shifts, *Required*). Write the reason under the count, or tap one of the quick reasons. Recount first if the difference is a mistake. |
+| Closing fails with "You cannot create a Sales Invoice within the closed Accounting Period ..." (or, on ERPNext 13, "... any accounting entries with in the closed Accounting Period ...") | An ERPNext **Accounting Period** locks Sales Invoices on these dates, often one made ahead of time "to open" a month: it locks the month instead. The Register page names it (0.58.1). If the period has not ended, delete it in ERPNext (ERPNext 15 and 16 refuse to save any change to it until it ends, "Accounting Period cannot be created for a future date"); if it covers a month that is really over, untick Sales Invoice in it, press **Retry closing**, then tick it again. Delete any period made ahead for later months too. |
 | Closing shows **Failed** with an error | Read the error (usually a stuck invoice or a transient lock). Hit **↻ Retry closing**; nothing is double-posted. If it keeps failing, open the linked POS Closing Entry in the desk and retry there. |
 | "Close your open shift first" when opening a register | The shop has **One open shift per person** on and you still have a shift open at another outlet. Tap **Go to its Register page**, count and close it, then open this one. If you may not close registers, or the shift is at an outlet you can no longer open, a manager closes it from that outlet's Register page (**Other open shifts here**). An administrator can also turn the setting off. |
 | "difference pending" on a closed shift | The shift closed, but its expected takings could not be worked out at the time. They are filled in from its POS Closing Entry when it consolidates; nothing to do unless the close itself shows **Failed**. |
 | A close **keeps failing** and you need to keep selling | On a *Failed* close, a manager can click **"Start a new shift anyway"** (Sell prompt or Register page) to open a fresh shift now. The failed shift stays in the background and keeps retrying, its invoices still consolidate on their own. |
 | A refund to store credit is refused: "This sale was paid by Cash, so it can only be refunded to..." | Before 0.58.0, every Save of Settings, General switched off **Allow refunding to Store Credit** (Settings, General, Returns and refunds). Switch it on again if your shop refunds to store credit. With *Restrict refunds to the original payment method* on, a sale can only be refunded the way it was paid, or to store credit when that switch is on. |
 | The **?** button is missing, or the welcome or *What is new* card never shows | Settings, General, **Help for staff**: the three switches. *What is new* shows once per person after an update, and only news that applies to them. |
+| The **On account** card or the *Put … on account* button is missing | Sales on account are off (Settings, General, Sales on account), the person is not named for *Sell on account* in Permissions, the sale has no named customer (the walk-in never buys on account), the customer is not allowed on their card, the sale is in another currency, or the till is offline. With a named customer the card says which. |
+| "… owes … of a limit of …, so at most … can go on account" | The customer's credit limit (ERPNext's own, or the shop's default). Take more now, or a manager raises the limit on the customer's card. |
+| Settings, Sales on account says a payment method named Credit Sale already exists | The shop made a payment method of that name on its own account. Rename it in ERPNext (Mode of Payment, Rename), then save Settings again: LumenPOS makes its own. |
+| A cashier can still reprint a receipt | Before 0.60.0 the reprint rule was checked only on a network receipt printer. Update: the till now asks the server before every copy. |
 | "You do not have access to the POS" | The user lacks **POS Invoice → read**. Grant the **LumenPOS Cashier** role (or POS Invoice access) in Role Permissions Manager. |
 | A tab or the Pay button is missing for a user | That's the new permission gating, grant the matching permission (see **Roles & permissions**). |
 | Item rings up at 0 | No Item Price on the **active** price list (book/app list overrides the default). |
@@ -1509,6 +1617,25 @@ POS activity in one place.
   including consolidated ones, or Sales Invoices in direct mode), filterable by
   **type** and **date range**, paginated. Click a row to view / print the receipt.
 
+### A customer's account (0.60.0)
+
+While the shop sells on account, a customer's page has an **On account** card: what they
+owe, their credit limit and what it leaves, and each sale still owing, oldest first.
+
+- **Take a payment** (Permissions: *Take customer payments*) takes the customer's
+  money into this till's drawer, so the register must be open. It settles the oldest
+  sales first, or the sales ticked. Never more than is owed, and a retry after a lost
+  answer never takes it twice. It is ERPNext's own receipt voucher, a **Cash Entry** (a
+  **Bank Entry** for a card or a transfer), allocated to each sale's entry, and the
+  shift's close expects the money in that drawer. Print the payment receipt from the
+  same card.
+- **Allowed to buy on account** and **Credit limit of their own** (Permissions: *Set a
+  customer's credit*): the limit is ERPNext's own, on the customer's card for this
+  company. 0 removes it, so the group's, the company's or the shop's default applies.
+
+The customer can also pay in ERPNext as usual (a Payment Entry or a Journal Entry
+against the sale's entry).
+
 **Performance:** every query is server-paginated and scoped to indexed columns,
 and per-customer totals are computed only when you open a customer, never for
 the whole list. The screen runs queries only while it's open, so it has no
@@ -1527,6 +1654,7 @@ which both LumenPOS roles are given.
 ### Lumen Restaurants releases
 | Version | Highlights |
 |---|---|
+| 0.1.0-r15 | **LumenPOS 0.58.1 to 0.60.1, brought in** (see the LumenPOS releases below): a locked ERPNext accounting period is explained before it stops a close, a reason for a short or over at the close (optional unless Settings make it required), the Register page on a phone, sales on account (payments taken at the till, a return taken off the debt first) and a receipt printed again kept to whoever may reprint. **For restaurants:** a table order can be put on account from the order screen or from its panel on the Tables screen, and the order screen's help says how. The receipt from an outlet's own Print Format, and the emailed one, says what a sale on account still owes, with a line for the customer to sign, above our mark. **A restaurant site starts with one shift for the outlet:** LumenPOS now starts a shop on one shift per cashier, but several waiters take money on one shift, and on ERPNext 16 an outlet allows one open shift at a time, so a restaurant would let only one of them sell. A site that already chose keeps its choice. |
 | 0.1.0-r14 | **The floor plan.** The Tables screen draws each area with its tables in their places, shapes and chairs, the walls, doors and the rest around them, and the colour of each table says whether it is free, occupied, waiting to pay or booked. A table's panel shows its order priced as it will be paid, pays it in the till's own payment window, **prints the bill** (not a tax invoice, our mark at its foot, the table turns amber) and moves or merges it by tapping the other table on the plan. A booked table offers **Seated**. **Right now**, beside the plan, sums up the floor and lists today's coming bookings. **Edit the plan**, for whoever may *Edit the floor plan* (a new permission, managers until somebody is named), drags, adds, turns and renumbers tables, draws walls, doors, windows, plants and the places guests look for, puts a photo of the real floor under the plan, and adds areas. Each outlet can switch the plan off and keep the list. Also fixed: a booking before 10 in the morning showed its time cut ("9:30:") on the Bookings screen, and the add-on switches in Settings, General, Restaurant showed bare checkboxes with their texts run together. |
 | 0.1.0-r13 | **LumenPOS 0.57.0 and 0.58.0, brought in** (see the LumenPOS releases below): the salesperson on every sale (optional unless Settings make it required), sales by salesperson in Insights, the System check in Settings, four more languages, and help on every screen with short tours and what is new. **For restaurants:** the order screen has the salesperson row under the customer, kept with a table order. The help covers the restaurant screens (the order screen, the tables, the kitchen, bookings, the booking page and the Menu page) in English and Arabic, the tour of an order walks the restaurant order screen, and what is new tells restaurant staff about the restaurant's own features. The System check and the help name Lumen Restaurants. |
 | 0.1.0-r12 | **LumenPOS 0.56.1 and 0.56.2, brought in** (see the LumenPOS releases below). **What comes back is on sale again at once**, on every ERPNext version: a dish or a drink sent back shows on the till again and sells at once, a returned serial number too, and the shift still closes. **The Hold button** works (the fix made here in r10 is now LumenPOS's own). **A gift card carries no tax** where the outlet adds VAT, and **a return gives back only the tax its sale charged**: a sale made before the outlet had VAT no longer refunds VAT on top. **Tested for restaurants:** a drink sold at a table with its last can, sent back, shown on the till again and ordered again at the same table in one shift, and the shift closes with the stock never below zero. **Settings keep a shop's refund rule:** the settings screen no longer turns *Allow refunding to Store Credit* back on every time it is saved (it showed the switch on whatever the shop had chosen). |
@@ -1545,6 +1673,10 @@ which both LumenPOS roles are given.
 ### LumenPOS releases
 | Version | Highlights |
 |---|---|
+| 0.60.1 | **"The cashier" is the default for *A shift belongs to*** (Settings, General, Register and shifts): on a new site each cashier opens their own shift and sells only on it, with their own drawer and Z-report. A site that already has shifts keeps the way it worked: where nothing was chosen it stays on *The outlet*, written down once by the update, and a choice made in Settings is never changed. On ERPNext 16 an outlet sells on one open shift at a time, so with *The cashier* each cashier there needs their own POS Profile. In all thirteen languages. |
+| 0.60.0 | **Sales on account** (asked by a shop in Zimbabwe). A customer takes the goods now and pays later, all of it or the rest after paying part, and the sale is a POS invoice like any other: the part on account is paid by LumenPOS's *Credit Sale* tender, and the same moment books the debt on the customer with its own Journal Entry, so it shows on their account and in Accounts Receivable at once (works on ERPNext 13 to 16 alike, nothing paid included). ERPNext's credit limit, or the shop's default, is checked at the sale. Settings, General, Sales on account: the switch, who may buy (customers allowed on their card, or any named customer, never the walk-in) and the default limit, with how it works. The customer's page shows what they owe sale by sale; **Take a payment** takes their money into the drawer as a Cash or Bank Entry, oldest sales first or the ones ticked, and the close expects it there. A return comes off the debt first and gives back only the rest. The receipt shows what is still owed, with a line to sign. Three permissions, closed until someone is named: *Sell on account*, *Take customer payments*, *Set a customer's credit*. Also: **a receipt printed again is really kept to whoever may reprint** (asked by a shop in Nigeria): until now the rule was checked only on a network receipt printer, and a refused copy fell back to the browser. The till now asks the server before every copy, a second print of the same sale counts, and each reprint is in the audit log. Fixed on the way: on ERPNext 14 and later a sale made in the first ten seconds of a minute showed in History as a raw timestamp ("2026-10-03 12:47:9"), and in Customers every time looked like that; both now read as the other sales do. The X-report shows when the shift opened without fractions of a second. In all thirteen languages. |
+| 0.59.0 | **A reason for a short or over at the close** (asked by a shop in Zimbabwe). When a counted drawer differs from what it should hold, the cashier writes the reason in their own words, or taps one of the shop's quick reasons, and can say what was done about it. Both are kept with the shift, shown under its difference in Previous sessions and on the close panel, and sent with the variance email. A manager closing someone else's shift is asked the same. Settings, General, Register and shifts: *Reason for a short or over*, Optional (the default), Required (the register does not close without one, checked on the server too, optionally only past an amount) or Off, and the quick reasons, six to start with. In all thirteen languages, with its own help on the Register page and in What is new. Also: on a phone the Register page no longer runs off the screen (the cash in and out form stacks, and each payment in the count shows as its own block with Expected, Counted and Difference), and Settings shows the ready-made return reasons and reasons for a short or over in the screen's language (a reason left as it was is still saved in English, so every till keeps showing it in its own language). |
+| 0.58.1 | **A locked accounting period is explained, and seen before it bites.** A shop in Zimbabwe had made ERPNext's *Accounting Period* for October ahead of time to "open" the month: ERPNext locks a month with it instead, ticking Sales Invoice and every other document Closed, so the till sold all day and the shift's close was refused ("You cannot create a Sales Invoice within the closed Accounting Period OCTOBER - ..."), and ERPNext 16 would not even let them edit the period, since it had not ended. Now the Open Register screen says when an accounting period locks Sales Invoices today (a Sales Invoice outlet is told that no sale can be posted), a close it stopped names the period and what to do (delete one made ahead of time, or untick Sales Invoice in one over a month that is really over, then **Retry closing**), and the system check lists every period that locks sales today or will. Settings, General, Register and shifts: *Warn about locked accounting periods* (on). In all thirteen languages. **Errors read as text:** the Register page and the Open Register screen showed ERPNext's message with its HTML (`<strong>OCTOBER - ...</strong>`). A failed close is now kept as plain text, and one kept before is shown without the tags. |
 | 0.58.0 | **Help on every screen.** A **?** button at the top of the till opens the help of the screen in use: the everyday tasks in short steps, with **Show me** for the ones that have a tour. Five tours light up the real buttons one by one (getting around, a first sale, refunds and exchanges, opening and closing the shift, selling in another currency): they only show and explain, nothing is sold or changed. Someone new is offered the tour the first time they open the till, and after an update each person sees once what is new for them, filtered by what they may use. Settings, General, **Help for staff** has the three switches (all on). In all thirteen languages. Also: the Arabic **Retrieve Sale** read "استرجاع بيع", the word the till uses for a refund, and now reads "المبيعات المعلقة" (the parked sales), the cart's **Discard** reads "مسح" instead of "تجاهل", and the top bar now names the Insights and Holds pages (it said Sell there). **Fixed: saving the General settings switched off *Allow refunding to Store Credit*** (since 0.29.0 the screen never read that switch back, so every Save stored it off, and a refund to store credit was then refused unless the sale had been paid from a wallet). The screen now reads every switch it saves, a test saves the screen unchanged and checks that nothing moved, and managers are told once, through *What is new*, to check the switch. |
 | 0.57.0 | **Salespeople.** Settings, General, Features, *Salesperson at the till*: Optional (as before), Required (a sale, a gift card sale and an exchange's new sale are refused without one, by the server too, except a sale the till already queued offline), or Off (the till asks for nobody and records nobody). **Sales by salesperson**, a **Salespeople** tab on the Insights page: per person over a period, for this outlet or every outlet of its company, the sales and returns (how many and the net amount before tax), the net, and the commission ERPNext works out at each person's rate, with the sales nobody was named on as their own row and a CSV download. ERPNext's own Sales Person reports cannot show this for a POS Invoice outlet (the close merges the shift into a Sales Invoice without the salesperson). The Register page and the X-report list the shift by salesperson. For managers until someone is named for *See sales by salesperson*. **System check** (Settings, a new tab): what may stop LumenPOS working on the site and what to do, on one screen to read or send, from ERPNext 16 refusing POS Invoices and shifts stuck in Closing to each outlet's tax setup, sales not in the books, failed background jobs and the LumenPOS errors of the last week. **Copy for support** copies it as text. For managers until someone is named for *See the system check*. **A phone:** the top bar keeps to the screen (the clock and shift timer give way, the buttons scroll inside the bar), so History, Register, Settings, Insights and the new pages fit a phone. **Frappe Marketplace audit:** every argument of every LumenPOS endpoint now carries a type hint, written so that Frappe does not enforce it (nothing a till sends can be refused because of it), and the service worker file is read without `open()`: the audit's last warnings are gone. **Four more languages:** Portuguese (Brazil), Persian (right to left, in the Vazirmatn type), Russian and Turkish, the next four ERPNext is used in, screens and server messages alike, so the till now speaks thirteen. Also: *Hold goods for a customer* is now offered in the permissions table (the server has had it since 0.50.0), and the dark theme's scrollbars are dark too. |
 | 0.56.2 | **Holds work again.** From 0.55.0 the till's **Hold** button was refused on every site ("not whitelisted"): the price check added to holds in 0.55.0 had been placed where it took the web access of the function that starts a hold, and the tests call that function directly, so they never saw it. A hold starts again as before, with the 0.55.0 price check kept. **A gift card is sold without tax where the outlet adds VAT.** ERPNext puts the outlet's tax template back on any sale whose tax table is empty, so at an outlet whose POS Profile carries a tax template a gift card of 100 was invoiced at 115, 15 of it tax (ERPNext 13 to 16). The card's line now carries a zero tax template, as a hold's deposit already did, and the tax is charged when the card is spent. That template also takes in a tax account added to the outlet's template later, for deposits too. **A return gives back only the tax its sale charged.** ERPNext refills an empty tax table from the outlet's current template, so a sale made with no tax (before the outlet had a template, or at an outlet without one) came back taxed: a sale of 90 refunded 108. Such a return's lines now carry the zero template too, in a refund, an exchange and a return made without a connection. |

@@ -22,6 +22,8 @@ after_install = [
     # switch (floor.py).
     "lumen_restaurants.modifiers.ensure_setup",
     "lumen_restaurants.floor.ensure_setup",
+    # A restaurant site starts with one shift per outlet (restaurant_defaults.py).
+    "lumen_restaurants.restaurant_defaults.after_install",
 ]
 # Runs on every app update (Frappe Cloud deploy), keeps the LumenPOS roles and
 # custom fields in place on existing sites without shell access.

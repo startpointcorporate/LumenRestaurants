@@ -399,5 +399,7 @@ def book_online(pos_profile: str | None = None, customer_name: str | None = None
         }
     )
     doc.insert(ignore_permissions=True)
-    frappe.db.commit()  # nosemgrep: a guest request must survive its own response
+    # A guest request must survive its own response. The marker stays bare:
+    # semgrep reads any words after its colon as rule ids and suppresses nothing.
+    frappe.db.commit()  # nosemgrep
     return {"ok": True, "ref": doc.name.split("-")[-1], "status": status}

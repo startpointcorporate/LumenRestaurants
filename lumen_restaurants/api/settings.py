@@ -17,7 +17,7 @@ from lumen_restaurants import __version__
 from lumen_restaurants import erpnext_compat
 from lumen_restaurants.api import insights
 from lumen_restaurants.api import salespeople
-from lumen_restaurants import cashback_rules, languages, scope
+from lumen_restaurants import cashback_rules, credit_sales, languages, scope, variance
 
 def _can_manage():
     """Can the user change LumenPOS-wide settings (the General tab)?"""
@@ -108,9 +108,10 @@ def get_settings():
         "help_in_till": 1 if offline_switch("help_in_till") else 0,
         "help_offer_tour": 1 if offline_switch("help_offer_tour") else 0,
         "help_whats_new": 1 if offline_switch("help_whats_new") else 0,
-        "shift_scope": doc.get("shift_scope") or "Per outlet",
+        "shift_scope": doc.get("shift_scope") or "Per cashier",
         "one_shift_per_user": 1 if doc.get("one_shift_per_user") else 0,
         "carry_shift_past_midnight": 1 if _carry_past_midnight() else 0,
+        "warn_locked_periods": 1 if offline_switch("warn_locked_periods") else 0,
         # ERPNext 16 and later take sales only on a shift opened the same day,
         # the only place "Keep a shift open past midnight" does anything.
         "same_day_shifts": 1 if erpnext_compat.one_open_shift_per_outlet() else 0,
@@ -195,6 +196,12 @@ def get_settings():
         "return_reasons": [
             r.reason for r in (doc.get("return_reasons") or []) if (r.reason or "").strip()
         ],
+        # A reason for a short or over at the close (lumen_restaurants.variance, 0.59.0).
+        **variance.client_facts(),
+        # Sales on account (lumen_restaurants.credit_sales, 0.60.0), with what LumenPOS
+        # set up for them in each company that has an outlet.
+        **credit_sales.client_facts(),
+        "credit_setup": _credit_setup(),
         "discount_limit_percent": flt(doc.discount_limit_percent),
         "discount_approval_mode": doc.get("discount_approval_mode") or "Passcode only",
         "approver_role": doc.get("approver_role") or "",
@@ -316,7 +323,7 @@ def save_settings(payload: dict | str):
         payload = json.loads(payload)
     doc = frappe.get_doc("LumenPOS Settings")
     doc.offline_stock_only = 1 if payload.get("offline_stock_only") else 0
-    doc.shift_scope = payload.get("shift_scope") or "Per outlet"
+    doc.shift_scope = payload.get("shift_scope") or "Per cashier"
     # A screen from before 0.54.0 sends no such key: leave the choice alone.
     if "one_shift_per_user" in payload:
         doc.one_shift_per_user = 1 if payload.get("one_shift_per_user") else 0
@@ -331,6 +338,9 @@ def save_settings(payload: dict | str):
     for field in ("help_in_till", "help_offer_tour", "help_whats_new"):
         if field in payload:
             doc.set(field, 1 if payload.get(field) else 0)
+    # And before 0.58.1.
+    if "warn_locked_periods" in payload:
+        doc.warn_locked_periods = 1 if payload.get("warn_locked_periods") else 0
     doc.variance_alert_enabled = 1 if payload.get("variance_alert_enabled") else 0
     doc.variance_alert_threshold = flt(payload.get("variance_alert_threshold"))
     doc.variance_alert_role = payload.get("variance_alert_role") or None
@@ -452,6 +462,27 @@ def save_settings(payload: dict | str):
             if reason and key not in seen_reasons:
                 seen_reasons.add(key)
                 doc.append("return_reasons", {"reason": reason})
+    # A screen from before 0.59.0 sends none of these: leave them alone.
+    if payload.get("variance_reason_mode") in variance.MODES:
+        doc.variance_reason_mode = payload.get("variance_reason_mode")
+    if "variance_reason_threshold" in payload:
+        doc.variance_reason_threshold = max(flt(payload.get("variance_reason_threshold")), 0)
+    if "variance_reasons" in payload:
+        doc.variance_reasons = []
+        seen_reasons = set()
+        for reason in payload.get("variance_reasons") or []:
+            reason = (reason or "").strip()[:140]
+            if reason and reason.casefold() not in seen_reasons:
+                seen_reasons.add(reason.casefold())
+                doc.append("variance_reasons", {"reason": reason})
+    # Sales on account (lumen_restaurants.credit_sales, 0.60.0). A screen from before
+    # sends none of these: leave them alone.
+    if "credit_sales_enabled" in payload:
+        doc.credit_sales_enabled = 1 if payload.get("credit_sales_enabled") else 0
+    if payload.get("credit_customers") in credit_sales.WHO:
+        doc.credit_customers = payload.get("credit_customers")
+    if "credit_default_limit" in payload:
+        doc.credit_default_limit = max(flt(payload.get("credit_default_limit")), 0)
     doc.discount_limit_percent = flt(payload.get("discount_limit_percent"))
     doc.discount_approval_mode = payload.get("discount_approval_mode") or "Passcode only"
     doc.approver_role = payload.get("approver_role") or None
@@ -608,10 +639,53 @@ def save_settings(payload: dict | str):
             currency.refresh_auto_rates()
         except Exception:
             frappe.log_error(title="LumenPOS: exchange rates update failed", message=frappe.get_traceback())
+    if doc.get("credit_sales_enabled"):
+        # The Credit Sale tender and its clearing account in each company with
+        # an outlet, now, so a clash shows on this screen and not at a sale.
+        _set_up_credit_sales()
     from lumen_restaurants.api import audit
 
     audit.log(audit.SETTINGS_CHANGE, detail="LumenPOS Settings updated")
     return get_settings()
+
+
+def _outlet_companies():
+    return sorted(set(frappe.get_all("POS Profile", filters={"disabled": 0}, pluck="company")) - {None, ""})
+
+
+def _set_up_credit_sales():
+    """ensure_setup per company, each in its own savepoint: one company's
+    clash (a payment method of that name the shop made) stops no other."""
+    for company in _outlet_companies():
+        try:
+            frappe.db.savepoint("lumenpos_credit_setup")
+            credit_sales.ensure_setup(company)
+        except Exception:
+            frappe.db.rollback(save_point="lumenpos_credit_setup")
+            # The clash is shown on the screen (_credit_setup), not as a popup.
+            if getattr(frappe.local, "message_log", None):
+                frappe.local.message_log.pop()
+
+
+def _credit_setup():
+    """What sales on account use in each company with an outlet: the payment
+    method, its clearing account, or why it is not ready yet."""
+    out = []
+    for company in _outlet_companies():
+        account = frappe.db.get_value(
+            "Mode of Payment Account", {"parent": credit_sales.MODE_OF_PAYMENT, "company": company}, "default_account"
+        )
+        mine = account and account.startswith(credit_sales.ACCOUNT_NAME)
+        out.append(
+            {
+                "company": company,
+                "mode": credit_sales.MODE_OF_PAYMENT,
+                "account": account or None,
+                "ready": 1 if mine else 0,
+                "clash": 1 if account and not mine else 0,
+            }
+        )
+    return out
 
 
 def check_passcode(passcode):
