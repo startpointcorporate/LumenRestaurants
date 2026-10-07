@@ -3,7 +3,7 @@
 // "LumenPOS" is a trademark of Lumen Solutions. See TRADEMARKS.md.
 import { defineStore } from 'pinia'
 import { call, OfflineError } from '../api'
-import { setCurrency } from '../format'
+import { setCurrency, skewFrom, siteNowFrom } from '../format'
 import {
   kvSet,
   kvGet,
@@ -51,6 +51,9 @@ export const useSessionStore = defineStore('session', {
     taxes: [],
     promotions: [],
     registerSession: null,
+    // The site's wall clock less this device's, in ms on the scale of
+    // format.siteMs (0.61.1). null until a live bootstrap measured it.
+    serverSkewMs: null,
     printerConfigured: false,
     // This outlet serves tables (POS Profile, per outlet). A shop outlet on the
     // same install is unaffected.
@@ -144,6 +147,10 @@ export const useSessionStore = defineStore('session', {
     // A payment method as the till names it: the tender LumenPOS made for
     // sales on account reads "On account" in every language, as on the
     // payment screen. Takes one name or a comma-joined list of them.
+    // The site's own now on the scale of format.siteMs: the device's time
+    // moved by the measured skew, or (none measured yet) the device's own
+    // wall clock, which is what the shift clock read before 0.61.1.
+    siteNow: (s) => (deviceNow = Date.now()) => siteNowFrom(deviceNow, s.serverSkewMs),
     modeLabel: (s) => (modes) =>
       String(modes || '')
         .split(', ')
@@ -173,7 +180,8 @@ export const useSessionStore = defineStore('session', {
     canApprove: (s) =>
       Boolean(s.settings?.can_approve_requests) &&
       ((s.settings?.discount_approval_mode || 'Passcode only') !== 'Passcode only' ||
-        Boolean(s.settings?.restrict_returns_to_window)),
+        Boolean(s.settings?.restrict_returns_to_window) ||
+        (s.settings?.cash_out_approval || 'Off') !== 'Off'),
     // The Settings gear is worth showing only if the user can manage at least
     // one back-office area.
     canManageAny: (s) => {
@@ -205,10 +213,15 @@ export const useSessionStore = defineStore('session', {
         }
       }
       try {
+        const asked = Date.now()
         const data = await call('lumen_restaurants.api.session.get_bootstrap', {
           pos_profile: target,
         })
         this._applyBootstrap(data)
+        // Only a live answer says what the site's clock reads (the cached
+        // copy's server_now is as old as the copy): read at the middle of
+        // the round trip, and kept for a start without a connection.
+        this._setSiteClock(data.server_now, (asked + Date.now()) / 2)
         this.offline = false
         await kvSet('bootstrap', data)
       } catch (e) {
@@ -216,6 +229,8 @@ export const useSessionStore = defineStore('session', {
           const cached = await kvGet('bootstrap')
           if (cached) {
             this._applyBootstrap(cached)
+            const skew = await kvGet('server_skew').catch(() => null)
+            if (Number.isFinite(skew)) this.serverSkewMs = skew
             this.offline = true
             this.startHeartbeat()
             this.notify('Offline, using cached data')
@@ -258,6 +273,13 @@ export const useSessionStore = defineStore('session', {
         /* ignore */
       }
       await this.bootstrap(name)
+    },
+
+    _setSiteClock(serverNow, at) {
+      const skew = skewFrom(serverNow, at)
+      if (skew == null) return // a server older than 0.61.1 sends none
+      this.serverSkewMs = skew
+      kvSet('server_skew', this.serverSkewMs).catch(() => {})
     },
 
     _applyBootstrap(data) {

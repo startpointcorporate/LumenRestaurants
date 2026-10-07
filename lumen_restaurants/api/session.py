@@ -115,6 +115,10 @@ def get_bootstrap(pos_profile: str | None = None):
         "taxes": _profile_taxes(profile),
         "promotions": get_active_promotions(profile_name),
         "register_session": session,
+        # The site's own clock, in the zone its times are written in: the shift
+        # clock in the top bar counts from it, so a device set to another zone
+        # (or a wrong time) never shows a shift as hours old (0.61.1).
+        "server_now": str(frappe.utils.now_datetime()),
         "other_open_registers": _other_open_registers(profile_name),
         "pending_closing": _pending_closing(profile_name),
         "period_lock": _period_lock(profile),
@@ -222,6 +226,8 @@ def get_user_permissions():
         "can_exchange": caps_mod.can_exchange(),
         "can_exceed_return_window": caps_mod.can_exceed_return_window(),
         "can_move_cash": caps_mod.can_move_cash(),
+        "can_cash_in": caps_mod.can_cash_in(),
+        "can_cash_out": caps_mod.can_cash_out(),
         "can_hold_goods": caps_mod.can_hold_goods(),
         "can_reprint": caps_mod.can_reprint(),
         "can_open_table": caps_mod.can_open_table(),
@@ -397,7 +403,7 @@ def _client_settings(profile_name=None):
 
     from frappe.utils import cint
 
-    from lumen_restaurants import accounting_periods, credit_sales, languages, variance
+    from lumen_restaurants import accounting_periods, cash_out, credit_sales, languages, variance
     from lumen_restaurants.api import approval_requests
 
     doc = frappe.get_cached_doc("LumenPOS Settings")
@@ -453,6 +459,8 @@ def _client_settings(profile_name=None):
         **variance.client_facts(),
         # Sales on account (lumen_restaurants.credit_sales, 0.60.0).
         **credit_sales.client_facts(),
+        # Taking money out of the drawer (lumen_restaurants.cash_out, 0.61.0).
+        **cash_out.client_facts(),
         "delivery_apps": [
             {
                 "app_name": row.app_name,
