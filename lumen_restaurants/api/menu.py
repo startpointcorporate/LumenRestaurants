@@ -479,7 +479,8 @@ def save_group(pos_profile: str, group: dict | list | str):
     doc.disabled = 1 if cint(data.get("disabled")) else 0
     addon_section = modifiers.addon_group()
     uom = _default_uom()
-    rows = {row.name: row for row in doc.options}
+    # get(): a new group on Frappe 13 has no options list until one is set.
+    rows = {row.name: row for row in (doc.get("options") or [])}
     kept = []
     for option in data.get("options") or []:
         title = (option.get("option_name") or "").strip()

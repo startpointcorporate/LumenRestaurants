@@ -151,9 +151,12 @@ const form = ref(null)
 const nameInput = ref(null)
 let poll = null
 
+// The site's own today (and tomorrow), on the site's clock (LumenPOS 0.61.1's
+// session.siteNow): the device's date read through toISOString was the UTC
+// date, so in Riyadh between midnight and three "Today" was yesterday.
 function toDate(days) {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
+  const d = new Date(session.siteNow())
+  d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
 

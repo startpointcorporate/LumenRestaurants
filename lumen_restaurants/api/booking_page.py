@@ -93,8 +93,9 @@ def serialize(doc):
         if key.endswith("_time") and value is not None:
             value = str(value)[:8]
         data[key] = cint(value) if key in CHECKS else value
-    data["fields"] = [{k: row.get(k) for k in FIELD_KEYS} for row in (doc.fields or [])]
-    data["items"] = [{k: row.get(k) for k in ITEM_KEYS} for row in (doc.items or [])]
+    # get(): a page not saved yet has no child lists on Frappe 13.
+    data["fields"] = [{k: row.get(k) for k in FIELD_KEYS} for row in (doc.get("fields") or [])]
+    data["items"] = [{k: row.get(k) for k in ITEM_KEYS} for row in (doc.get("items") or [])]
     codes = [row["item_code"] for row in data["items"] if row.get("item_code")]
     data["rates"] = {code: _price(profile, code) for code in codes}
     info = {}

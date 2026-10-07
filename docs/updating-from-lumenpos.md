@@ -155,6 +155,20 @@ items, test, then fill in the entry's last column (our commit and the date).
      `receipt_print.owed_html` (what a sale on account owes, on an outlet's
      own Print Format and the emailed receipt). LumenPOS's `ReceiptModal.vue`
      asks `printing.allow_reprint` before every print path, ours included.
+   - Keep both, LumenPOS 0.61.0 and 0.61.1 (0.1.0-r17): `pos_capability_rule.json`
+     (LumenPOS's list, "Cash in" and "Cash out" in place of "Cash in / out",
+     then our five restaurant actions), `permissions.py` (our restaurant rights
+     up to `can_edit_floor`, then LumenPOS's `_cash_allowed`, `can_cash_in`,
+     `can_cash_out` and the new `can_move_cash`), the dictionary line of
+     `messages.js` (LumenPOS's `cashOut` and `owesHolds` blocks with our two
+     spreads in front), `translations/ar.csv` (both sides' rows, sorted), and
+     plain import lines taken from LumenPOS in `register.py`, `settings.py`,
+     `session.py` and `stores/session.js` (the rename script fixes them).
+     LumenPOS's patch line came as `lumenpos/patches.txt` again: copied into
+     ours by hand. No restaurant path moves cash, so the two new rights need
+     nothing of ours. Do not `git stash` our own edits in the middle of a merge:
+     the stash keeps the merge's whole index, and popping it after the merge
+     commit conflicts with itself (copy the files aside instead).
    - **LumenPOS's quality gate on our copy** (`ERPNext POS/quality/gate.mjs`,
      read only): it expects LumenPOS's folders, so point it at a folder of
      junctions (`lumenpos` to our `lumen_restaurants`, plus `frontend`,
