@@ -1017,3 +1017,7 @@
 "{0}: not allowed on account, limit {1}","{0}: ไม่อนุญาตให้ซื้อเงินเชื่อ วงเงิน {1}"
 "{0}: price changed from {1} to {2}","{0}: เปลี่ยนราคาจาก {1} เป็น {2}"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}” เป็นรายการราคาขายหลัก การแก้ไขที่นี่จะเปลี่ยนราคาขายปกติของคุณ สร้างรายการราคาเฉพาะสำหรับสมุดราคา/แอปนี้แทน"
+"Open POS","เปิด POS"
+"Offers and prices","โปรโมชันและราคา"
+"Customer balances","ยอดคงเหลือของลูกค้า"
+"Control","การควบคุม"

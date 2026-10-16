@@ -1016,3 +1016,7 @@
 "{0}: not allowed on account, limit {1}","{0}: نسیه غیرمجاز، سقف {1}"
 "{0}: price changed from {1} to {2}","{0}: قیمت از {1} به {2} تغییر کرد"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}” یک لیست قیمت فروش پایه است و ویرایش آن در اینجا قیمت‌های فروش عادی شما را تغییر می‌دهد. به جای آن، یک لیست قیمت اختصاصی برای این دفتر/اپلیکیشن بسازید."
+"Open POS","باز کردن POS"
+"Offers and prices","پیشنهادها و قیمت‌ها"
+"Customer balances","مانده حساب مشتریان"
+"Control","کنترل"

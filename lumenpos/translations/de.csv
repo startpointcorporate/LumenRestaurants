@@ -1016,3 +1016,7 @@
 "{0}: not allowed on account, limit {1}","{0}: auf Rechnung nicht erlaubt, Limit {1}"
 "{0}: price changed from {1} to {2}","{0}: Preis von {1} auf {2} geändert"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}” ist eine Basis-Verkaufspreisliste, eine Bearbeitung hier würde Ihre normalen Verkaufspreise ändern. Legen Sie stattdessen eine eigene Preisliste für dieses Preisbuch / diese App an."
+"Open POS","POS öffnen"
+"Offers and prices","Angebote und Preise"
+"Customer balances","Kundenguthaben"
+"Control","Kontrolle"

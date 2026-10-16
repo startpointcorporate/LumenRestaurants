@@ -10,6 +10,20 @@ app_license = "AGPL-3.0-only"
 
 required_apps = ["erpnext"]
 
+# Frappe's apps screen (/apps, Frappe 15 and 16) and the Frappe 16 desk list an
+# app only when it declares itself here. Shown to whoever may open the till.
+# The Frappe 16 desk tile and sidebar are the files in desktop_icon/ and
+# workspace_sidebar/, which Frappe 16 imports on every migrate.
+add_to_apps_screen = [
+    {
+        "name": app_name,
+        "logo": "/assets/lumenpos/pos/icon-192.png",
+        "title": app_title,
+        "route": "/pos",
+        "has_permission": "lumenpos.api.session.can_open_till",
+    }
+]
+
 after_install = "lumenpos.install.after_install"
 # Runs on every app update (Frappe Cloud deploy), keeps the LumenPOS roles and
 # custom fields in place on existing sites without shell access.

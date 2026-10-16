@@ -1,6 +1,6 @@
 # LumenPOS: Complete User Guide
 
-*Applies to LumenPOS v0.61.2. This document is updated with every feature change.*
+*Applies to LumenPOS v0.61.3. This document is updated with every feature change.*
 
 > **Note on this document.** Sections 1 to 17 below were written up to v0.17 and are
 > being brought forward release by release; the **changelog in section 18 is
@@ -96,6 +96,10 @@ why it is empty.
 ### Open the POS
 Log in to ERPNext, then open **`https://yoursite/pos`**.
 The **LumenPOS workspace** in the desk has shortcuts to everything.
+Frappe 15 and 16 also list **LumenPOS on the apps screen** (`/apps`), and on
+Frappe 16 it has its own **tile on the desk** with a sidebar: Open POS, the
+sales, shifts and outlets, then offers and prices, customer balances and the
+controls, and the settings. Both show only to people who may open the till.
 
 ### Help on every screen (0.58.0)
 The **?** button at the top of every screen opens that screen's help: what it is
@@ -1377,6 +1381,7 @@ which both LumenPOS roles are given.
 ### LumenPOS releases
 | Version | Highlights |
 |---|---|
+| 0.61.3 | **LumenPOS on the apps screen and the Frappe 16 desk** (the Zimbabwe shop, 2026-10-16: LumenPOS did not appear on their Frappe 16 desk, and an icon they made for it by hand was marked Deprecated). LumenPOS now declares itself to Frappe (`add_to_apps_screen`), so the apps screen of Frappe 15 and 16 lists it and opens the till, for whoever may open the till (read on POS Invoice, the same test the till makes first). On Frappe 16 it ships its own desk tile and sidebar (`desktop_icon/lumenpos.json`, `workspace_sidebar/lumenpos.json`), which Frappe imports on every update: Open POS, POS Invoice, register shifts and outlets, then offers and prices, customer balances, the controls, and LumenPOS Settings. An icon a shop made by hand under the same name is replaced by it. Frappe 13 and 14 are unchanged (the desk workspace as before). The four new sidebar labels are in all thirteen languages. |
 | 0.61.2 | **Other currencies on any sale** (the Zimbabwe shop, 2026-10-07: a ZWG sale showed each payment in both currencies, a USD sale did not). On a sale in the outlet's own money, **Amount in** now offers the shop's other currencies too: the cashier types the ZWG the customer hands over, the line reads "US$3.00 = ZWG 112.91" at the shift's rate, and the sale and the payment stay recorded in dollars, so nothing changes in the books. Help names it, and *What is new* tells shops that sell in other currencies. Also: help sentences drop a button label's closing colon, as they drop its "…". |
 | 0.61.1 | **What a customer owes, without their holds** (the owner agreed on 2026-10-04). *Owes*, on the payment screen's On account card and on the customer's page, was ERPNext's credit figure, which counts a hold that is not invoiced yet: a customer with a hold of 1,000 and no debt read "Owes 1,000" above a list that said nothing was owed. Now *Owes* is their balance in the books, and **Holds and orders not invoiced** shows apart. The limit is unchanged: holds still count against it, as ERPNext counts them, and when a sale is refused for the limit the message names the holds. **The shift clock** in the top bar reads like a clock, 07:01:20, and counts on the site's own time: a device set to another time zone (or a wrong time) used to show a new shift as hours old, and the Arabic read "7 ساعة". |
 | 0.61.0 | **Cash out under control** (the owner: so nobody takes money out of the drawer as they please). **Putting money in and taking it out are two permissions** now, *Cash in* and *Cash out*: a rule a shop wrote on the old *Cash in / out* becomes one of each on update, so nobody gains or loses anything. **A reason for every cash out**, on by default. **A manager's approval for a cash out**, off by default, above an amount or always (Settings, General, Approvals and access, Cash out): the manager types their passcode at the till, or approves the cashier's request from the Approvals tray, the same way an over-limit discount is approved. A request covers that shift, that drawer and at most that amount, once. Managers need nobody's approval. Who approved shows under the movement and in the audit log, where every cash in and out is now recorded. Also: an amount at or below zero is refused (a negative cash in was really a cash out that nobody checked). In all thirteen languages. |

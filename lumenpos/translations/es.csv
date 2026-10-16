@@ -1017,3 +1017,7 @@
 "{0}: not allowed on account, limit {1}","{0}: a crédito no permitido, límite {1}"
 "{0}: price changed from {1} to {2}","{0}: precio cambiado de {1} a {2}"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}” es una lista de precios de venta base, editarla aquí cambiaría sus precios de venta normales. Cree en su lugar una lista de precios dedicada para este libro/app."
+"Open POS","Abrir el PdV"
+"Offers and prices","Ofertas y precios"
+"Customer balances","Saldos de clientes"
+"Control","Control"

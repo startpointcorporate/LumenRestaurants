@@ -1017,3 +1017,7 @@
 "{0}: not allowed on account, limit {1}","{0}: kredit tidak diizinkan, batas {1}"
 "{0}: price changed from {1} to {2}","{0}: harga diubah dari {1} menjadi {2}"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}” adalah daftar harga jual dasar, mengubahnya di sini akan mengubah harga jual normal Anda. Buat daftar harga khusus untuk buku/aplikasi ini sebagai gantinya."
+"Open POS","Buka POS"
+"Offers and prices","Penawaran dan harga"
+"Customer balances","Saldo pelanggan"
+"Control","Kontrol"
