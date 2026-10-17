@@ -33,13 +33,17 @@ const LOGO = `/assets/${APP}/pos/pwa-192.png`
 
 // LumenPOS's file, where a merge may leave it, and ours.
 const FILES = [
-  [['lumenpos/desktop_icon/lumenpos.json', `${APP}/desktop_icon/lumenpos.json`], `${APP}/desktop_icon/${APP}.json`],
+  [['lumenpos/desktop_icon/lumenpos.json'], `${APP}/desktop_icon/${APP}.json`],
   [['lumenpos/workspace_sidebar/lumenpos.json', `${APP}/workspace_sidebar/lumenpos.json`], `${APP}/workspace_sidebar/${APP}.json`],
   [['lumenpos/lumenpos/sidebar/lumenpos/lumenpos.json', `${APP}/${APP}/sidebar/lumenpos/lumenpos.json`,
     `${APP}/lumenpos/sidebar/lumenpos/lumenpos.json`], `${APP}/${APP}/sidebar/${APP}/${APP}.json`],
   [['lumenpos/dock/lumenpos/lumenpos.json', `${APP}/dock/lumenpos/lumenpos.json`], `${APP}/dock/${APP}/${APP}.json`],
 ]
-const HIDDEN = `${APP}/desktop_icon/lumenpos_workspace.json`
+// Frappe keeps a standard tile only while desktop_icon/<its name>.json exists
+// (sync.remove_orphan_entities), so the hidden tile's file is lumenpos.json:
+// where git may also put LumenPOS's own in a merge, which is why LumenPOS's
+// files are read from git, never from our folder.
+const HIDDEN = `${APP}/desktop_icon/lumenpos.json`
 
 // Our restaurant doctypes, in the order a manager looks for them. Placed after
 // the outlets (POS Profile), before LumenPOS's own sections.
@@ -55,12 +59,21 @@ const RESTAURANT = [
 // The section's icon, from the lucide set both desks draw from.
 const ICON = 'utensils'
 
-function source(froms) {
-  for (const from of froms) {
-    const local = path.join(ROOT, from)
-    if (fs.existsSync(local)) return fs.readFileSync(local, 'utf8')
+// LumenPOS's file as the LumenPOS commit we merge (MERGE_HEAD in the middle of
+// a merge), else the last one we merged (the merge base of HEAD and
+// lumenpos/main), always at its own path in LumenPOS.
+function lumenposRef() {
+  const git = (...a) =>
+    execFileSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  try {
+    return git('rev-parse', '-q', '--verify', 'MERGE_HEAD')
+  } catch {
+    return git('merge-base', 'HEAD', 'lumenpos/main')
   }
-  return execFileSync('git', ['-C', ROOT, 'show', `lumenpos/main:${froms[0]}`], { encoding: 'utf8' })
+}
+const REF = lumenposRef()
+function source(froms) {
+  return execFileSync('git', ['-C', ROOT, 'show', `${REF}:${froms[0]}`], { encoding: 'utf8' })
 }
 
 function ours(doc) {
