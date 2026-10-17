@@ -1017,3 +1017,7 @@
 "{0}: not allowed on account, limit {1}","{0}：不允许赊账，额度 {1}"
 "{0}: price changed from {1} to {2}","{0}：价格从 {1} 改为 {2}"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}”是基础销售价格表，在此编辑会更改您的正常售价。请改为此价格簿 / 应用创建专用价格表。"
+"Open POS","打开 POS"
+"Offers and prices","优惠与价格"
+"Customer balances","客户余额"
+"Control","管控"

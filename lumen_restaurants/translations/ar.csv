@@ -1064,3 +1064,8 @@
 "{0}: not allowed on account, limit {1}","{0}: الآجل غير مسموح، الحد {1}"
 "{0}: price changed from {1} to {2}","{0}: تم تغيير السعر من {1} إلى {2}"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","«{0}» قائمة أسعار بيع أساسية، وتعديلها هنا سيغير أسعار البيع العادية لديك. أنشئ قائمة أسعار مخصصة لهذا الكتاب أو التطبيق بدلا من ذلك."
+"Open POS","فتح نقطة البيع"
+"Offers and prices","العروض والأسعار"
+"Customer balances","أرصدة العملاء"
+"Control","الرقابة"
+"Restaurant","المطعم"

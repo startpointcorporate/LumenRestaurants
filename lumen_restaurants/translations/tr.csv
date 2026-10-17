@@ -1015,3 +1015,7 @@
 "{0}: not allowed on account, limit {1}","{0}: veresiye izin verilmedi, limit {1}"
 "{0}: price changed from {1} to {2}","{0}: fiyat {1} değerinden {2} değerine değiştirildi"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}” temel bir satış fiyat listesidir, burada düzenlemek normal satış fiyatlarınızı değiştirir. Bunun yerine bu defter/uygulama için ayrı bir fiyat listesi oluşturun."
+"Open POS","POS'u aç"
+"Offers and prices","Kampanyalar ve fiyatlar"
+"Customer balances","Müşteri bakiyeleri"
+"Control","Denetim"

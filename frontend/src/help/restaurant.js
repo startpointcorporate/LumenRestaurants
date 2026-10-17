@@ -258,6 +258,7 @@ function ourRelease(lumenpos) {
   const v = parts(lumenpos)
   const at = (minor, patch = 0) => v[1] > minor || (v[1] === minor && (v[2] || 0) >= patch)
   if (v[0] !== 0) return '0.1.0-r1'
+  if (at(61, 2)) return '0.1.0-r18'
   if (at(61)) return '0.1.0-r17'
   if (at(58, 1)) return '0.1.0-r15'
   if (at(57)) return '0.1.0-r13'

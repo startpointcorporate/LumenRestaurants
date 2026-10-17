@@ -1017,3 +1017,7 @@
 "{0}: not allowed on account, limit {1}","{0}: в долг не разрешено, лимит {1}"
 "{0}: price changed from {1} to {2}","{0}: цена изменена с {1} на {2}"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}” является базовым прайс-листом продаж, его изменение здесь поменяет ваши обычные цены продажи. Вместо этого создайте отдельный прайс-лист для этой книги/сервиса."
+"Open POS","Открыть точку продаж"
+"Offers and prices","Акции и цены"
+"Customer balances","Балансы клиентов"
+"Control","Контроль"

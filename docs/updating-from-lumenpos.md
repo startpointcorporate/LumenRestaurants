@@ -169,6 +169,20 @@ items, test, then fill in the entry's last column (our commit and the date).
      nothing of ours. Do not `git stash` our own edits in the middle of a merge:
      the stash keeps the merge's whole index, and popping it after the merge
      commit conflicts with itself (copy the files aside instead).
+   - LumenPOS 0.61.2 and 0.61.3 (0.1.0-r18): `messages.js` (LumenPOS's
+     `anyCurrency` block, our spreads in front), the version line, the guide's
+     header. `hooks.py` came as `lumenpos/hooks.py` again (modify/delete):
+     LumenPOS's `add_to_apps_screen` block is in ours by hand, with our logo
+     (`/assets/lumen_restaurants/pos/pwa-192.png`) and
+     `lumen_restaurants.api.session.can_open_till`, then `git rm` the stray
+     file. **The Frappe 16 desk files** (`desktop_icon/`, `workspace_sidebar/`,
+     `<module>/sidebar/`, `dock/`) arrive under `lumenpos/` naming LumenPOS:
+     `node scripts/desk_files_from_lumenpos.mjs` writes ours (app, module and
+     title Lumen Restaurants, our Restaurant section after the outlets) and
+     removes theirs, `--check` says whether they are in step. Run it after every
+     merge that touches LumenPOS's copies. Our dock must never set `mount_on`
+     (Frappe drops the apps tile of an app that mounts on another), the script
+     refuses one. The owner chose our own tile on the apps screen (2026-10-17).
    - **LumenPOS's quality gate on our copy** (`ERPNext POS/quality/gate.mjs`,
      read only): it expects LumenPOS's folders, so point it at a folder of
      junctions (`lumenpos` to our `lumen_restaurants`, plus `frontend`,
@@ -208,7 +222,8 @@ items, test, then fill in the entry's last column (our commit and the date).
 6. **Check.**
    - `python3 scripts/check_endpoints.py`: every call from the screens resolves
      to a whitelisted server method.
-   - `node scripts/rename_from_lumenpos.mjs --check` reports 0 files.
+   - `node scripts/rename_from_lumenpos.mjs --check` reports 0 files, and
+     `node scripts/desk_files_from_lumenpos.mjs --check` "desk files in step".
    - The Python compiles (`python3 -m compileall -q lumen_restaurants`).
    - `check_endpoints.py` also catches a `@frappe.whitelist()` that slid onto
      the wrong function in a merge ("DECORATOR THEFT"). It found one in

@@ -731,3 +731,13 @@ def _user_profiles():
     else:
         names = frappe.get_all("POS Profile", filters=enabled, pluck="name", limit_page_length=20)
     return sorted(set(names))
+
+
+def can_open_till() -> bool:
+    """Frappe's apps screen (hooks.add_to_apps_screen) shows LumenPOS to this
+    user: the same test get_bootstrap makes before anything else. Not
+    whitelisted, Frappe calls it itself."""
+    try:
+        return bool(frappe.has_permission("POS Invoice", "read"))
+    except Exception:
+        return False

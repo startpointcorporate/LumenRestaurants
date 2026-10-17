@@ -1016,3 +1016,7 @@
 "{0}: not allowed on account, limit {1}","{0}: không được phép ghi nợ, hạn mức {1}"
 "{0}: price changed from {1} to {2}","{0}: giá đã đổi từ {1} thành {2}"
 "“{0}” is a base selling price list, editing it here would change your normal selling prices. Create a dedicated price list for this book/app instead.","“{0}” là bảng giá bán cơ sở, sửa ở đây sẽ thay đổi giá bán thông thường của bạn. Hãy tạo một bảng giá riêng cho sổ giá/ứng dụng này."
+"Open POS","Mở POS"
+"Offers and prices","Ưu đãi và giá"
+"Customer balances","Số dư khách hàng"
+"Control","Kiểm soát"

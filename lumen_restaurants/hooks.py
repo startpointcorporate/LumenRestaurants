@@ -10,6 +10,22 @@ app_license = "AGPL-3.0-only"
 
 required_apps = ["erpnext"]
 
+# Frappe's apps screen (/apps, Frappe 15 and 16) and the Frappe 16 desk list an
+# app only when it declares itself here. Shown to whoever may open the till.
+# The Frappe 16 desk tile and sidebar are the files in desktop_icon/ and
+# workspace_sidebar/, which Frappe 16 imports on every migrate.
+# Lumen Restaurants: our own tile, logo and files (the owner, 2026-10-17), made
+# from LumenPOS's by scripts/desk_files_from_lumenpos.mjs.
+add_to_apps_screen = [
+    {
+        "name": app_name,
+        "logo": "/assets/lumen_restaurants/pos/pwa-192.png",
+        "title": app_title,
+        "route": "/pos",
+        "has_permission": "lumen_restaurants.api.session.can_open_till",
+    }
+]
+
 # Lumen Restaurants: a site runs LumenPOS or Lumen Restaurants, never both
 # (they share doctype names). Both directions are refused before anything is
 # written, see site_guard.py.
