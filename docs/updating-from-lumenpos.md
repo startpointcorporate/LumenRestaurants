@@ -178,8 +178,10 @@ items, test, then fill in the entry's last column (our commit and the date).
      file. **The Frappe 16 desk files** (`desktop_icon/`, `workspace_sidebar/`,
      `<module>/sidebar/`, `dock/`) arrive under `lumenpos/` naming LumenPOS:
      `node scripts/desk_files_from_lumenpos.mjs` writes ours (app, module and
-     title Lumen Restaurants, our Restaurant section after the outlets) and
-     removes theirs, `--check` says whether they are in step. Run it after every
+     title Lumen Restaurants, our logo on our tile, our Restaurant section after
+     the outlets, and a HIDDEN tile named after our workspace "LumenPOS", or
+     Frappe makes a second tile of ours by itself in grid mode) and removes
+     theirs wherever git put them, `--check` says whether they are in step. Run it after every
      merge that touches LumenPOS's copies. Our dock must never set `mount_on`
      (Frappe drops the apps tile of an app that mounts on another), the script
      refuses one. The owner chose our own tile on the apps screen (2026-10-17).
