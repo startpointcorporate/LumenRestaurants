@@ -18,6 +18,7 @@
 import { computed, ref } from 'vue'
 
 import { messages } from './messages'
+import { restaurantLocaleOverrides } from './restaurant-locales-extra'
 
 const KEY = 'lumenpos-locale'
 
@@ -122,7 +123,7 @@ async function load(code) {
   const loader = packs[`./locales/${code}.js`]
   if (!loader) return false
   try {
-    dicts[code] = (await loader()).default
+    dicts[code] = { ...(await loader()).default, ...(restaurantLocaleOverrides[code] || {}) }
     return true
   } catch {
     // Offline, and this language was never opened on this device: the screen
