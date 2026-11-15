@@ -19,3 +19,5 @@ Validation : npm ci puis npm run build Vite réussis, git diff --check réussi. 
 Le restaurant de démonstration ne possède pas encore de canal/accord de collecte approuvé : le bouton doit rester indisponible avec « Link Pay n’est pas encore activé pour cet établissement ». La mise en production coordonnée de l'UI ne constitue pas une activation commerciale de Link Pay.
 
 Nouveaux RPC/backend et bouton Desk relèvent de la livraison360. Source initiale0838201 ; publication main de ce dépôt autorisée par le coordinateur, puis assemblage de l'image commune par360.
+
+Cache natif : version Lumen portée de0.1.0-r18 à0.1.0-r19. Le mécanisme existant www/pos.py estampille pos.js, pos.css et /sw.js ; le service worker crée son cache par cette version. L’image doit embarquer __init__.py avec les assets construits, sans purge manuelle ni nouveau mécanisme.
