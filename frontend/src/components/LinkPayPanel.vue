@@ -30,6 +30,7 @@
       <button class="btn btn-outline" :disabled="link.busy || session.offline" @click="refresh">{{ t('Refresh Link Pay') }}</button>
       <button v-if="cart.lines.length" class="btn btn-outline" :disabled="link.busy || session.offline" @click="prepare">{{ t('Retry the same Link Pay attempt') }}</button>
     </template>
+    <p v-if="link.declined" role="status">{{ t('Link Pay was not started. Check the order before trying again.') }}</p>
     <p v-if="link.error" role="alert">{{ t('Unable to refresh Link Pay. Keep this attempt and try again.') }}</p>
   </section>
 </template>
@@ -78,7 +79,7 @@ async function prepare(){
     if(!link.locked && cart.order) { await cart.saveOrder(); await link.context(cart.order.name) }
     const payload={...cart._basePayload(),cart:cart.orderSnapshot(),payments:props.payments.map(p=>({...p})),order:cart.order?.name||null,discount_passcode:cart.discountPasscode,discount_request:cart.discountRequest}
     await canonical(await link.prepare(payload,cart.order?.name))
-  }catch{link.error=true}
+  }catch{if(!link.declined)link.error=true}
 }
 async function refresh(){try{await canonical(await link.refresh(cart.order?.name))}catch{link.error=true}}
 async function cancel(){try{await canonical(await link.mutate('cancel'))}catch{link.error=true}}

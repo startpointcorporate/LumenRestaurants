@@ -6,6 +6,7 @@
 // (i18n.js). A missing key falls back to English. Built by
 // scripts/i18n/write_locale.mjs, fix a text there and in its source part.
 export default {
+  "Link Pay was not started. Check the order before trying again.": "Link Pay n’a pas été lancé. Vérifiez la commande avant de réessayer.",
   "This order is locked until Link Pay is cancelled or finalized.": "Cette commande est gelée jusqu’à l’annulation ou la finalisation de Link Pay.",
   "Resume Link Pay": "Reprendre Link Pay",
   "Recover Link Pay attempt": "Retrouver la tentative Link Pay",
