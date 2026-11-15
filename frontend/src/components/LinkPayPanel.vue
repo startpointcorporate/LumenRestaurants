@@ -78,6 +78,13 @@ async function prepare(){
   try{
     if(!link.locked && cart.order) { await cart.saveOrder(); await link.context(cart.order.name) }
     const payload={...cart._basePayload(),cart:cart.orderSnapshot(),payments:props.payments.map(p=>({...p})),order:cart.order?.name||null,discount_passcode:cart.discountPasscode,discount_request:cart.discountRequest}
+    // Preserve the same counter-sale metadata as the native cart.submit path.
+    if(session.restaurantMode && !cart.order && cart.serviceType !== 'Dine in') {
+      payload.restaurant = {
+        order_type: cart.serviceType,
+        notes: cart.lines.filter(l => (l.note || '').trim()).map(l => ({item_code:l.item_code,note:l.note.trim()})),
+      }
+    }
     await canonical(await link.prepare(payload,cart.order?.name))
   }catch{if(!link.declined)link.error=true}
 }
