@@ -19,6 +19,7 @@ import { money } from '../format'
 import { locale } from '../i18n'
 import { useCatalogStore } from './catalog'
 import { useSessionStore } from './session'
+import { useLinkPayStore } from './linkpay'
 
 function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100
@@ -68,6 +69,7 @@ export const useCartStore = defineStore('cart', {
   }),
 
   getters: {
+    linkPayLocked(state) { const link=useLinkPayStore(); return link.locked && (link.orderName ? state.order?.name===link.orderName : !state.order) },
     // Promotions only see NON-bundle lines (bundle pricing is final);
     // results are remapped back onto the full line list.
     _promoView(state) {
@@ -849,6 +851,17 @@ export const useCartStore = defineStore('cart', {
       }
     },
 
+    bindLinkPayOrder(order) {
+      this.order = { ...order }
+      clearTimeout(orderTimer)
+      orderSig = JSON.stringify(this.orderSnapshot())
+    },
+    acceptPostedReceipt(receipt, key) {
+      useCatalogStore().applyStock(receipt?.stock_after)
+      this._keepShiftSale(key, receipt)
+      this.clear()
+    },
+
     // Asked AHEAD of the payment screen (see prefetchQuote), so pressing Pay
     // does not wait on a round trip: on a till in Riyadh talking to a server in
     // Mumbai every request costs about 190 ms before any work happens. The
@@ -889,6 +902,7 @@ export const useCartStore = defineStore('cart', {
     },
 
     async submit(payments, redeemLoyaltyPoints = 0, giftCards = []) {
+      if (this.linkPayLocked) throw new Error('This order is locked until Link Pay is cancelled or finalized.')
       const payload = {
         ...this._basePayload(),
         gift_cards: giftCards,
@@ -913,9 +927,7 @@ export const useCartStore = defineStore('cart', {
       this.submitting = true
       try {
         const receipt = await call('lumen_restaurants.api.sales.submit_sale', { payload })
-        useCatalogStore().applyStock(receipt?.stock_after)
-        this._keepShiftSale(payload.idempotency_key, receipt)
-        this.clear()
+        this.acceptPostedReceipt(receipt, payload.idempotency_key)
         return receipt
       } catch (e) {
         if (e instanceof OfflineError) {
@@ -1078,6 +1090,10 @@ export const useCartStore = defineStore('cart', {
           // offline or gone: the order still opens, the customer can be re-picked
         }
       }
+      if (!useSessionStore().offline) {
+        const link=useLinkPayStore()
+        try { await link.context(order.name) } catch { /* preserve known frozen/uncertain state */ }
+      }
     },
 
     // Send what was added since the last send. Tracks a sent_qty per line in
@@ -1131,6 +1147,7 @@ export const useCartStore = defineStore('cart', {
     // compares the snapshot first, so saving the order (which changes the order
     // object, not the basket) cannot set off another save.
     touchOrder() {
+      if (this.linkPayLocked) return
       if (!this.order) return
       const sig = JSON.stringify(this.orderSnapshot())
       if (sig === orderSig) return
@@ -1142,6 +1159,7 @@ export const useCartStore = defineStore('cart', {
     },
 
     async saveOrder() {
+      if (this.linkPayLocked) return this.order
       if (!this.order) return null
       const data = await call('lumen_restaurants.api.restaurant.save_order', {
         name: this.order.name,

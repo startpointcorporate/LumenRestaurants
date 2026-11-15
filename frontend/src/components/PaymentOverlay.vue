@@ -10,6 +10,8 @@
     </header>
 
     <div class="pay-body">
+      <LinkPayPanel :payments="payments" :redeem-points="redeemPoints" :quote-ready="serverTotal !== null" @posted="emit('done', $event)" />
+      <div class="native-pay-controls" v-show="!cart.linkPayLocked" :inert="cart.linkPayLocked || link.checking">
       <!-- A walk-in who wants to pay in another currency: switch the sale to
            it here, where the question is usually asked. -->
       <div v-if="canSwitchCurrency" class="sell-in">
@@ -243,12 +245,15 @@
                 : t('Offline, this sale will be queued and synced automatically.')
         }}
       </p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import Icon from './Icon.vue'
+import LinkPayPanel from './LinkPayPanel.vue'
+import { useLinkPayStore } from '../stores/linkpay'
 import PaymentBrand from './PaymentBrand.vue'
 import { ref, computed, onMounted } from 'vue'
 import { call } from '../api'
@@ -259,6 +264,7 @@ import { t } from '../i18n'
 
 const emit = defineEmits(['close', 'done'])
 const cart = useCartStore()
+const link = useLinkPayStore()
 const session = useSessionStore()
 
 const payments = ref([])
@@ -728,6 +734,7 @@ async function loadExchange() {
 }
 
 async function complete() {
+  if (cart.linkPayLocked || link.checking) return
   try {
     const giftCards = payments.value
       .filter((p) => p.card_no)
@@ -757,6 +764,7 @@ function round2(n) {
 </script>
 
 <style scoped>
+.native-pay-controls { display: contents; }
 .method.blocked { opacity: 0.4; cursor: not-allowed; }
 .split-ref {
   grid-column: 1 / -1;

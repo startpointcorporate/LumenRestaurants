@@ -88,7 +88,10 @@ export async function call(method, args = {}, options = {}) {
     }
   }
   if (!res.ok) {
-    throw new ApiError(extractMessage(data) || `Request failed (${res.status})`)
+    const error = new ApiError(extractMessage(data) || `Request failed (${res.status})`)
+    // Only the native backend may attest that preparation had no intent/remote side effect.
+    error.linkPayNoIntent = data.linkPayNoIntent === true
+    throw error
   }
   return data.message
 }
