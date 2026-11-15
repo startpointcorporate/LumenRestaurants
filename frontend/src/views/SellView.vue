@@ -2,7 +2,7 @@
      SPDX-License-Identifier: AGPL-3.0-only
      "LumenPOS" is a trademark of Lumen Solutions. See TRADEMARKS.md. -->
 <template>
-  <div class="sell">
+  <div class="sell" :inert="cart.linkPayLocked">
     <!-- "Per cashier" shift scope: the drawer belongs to whoever opened it. -->
     <div v-if="session.sellBlockedBy" class="shift-owner-banner">
       <Icon name="warning" />
@@ -126,7 +126,6 @@
 
     <CartPanel @pay="onPay" @park="parkOpen = true" @hold="holdOpen = true" @receipt="receipt = $event" @leave-order="leaveOrder" />
 
-    <PaymentOverlay v-if="paymentOpen" @close="paymentOpen = false" @done="onSaleDone" />
     <HoldModal v-if="holdOpen" @close="holdOpen = false" @done="onHeld" />
     <ParkedSalesModal v-if="parkedOpen" @close="parkedOpen = false" />
     <ReceiptModal v-if="receipt" :receipt="receipt" @close="closeReceipt" />
@@ -156,6 +155,8 @@
       </div>
     </div>
   </div>
+  <LinkPayResume @resume="paymentOpen = true" />
+  <PaymentOverlay v-if="paymentOpen" @close="paymentOpen = false" @done="onSaleDone" />
 </template>
 
 <script setup>
@@ -171,6 +172,7 @@ import { useCartStore } from '../stores/cart'
 import ProductGrid from '../components/ProductGrid.vue'
 import CartPanel from '../components/CartPanel.vue'
 import PaymentOverlay from '../components/PaymentOverlay.vue'
+import LinkPayResume from '../components/LinkPayResume.vue'
 import ParkedSalesModal from '../components/ParkedSalesModal.vue'
 import HoldModal from '../components/HoldModal.vue'
 import ReceiptModal from '../components/ReceiptModal.vue'

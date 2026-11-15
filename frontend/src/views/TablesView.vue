@@ -202,7 +202,7 @@
     </div>
 
     <div v-if="panelOpen && !editing" class="p-backdrop" @click="closePanel"></div>
-    <aside class="panel" :class="{ open: panelOpen }">
+    <aside class="panel" :inert="cart.linkPayLocked && selTable?.order?.name === cart.order?.name" :class="{ open: panelOpen }">
       <!-- Edit mode: what is picked on the plan, or the area itself. -->
       <template v-if="editing && editArea">
         <template v-if="editPanel === 'photo'">
@@ -442,6 +442,7 @@
     </aside>
   </div>
   <!-- Outside .floor: the floor's own button sizes must not reach them. -->
+  <LinkPayResume @resume="paymentOpen = true" />
   <PaymentOverlay v-if="paymentOpen" @close="closePayment" @done="onPaid" />
   <ReceiptModal v-if="receipt" :receipt="receipt" @close="closeReceipt" />
   <Teleport to="body">
@@ -473,6 +474,7 @@ import {
   roomWalls,
 } from '../floor/plan'
 import PaymentOverlay from '../components/PaymentOverlay.vue'
+import LinkPayResume from '../components/LinkPayResume.vue'
 import ReceiptModal from '../components/ReceiptModal.vue'
 import ReceiptView from '../components/ReceiptView.vue'
 import { call } from '../api'
@@ -1009,6 +1011,7 @@ async function payTable() {
 async function closePayment() {
   paymentOpen.value = false
   paying = null
+  if (cart.linkPayLocked) return
   try {
     await cart.leaveOrder()
   } catch {

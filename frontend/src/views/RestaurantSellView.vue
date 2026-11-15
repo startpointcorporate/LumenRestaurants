@@ -2,7 +2,7 @@
      SPDX-License-Identifier: AGPL-3.0-only
      "LumenPOS" is a trademark of Lumen Solutions. See TRADEMARKS.md. -->
 <template>
-  <div class="rsell">
+  <div class="rsell" :inert="cart.linkPayLocked">
     <!-- ======================= the order ======================= -->
     <aside class="rorder card">
       <div v-if="cart.order" class="rtable-strip">
@@ -40,7 +40,7 @@
             v-model="cart.orderId"
             :placeholder="cart.activeApp?.require_order_id ? t('Order ID *') : t('Order ID')"
           />
-        </template>
+</template>
         <span v-else class="muted small">{{ t('The order number prints with the payment') }}</span>
       </div>
 
@@ -215,9 +215,10 @@
       @close="sheet = null"
     />
     <CustomerModal v-if="customerOpen" @close="customerOpen = false" />
-    <PaymentOverlay v-if="paymentOpen" @close="paymentOpen = false" @done="onSaleDone" />
     <ReceiptModal v-if="receipt" :receipt="receipt" @close="closeReceipt" />
   </div>
+  <LinkPayResume @resume="paymentOpen = true" />
+  <PaymentOverlay v-if="paymentOpen" @close="paymentOpen = false" @done="onSaleDone" />
 </template>
 
 <script setup>
@@ -226,6 +227,7 @@ import { useRouter } from 'vue-router'
 import Icon from '../components/Icon.vue'
 import CustomerModal from '../components/CustomerModal.vue'
 import PaymentOverlay from '../components/PaymentOverlay.vue'
+import LinkPayResume from '../components/LinkPayResume.vue'
 import ReceiptModal from '../components/ReceiptModal.vue'
 import ModifierSheet from '../components/ModifierSheet.vue'
 import SalespersonRow from '../components/SalespersonRow.vue'
