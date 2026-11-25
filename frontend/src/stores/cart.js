@@ -32,6 +32,7 @@ function round2(n) {
 let orderTimer = null
 let orderSig = null
 let orderSave = null
+const QUOTE_TTL = 30_000
 
 export const useCartStore = defineStore('cart', {
   state: () => ({
@@ -69,6 +70,8 @@ export const useCartStore = defineStore('cart', {
     _fiscalQuote: null,
     quoteUnavailable: false,
     _quoteTimer: null,
+    _quoteExpiryTimer: null,
+    quoteExpired: false,
   }),
 
   getters: {
@@ -254,7 +257,8 @@ export const useCartStore = defineStore('cart', {
     fiscalQuote() {
       const session = useSessionStore()
       const quote = this._fiscalQuote
-      return !session.offline && quote?.signature === this.quoteSignature ? quote.result : null
+      return !session.offline && quote?.signature === this.quoteSignature && Date.now() < quote.expiresAt
+        ? quote.result : null
     },
 
     canPriceOffline() {
@@ -870,12 +874,12 @@ export const useCartStore = defineStore('cart', {
       if (session.offline || !this.lines.length) return null
       const signature = this.quoteSignature
       if (this._quoteRequest?.signature === signature) return this._quoteRequest.promise
-      if (!refresh && this.fiscalQuote && Date.now() - this._fiscalQuote.at < 30000) {
+      if (!refresh && this.fiscalQuote && Date.now() < this._fiscalQuote.expiresAt) {
         return this.fiscalQuote
       }
       clearTimeout(this._quoteTimer)
       this.quoteUnavailable = false
-      if (refresh) this._fiscalQuote = null
+      if (refresh) this.clearFiscalQuote()
       this._quoteRequest?.controller.abort()
       const controller = new AbortController()
       const promise = call('lumen_restaurants.api.sales.quote_sale', { payload: this._basePayload() }, {
@@ -891,11 +895,31 @@ export const useCartStore = defineStore('cart', {
             this.quoteUnavailable = true
             return null
           }
-          this._fiscalQuote = { signature, result, at: Date.now() }
+          this.setFiscalQuote(signature, result)
           return result
         })
       this._quoteRequest = { signature, promise, controller }
       return promise
+    },
+
+    clearFiscalQuote() {
+      clearTimeout(this._quoteExpiryTimer)
+      this._fiscalQuote = null
+    },
+
+    setFiscalQuote(signature, result) {
+      clearTimeout(this._quoteExpiryTimer)
+      this.quoteExpired = false
+      const expiresAt = Date.now() + QUOTE_TTL
+      this._fiscalQuote = { signature, result, expiresAt }
+      this._quoteExpiryTimer = setTimeout(() => this.expireFiscalQuote(), QUOTE_TTL)
+    },
+
+    expireFiscalQuote() {
+      const quote = this._fiscalQuote
+      if (!quote || Date.now() < quote.expiresAt) return
+      this.clearFiscalQuote()
+      this.quoteExpired = quote.signature === this.quoteSignature
     },
 
     prefetchQuote() {
@@ -906,12 +930,14 @@ export const useCartStore = defineStore('cart', {
         this._quoteRequest?.controller.abort()
         this._quoteRequest = null
       }
-      if (session.offline) this._fiscalQuote = null
+      this.quoteExpired = false
+      if (session.offline || this._fiscalQuote?.signature !== this.quoteSignature) this.clearFiscalQuote()
       if (session.offline || !this.lines.length || !session.posProfile) return
       this._quoteTimer = setTimeout(() => this.quote(), 350)
     },
 
     async submit(payments, redeemLoyaltyPoints = 0, giftCards = []) {
+      this.expireFiscalQuote()
       const session2 = useSessionStore()
       const quote = this.fiscalQuote
       if (!session2.offline && !quote) throw new Error(t("Unable to verify the sale total."))
@@ -944,7 +970,10 @@ export const useCartStore = defineStore('cart', {
         // Do not race the debounced table save with closing the same order.
         clearTimeout(orderTimer)
         if (orderSave) await orderSave
-        if (signature !== this.quoteSignature) throw new Error(t('Unable to verify the sale total.'))
+        this.expireFiscalQuote()
+        if (signature !== this.quoteSignature || this.fiscalQuote !== quote) {
+          throw new Error(t('Unable to verify the sale total.'))
+        }
         const receipt = await call('lumen_restaurants.api.sales.submit_sale', { payload })
         this.acceptPostedReceipt(receipt, payload.idempotency_key)
         return receipt

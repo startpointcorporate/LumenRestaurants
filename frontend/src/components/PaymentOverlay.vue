@@ -10,13 +10,25 @@
     </header>
 
     <div class="pay-body">
-      <LinkPayPanel :payments="payments" :redeem-points="redeemPoints" :quote-ready="Boolean(cart.fiscalQuote)" @posted="emit('done', $event)" />
-      <div v-if="!cart.linkPayLocked && !pricingReady" role="status">
+      <LinkPayPanel :payments="payments" :redeem-points="redeemPoints" :quote-ready="Boolean(cart.fiscalQuote) && !amountChanged" @posted="emit('done', $event)" />
+      <div v-if="!cart.linkPayLocked && !pricingReady && !(cart.fiscalQuote && amountChanged)" role="status">
         <p>{{ session.offline ? t('This basket needs an online tax calculation before payment.') : quoteStatus }}</p>
         <button v-if="!session.offline && cart.quoteUnavailable" class="btn btn-outline" @click="loadQuote">
           {{ t('Retry') }}
         </button>
       </div>
+      <div v-if="!cart.linkPayLocked && cart.fiscalQuote && amountChanged" role="alert">
+        <p>{{ t('Amount changed from {previous} to {current}. Check any payment already taken.', {
+          previous: money(amountChanged.payable, amountChanged.currency),
+          current: money(cart.fiscalQuote.payable, cart.fiscalQuote.currency),
+        }) }}</p>
+        <button class="btn btn-outline" @click="acceptChangedAmount">
+          {{ t('Confirm new total and reset tenders') }}
+        </button>
+      </div>
+      <p v-else-if="!cart.linkPayLocked && cart.fiscalQuote && taxChanged" role="status">
+        {{ t('The tax breakdown changed. The amount to pay is unchanged.') }}
+      </p>
       <p v-if="session.offline && pricingReady" class="muted">{{ t('Provisional total (offline)') }}</p>
       <div class="native-pay-controls" v-show="!cart.linkPayLocked && pricingReady"
         :inert="cart.linkPayLocked || link.checking || !pricingReady">
@@ -335,8 +347,11 @@ const onAccountRoom = computed(() => {
 })
 
 const exchangeTotal = ref(null)
+const amountChanged = ref(null)
+const taxChanged = ref(false)
+let lastQuote = cart.fiscalQuote
 const pricingReady = computed(() => cart.exchange ? exchangeTotal.value !== null
-  : session.offline ? cart.canPriceOffline : Boolean(cart.fiscalQuote))
+  : session.offline ? cart.canPriceOffline && !amountChanged.value : Boolean(cart.fiscalQuote) && !amountChanged.value)
 const total = computed(() => cart.exchange ? exchangeTotal.value ?? 0
   : cart.fiscalQuote?.payable ?? (session.offline && cart.canPriceOffline ? cart.total : 0))
 const quoteStatus = computed(() => cart.quoteUnavailable
@@ -542,22 +557,51 @@ async function loadQuote() {
   return cart.quote({ refresh: true })
 }
 
-watch(() => cart.fiscalQuote, (q, previous) => {
-  cashbackEarn.value = q?.cashback_earn || 0
-  creditFacts.value = q?.on_account || null
-  blockedModes.value = q?.blocked_modes || {}
-  if (previous && q && previous.fiscal_fingerprint !== q.fiscal_fingerprint) {
-    payments.value = []
-    redeemPoints.value = 0
-  }
-  if (!payments.value.length && !cart.exchange) refillAmount()
-})
-
-watch(() => [cart.quoteSignature, session.offline], () => {
-  if (cart.exchange) return
+function acceptChangedAmount() {
+  cart.expireFiscalQuote()
+  if (!cart.fiscalQuote) return
+  lastQuote = cart.fiscalQuote
+  amountChanged.value = null
+  taxChanged.value = false
   payments.value = []
   redeemPoints.value = 0
   refillAmount()
+}
+
+watch(() => cart.fiscalQuote, q => {
+  cashbackEarn.value = q?.cashback_earn || 0
+  creditFacts.value = q?.on_account || null
+  blockedModes.value = q?.blocked_modes || {}
+  if (!q || cart.exchange) return
+  if (!lastQuote) {
+    refillAmount()
+  } else if (lastQuote.payable !== q.payable || lastQuote.currency !== q.currency) {
+    amountChanged.value = lastQuote
+    return
+  } else if (lastQuote.fiscal_fingerprint !== q.fiscal_fingerprint) {
+    taxChanged.value = true
+  }
+  amountChanged.value = null
+  lastQuote = q
+})
+
+watch(() => cart.quoteSignature, () => {
+  if (cart.exchange) return
+  lastQuote = null
+  amountChanged.value = null
+  taxChanged.value = false
+  payments.value = []
+  redeemPoints.value = 0
+  refillAmount()
+})
+
+watch(() => session.offline, offline => {
+  if (cart.exchange || !offline || payments.value.length) return
+  refillAmount()
+})
+
+watch(() => [cart.quoteExpired, cart.submitting, cart.linkPayLocked], ([expired, submitting, locked]) => {
+  if (expired && !submitting && !locked && !cart.exchange && !session.offline) loadQuote()
 })
 
 const blockedModes = ref({})
@@ -589,6 +633,7 @@ function pushPayment(mode, saleAmount, extra = {}) {
 }
 
 function addPayment(mode) {
+  cart.expireFiscalQuote()
   if (!pricingReady.value) return
   if (blockedModes.value[mode]) {
     session.notify(
@@ -730,8 +775,8 @@ async function loadExchange() {
 }
 
 async function complete() {
+  cart.expireFiscalQuote()
   if (cart.linkPayLocked || link.checking || !canComplete.value) return
-  const fingerprint = cart.fiscalQuote?.fiscal_fingerprint
   try {
     const giftCards = payments.value
       .filter((p) => p.card_no)
@@ -752,14 +797,7 @@ async function complete() {
     emit('done', receipt)
   } catch (e) {
     session.notify(e.message, true)
-    if (!cart.exchange && !session.offline) {
-      const updated = await loadQuote()
-      if (updated?.fiscal_fingerprint !== fingerprint) {
-        payments.value = []
-        redeemPoints.value = 0
-        refillAmount()
-      }
-    }
+    if (!cart.exchange && !session.offline) await loadQuote()
   }
 }
 

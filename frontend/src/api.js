@@ -52,7 +52,11 @@ async function refreshCsrfToken() {
 export async function call(method, args = {}, options = {}) {
   let res
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), options.timeout || deadlineFor(method))
+  const upstream = options.signal
+  const abort = () => controller.abort()
+  if (upstream?.aborted) abort()
+  else upstream?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(abort, options.timeout || deadlineFor(method))
   try {
     res = await fetch(`/api/method/${method}`, {
       method: 'POST',
@@ -67,7 +71,7 @@ export async function call(method, args = {}, options = {}) {
       // it never reaches one as an argument. A queued sale is sent in the
       // language it was made in (options.lang).
       body: JSON.stringify({ ...args, _lang: options.lang || locale.value }),
-      signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal,
+      signal: controller.signal,
     })
   } catch {
     // A refused connection and a request that ran out of time mean the same
@@ -75,6 +79,7 @@ export async function call(method, args = {}, options = {}) {
     throw new OfflineError()
   } finally {
     clearTimeout(timer)
+    upstream?.removeEventListener('abort', abort)
   }
   let data = {}
   try {
