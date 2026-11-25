@@ -130,11 +130,7 @@
           <span>{{ money(cart.fiscalQuote.rounding_adjustment, cart.fiscalQuote.currency, cart.fiscalQuote.precision) }}</span>
         </div>
         <div class="rt-row big"><span>{{ t('Total') }}</span><span>{{ cart.displayTotal || '—' }}</span></div>
-        <p v-if="cart.lines.length && !cart.fiscalQuote" role="status" class="muted small">
-          {{ session.offline
-            ? t(cart.canPriceOffline ? 'Provisional total (offline)' : 'This basket needs an online tax calculation before payment.')
-            : t(cart.quoteUnavailable ? 'Unable to verify the sale total.' : 'Calculating taxes…') }}
-        </p>
+        <FiscalQuoteStatus v-if="cart.lines.length && !cart.fiscalQuote" />
       </div>
 
       <div class="ractions">
@@ -229,6 +225,7 @@
 </template>
 
 <script setup>
+import FiscalQuoteStatus from "../components/FiscalQuoteStatus.vue"
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from '../components/Icon.vue'

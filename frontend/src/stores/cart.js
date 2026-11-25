@@ -72,6 +72,7 @@ export const useCartStore = defineStore('cart', {
     _quoteTimer: null,
     _quoteExpiryTimer: null,
     quoteExpired: false,
+    paymentQuoteVisible: false,
   }),
 
   getters: {
@@ -257,8 +258,12 @@ export const useCartStore = defineStore('cart', {
     fiscalQuote() {
       const session = useSessionStore()
       const quote = this._fiscalQuote
-      return !session.offline && quote?.signature === this.quoteSignature && Date.now() < quote.expiresAt
+      return !session.offline && quote?.signature === this.quoteSignature && performance.now() < quote.expiresAt
         ? quote.result : null
+    },
+
+    quotePending() {
+      return this._quoteRequest?.signature === this.quoteSignature
     },
 
     canPriceOffline() {
@@ -874,7 +879,7 @@ export const useCartStore = defineStore('cart', {
       if (session.offline || !this.lines.length) return null
       const signature = this.quoteSignature
       if (this._quoteRequest?.signature === signature) return this._quoteRequest.promise
-      if (!refresh && this.fiscalQuote && Date.now() < this._fiscalQuote.expiresAt) {
+      if (!refresh && this.fiscalQuote && performance.now() < this._fiscalQuote.expiresAt) {
         return this.fiscalQuote
       }
       clearTimeout(this._quoteTimer)
@@ -910,19 +915,19 @@ export const useCartStore = defineStore('cart', {
     setFiscalQuote(signature, result) {
       clearTimeout(this._quoteExpiryTimer)
       this.quoteExpired = false
-      const expiresAt = Date.now() + QUOTE_TTL
+      const expiresAt = performance.now() + QUOTE_TTL
       this._fiscalQuote = { signature, result, expiresAt }
       this._quoteExpiryTimer = setTimeout(() => this.expireFiscalQuote(), QUOTE_TTL)
     },
 
     expireFiscalQuote() {
       const quote = this._fiscalQuote
-      if (!quote || Date.now() < quote.expiresAt) return
+      if (!quote || performance.now() < quote.expiresAt) return
       this.clearFiscalQuote()
       this.quoteExpired = quote.signature === this.quoteSignature
     },
 
-    prefetchQuote() {
+    prefetchQuote(active) {
       clearTimeout(this._quoteTimer)
       this.quoteUnavailable = false
       const session = useSessionStore()
@@ -932,7 +937,7 @@ export const useCartStore = defineStore('cart', {
       }
       this.quoteExpired = false
       if (session.offline || this._fiscalQuote?.signature !== this.quoteSignature) this.clearFiscalQuote()
-      if (session.offline || !this.lines.length || !session.posProfile) return
+      if (!active || session.offline || !this.lines.length || !session.posProfile) return
       this._quoteTimer = setTimeout(() => this.quote(), 350)
     },
 

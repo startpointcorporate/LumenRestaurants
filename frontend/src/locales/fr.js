@@ -124,6 +124,8 @@ export default {
   "Sell gift card": "Vendre une carte cadeau",
   "Payment": "Paiement",
   "Calculating taxes…": "Calcul des taxes…",
+  "The tax quote has expired.": "Le devis fiscal a expiré.",
+  "Waiting for a tax quote.": "En attente du devis fiscal.",
   "Unable to verify the sale total.": "Impossible de vérifier le total de la vente.",
   "This basket needs an online tax calculation before payment.": "Ce panier nécessite un calcul fiscal en ligne avant le paiement.",
   "Provisional total (offline)": "Total provisoire (hors ligne)",

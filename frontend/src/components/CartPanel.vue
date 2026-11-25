@@ -265,11 +265,7 @@
           <span>{{ t('Total') }} <span class="muted small">{{ t('({count} items)', { count: cart.itemCount }) }}</span></span>
           <span>{{ cart.displayTotal || '—' }}</span>
         </div>
-        <p v-if="cart.lines.length && (!cart.fiscalQuote || session.offline)" role="status" class="muted small">
-          {{ session.offline
-            ? t(cart.canPriceOffline ? 'Provisional total (offline)' : 'This basket needs an online tax calculation before payment.')
-            : t(cart.quoteUnavailable ? 'Unable to verify the sale total.' : 'Calculating taxes…') }}
-        </p>
+        <FiscalQuoteStatus v-if="cart.lines.length && !cart.fiscalQuote" />
         <!-- The same total in other money: the local value of a sale in another
              currency, and the equivalents the shop chose to show, on one line. -->
         <div v-if="equivalents.length" class="row equiv">
@@ -328,6 +324,7 @@
 </template>
 
 <script setup>
+import FiscalQuoteStatus from "./FiscalQuoteStatus.vue"
 import Icon from './Icon.vue'
 import { ref, computed, nextTick } from 'vue'
 import { t } from '../i18n'

@@ -214,6 +214,13 @@ async function switchOutlet(event) {
 const route = useRoute()
 const router = useRouter()
 const isDisplay = computed(() => route.path === '/display')
+const documentVisible = ref(!document.hidden)
+const quoteVisible = computed(() => documentVisible.value && !session.locked
+  && !cart.linkPayLocked && (route.path === '/' || cart.paymentQuoteVisible))
+function updateDocumentVisibility() {
+  documentVisible.value = !document.hidden
+}
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', updateDocumentVisibility))
 
 // Lumen Restaurants: the restaurant screens belong to restaurant outlets. At a
 // shop outlet (after a switch, or from an old link) they go back to the till.
@@ -342,7 +349,13 @@ onMounted(async () => {
   // disk pressure / LRU (fire-and-forget; grant is heuristic).
   ensurePersistentStorage()
   session.watchConnection()
-  watch(() => [cart.quoteSignature, session.offline], () => cart.prefetchQuote(), { immediate: true })
+  document.addEventListener('visibilitychange', updateDocumentVisibility)
+  watch([() => cart.quoteSignature, () => session.offline, quoteVisible],
+    ([, , visible]) => cart.prefetchQuote(visible), { immediate: true })
+  watch([() => cart.quoteExpired, () => cart.submitting, quoteVisible],
+    ([expired, submitting, visible]) => {
+      if (expired && !submitting && visible && !session.offline) cart.quote()
+    })
   await session.bootstrap()
   if (session.loaded && !session.error) {
     catalog.fetch()

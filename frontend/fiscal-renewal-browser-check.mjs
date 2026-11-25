@@ -39,7 +39,9 @@ try {
     let renewal
     let unblock
     let blocked = false
+    let requests = 0
     await page.route(quotes, async route => {
+      requests++
       if (scenario === 'held') {
         blocked = true
         await new Promise(resolve => { unblock = resolve })
@@ -69,18 +71,54 @@ try {
       await route.fulfill({ response: native, json: body })
     })
     await page.locator('.rmenu,.catalog').getByText('TAXAUDIT-100K', { exact: true }).first().click()
-    await page.locator('[data-tour=cart-pay]').first().click()
+    const pay = page.locator('[data-tour=cart-pay]').first()
+    const totals = page.locator('.rtotals')
+    const retryCart = totals.getByRole('button', { name: /Réessayer|Retry/ })
+    const renew = async mode => {
+      scenario = mode
+      const next = page.waitForResponse(response => response.url().endsWith('.quote_sale'))
+      await page.clock.fastForward(30_100)
+      await next
+    }
+    await pay.getByText(/118.900/).waitFor()
+    const initialRequests = requests
+    for (let i = 0; i < 4; i++) {
+      await renew('native')
+      await pay.getByText(/118.900/).waitFor()
+    }
+    assert.equal(requests - initialRequests, 4)
+    await renew('vat')
+    await pay.getByText(/121.000/).waitFor()
+    if (hasAny) await totals.screenshot({ path: assets + '/panier-renouvele.png' })
+    await renew('failed')
+    await totals.getByText(/Impossible de vérifier/).waitFor()
+    assert.equal(await totals.getByText(/Calcul des taxes/).count(), 0)
+    if (hasAny) await totals.screenshot({ path: assets + '/panier-renouvellement-echec.png' })
+    const failedCount = requests
+    await page.clock.fastForward(60_000)
+    assert.equal(requests, failedCount)
+    scenario = 'native'
+    await retryCart.click()
+    await pay.getByText(/118.900/).waitFor()
+    await page.evaluate(() => { location.hash = '/history' })
+    await pay.waitFor({ state: 'detached' })
+    const closedCount = requests
+    await page.clock.fastForward(31_000)
+    assert.equal(requests, closedCount)
+    scenario = 'held'
+    await page.evaluate(() => { location.hash = '/' })
+    await pay.click()
     const overlay = page.locator('.pay-overlay')
     const complete = overlay.locator('.complete')
     const due = overlay.locator('.due-value')
     const chooseCash = () => overlay.getByText(cash, { exact: true }).first().click()
     const confirm = overlay.getByRole('button', { name: /confirmer le nouveau total/i })
-    const set = async mode => {
-      scenario = mode
-      renewal = page.waitForResponse(response => response.url().endsWith('.quote_sale'))
-      await page.clock.fastForward(30_100)
-      await renewal
-    }
+    for (let i = 0; i < 30 && !blocked; i++) await new Promise(resolve => setTimeout(resolve, 100))
+    assert.equal(blocked, true)
+    assert.equal(await complete.isVisible(), false)
+    scenario = 'native'
+    unblock()
+    blocked = false
     await due.waitFor()
     assert.equal(await page.evaluate(() => typeof AbortSignal.any), hasAny ? 'function' : 'undefined')
     assert.match(clean(await due.innerText()), /118 900/)
@@ -99,11 +137,11 @@ try {
       await renewal
       await due.waitFor()
       assert.equal(await complete.isEnabled(), true)
-      await set('allocation')
+      await renew('allocation')
       await overlay.getByText(/ventilation fiscale a changé/).waitFor()
       assert.equal(await complete.isEnabled(), true)
       await overlay.screenshot({ path: assets + '/ventilation-modifiee.png' })
-      await set('vat')
+      await renew('vat')
       await confirm.waitFor()
       assert.equal(await complete.isVisible(), false)
       await overlay.screenshot({ path: assets + '/nouveau-total-a-confirmer.png' })
@@ -111,11 +149,11 @@ try {
       assert.equal(await complete.isEnabled(), false)
       assert.match(clean(await due.innerText()), /121 000/)
       await chooseCash()
-      await set('centimes')
+      await renew('centimes')
       await confirm.waitFor()
       await confirm.click()
       assert.match(clean(await due.innerText()), /119 800/)
-      await set('failed')
+      await renew('failed')
       const retry = overlay.getByRole('button', { name: /Réessayer|Retry/ })
       await retry.waitFor()
       assert.equal(await complete.isVisible(), false)

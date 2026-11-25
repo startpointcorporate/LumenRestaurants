@@ -11,11 +11,8 @@
 
     <div class="pay-body">
       <LinkPayPanel :payments="payments" :redeem-points="redeemPoints" :quote-ready="Boolean(cart.fiscalQuote) && !amountChanged" @posted="emit('done', $event)" />
-      <div v-if="!cart.linkPayLocked && !pricingReady && !(cart.fiscalQuote && amountChanged)" role="status">
-        <p>{{ session.offline ? t('This basket needs an online tax calculation before payment.') : quoteStatus }}</p>
-        <button v-if="!session.offline && cart.quoteUnavailable" class="btn btn-outline" @click="loadQuote">
-          {{ t('Retry') }}
-        </button>
+      <div v-if="!cart.linkPayLocked && !pricingReady && !(cart.fiscalQuote && amountChanged)">
+        <FiscalQuoteStatus />
       </div>
       <div v-if="!cart.linkPayLocked && cart.fiscalQuote && amountChanged" role="alert">
         <p>{{ t('Amount changed from {previous} to {current}. Check any payment already taken.', {
@@ -275,7 +272,8 @@ import Icon from './Icon.vue'
 import LinkPayPanel from './LinkPayPanel.vue'
 import { useLinkPayStore } from '../stores/linkpay'
 import PaymentBrand from './PaymentBrand.vue'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import FiscalQuoteStatus from './FiscalQuoteStatus.vue'
 import { call } from '../api'
 import { useCartStore } from '../stores/cart'
 import { useSessionStore } from '../stores/session'
@@ -354,9 +352,6 @@ const pricingReady = computed(() => cart.exchange ? exchangeTotal.value !== null
   : session.offline ? cart.canPriceOffline && !amountChanged.value : Boolean(cart.fiscalQuote) && !amountChanged.value)
 const total = computed(() => cart.exchange ? exchangeTotal.value ?? 0
   : cart.fiscalQuote?.payable ?? (session.offline && cart.canPriceOffline ? cart.total : 0))
-const quoteStatus = computed(() => cart.quoteUnavailable
-  ? t('Unable to verify the sale total.')
-  : t('Calculating taxes…'))
 
 const loyaltyAmount = computed(() => {
   if (!wallet.value || redeemPoints.value <= 0) return 0
@@ -550,8 +545,10 @@ onMounted(async () => {
   amountInput.value?.focus()
   amountInput.value?.select()
   if (cart.exchange) return loadExchange()
+  cart.paymentQuoteVisible = true
   await loadQuote()
 })
+onBeforeUnmount(() => { cart.paymentQuoteVisible = false })
 
 async function loadQuote() {
   return cart.quote({ refresh: true })
@@ -598,10 +595,6 @@ watch(() => cart.quoteSignature, () => {
 watch(() => session.offline, offline => {
   if (cart.exchange || !offline || payments.value.length) return
   refillAmount()
-})
-
-watch(() => [cart.quoteExpired, cart.submitting, cart.linkPayLocked], ([expired, submitting, locked]) => {
-  if (expired && !submitting && !locked && !cart.exchange && !session.offline) loadQuote()
 })
 
 const blockedModes = ref({})
