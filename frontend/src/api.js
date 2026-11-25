@@ -67,7 +67,7 @@ export async function call(method, args = {}, options = {}) {
       // it never reaches one as an argument. A queued sale is sent in the
       // language it was made in (options.lang).
       body: JSON.stringify({ ...args, _lang: options.lang || locale.value }),
-      signal: controller.signal,
+      signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal,
     })
   } catch {
     // A refused connection and a request that ran out of time mean the same

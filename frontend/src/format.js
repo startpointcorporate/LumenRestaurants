@@ -21,13 +21,14 @@ export function isolate(text) {
 
 // `code` names the currency when it is not the outlet's: a sale to a customer
 // billed in another currency, or a drawer that holds one (lumen_restaurants.currency).
-export function money(amount, code) {
+export function money(amount, code, precision) {
   const unit = code || currency
   let formatted
   try {
     formatted = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: unit,
+      ...(precision == null ? {} : { maximumFractionDigits: precision }),
     }).format(amount || 0)
   } catch {
     formatted = `${unit} ${(amount || 0).toFixed(2)}`

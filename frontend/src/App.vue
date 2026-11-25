@@ -299,8 +299,8 @@ function publishDisplaySnapshot() {
   const sale = cart.saleCurrency
   const mc = session.multiCurrency || {}
   const equivalent =
-    sale.foreign && !sale.blocked && mc.outlet_rate && sale.currency !== mc.company_currency
-      ? money(Math.round(cart.total * mc.outlet_rate * 100) / 100, mc.company_currency)
+    cart.fiscalQuote && sale.foreign && !sale.blocked && mc.outlet_rate && sale.currency !== mc.company_currency
+      ? money(Math.round(cart.fiscalQuote.payable * cart.fiscalQuote.rate * 100) / 100, mc.company_currency)
       : ''
   publishCart({
     company: session.company,
@@ -314,7 +314,7 @@ function publishDisplaySnapshot() {
     })),
     count: cart.itemCount,
     subtotal: cart.show(cart.subtotal),
-    total: cart.show(cart.total),
+    total: cart.displayTotal || "—",
     equivalent,
     savings: saved > 0.005 ? cart.show(saved) : '',
   })
@@ -342,6 +342,7 @@ onMounted(async () => {
   // disk pressure / LRU (fire-and-forget; grant is heuristic).
   ensurePersistentStorage()
   session.watchConnection()
+  watch(() => [cart.quoteSignature, session.offline], () => cart.prefetchQuote(), { immediate: true })
   await session.bootstrap()
   if (session.loaded && !session.error) {
     catalog.fetch()

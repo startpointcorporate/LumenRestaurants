@@ -16,7 +16,7 @@ import {
 import { evaluatePromotions, suggestOffers, matchingIndexes } from '../promotions'
 import { frappeRound, fromReceipt, returnGroups } from '../refund'
 import { money } from '../format'
-import { locale } from '../i18n'
+import { locale, t } from '../i18n'
 import { useCatalogStore } from './catalog'
 import { useSessionStore } from './session'
 import { useLinkPayStore } from './linkpay'
@@ -31,6 +31,7 @@ function round2(n) {
 // till has one cart.
 let orderTimer = null
 let orderSig = null
+let orderSave = null
 
 export const useCartStore = defineStore('cart', {
   state: () => ({
@@ -64,7 +65,9 @@ export const useCartStore = defineStore('cart', {
     // so a sale whose answer was lost on the way back (and that the till then
     // queued, or the cashier retried) can never post twice.
     _saleKey: null,
-    _quoteCache: null, // {signature, at, promise} see quote()
+    _quoteRequest: null,
+    _fiscalQuote: null,
+    quoteUnavailable: false,
     _quoteTimer: null,
   }),
 
@@ -241,46 +244,50 @@ export const useCartStore = defineStore('cart', {
       return round2((this.netTotal * pct) / 100)
     },
 
-    // Mirror ERPNext's tax math on the profile's template so the displayed
-    // total equals the server's grand total. Inclusive rows are shown for
-    // information; exclusive rows add to what the customer pays.
-    taxBreakdown() {
+    quoteSignature() {
       const session = useSessionStore()
-      const net = this.netTotal
-      const exclusive = []
-      const included = []
-      let running = net
-      for (const tax of session.taxes || []) {
-        let amount
-        if (tax.charge_type === 'Actual') {
-          amount = round2(tax.tax_amount || 0)
-        } else {
-          const base = tax.charge_type === 'On Previous Row Total' ? running : net
-          amount = round2((base * (tax.rate || 0)) / 100)
-        }
-        if (!amount) continue
-        if (tax.included) {
-          // back the tax out of the (inclusive) net for display
-          included.push({
-            description: tax.description,
-            amount: round2(net - net / (1 + (tax.rate || 0) / 100)),
-          })
-        } else {
-          exclusive.push({ description: tax.description, amount })
-          running = round2(running + amount)
-        }
-      }
+      return JSON.stringify([
+        this._basePayload(), this.order?.name, this.serviceType, session.registerSession?.name,
+      ])
+    },
+
+    fiscalQuote() {
+      const session = useSessionStore()
+      const quote = this._fiscalQuote
+      return !session.offline && quote?.signature === this.quoteSignature ? quote.result : null
+    },
+
+    canPriceOffline() {
+      const session = useSessionStore()
+      return session.offlineTaxFree && session.defaultCustomer
+        && (!this.customer || this.customer.name === session.defaultCustomer)
+        && !this.saleCurrency.foreign && !this.saleCurrency.blocked
+        && !this.appType && !this.serviceCharge && !this.couponCodes.length
+        && !this.orderDiscountPercent && !this.evaluation.applied.length
+        && this.lines.every(l => Number.isInteger(l.qty) && Number.isInteger(l.price)
+          && !l.bundle_key && !l.lr_addon_of && !l.lr_mods?.length
+          && !l.manual_discount_percent && l.price_override == null)
+    },
+
+    taxBreakdown() {
+      const rows = (this.fiscalQuote?.taxes || []).filter(tax => tax.amount !== 0)
       return {
-        exclusive,
-        included,
-        exclusiveTotal: round2(exclusive.reduce((sum, t) => sum + t.amount, 0)),
+        exclusive: rows.filter(tax => !tax.included),
+        included: rows.filter(tax => tax.included),
       }
     },
 
+    displayTotal() {
+      if (!this.lines.length) return this.show(0)
+      if (this.fiscalQuote) return money(this.fiscalQuote.payable, this.fiscalQuote.currency)
+      if (useSessionStore().offline && this.canPriceOffline) return this.show(this.total)
+      return null
+    },
+
     total() {
-      return round2(
-        this.netTotal + this.taxBreakdown.exclusiveTotal + this.serviceCharge
-      )
+      // Internal commercial estimate in outlet currency. Fiscal displays use
+      // displayTotal and never convert a server total twice.
+      return round2(this.netTotal + this.serviceCharge)
     },
 
     // Per-unit discount of each line, worked out as the server does
@@ -765,7 +772,7 @@ export const useCartStore = defineStore('cart', {
     },
 
     // Cart fields the server needs to price the sale, WITHOUT payment/auth
-    // details. Shared by submit() and quoteTotal() so the server prices both
+    // details. Shared by submit() and quote() so the server prices both
     // identically.
     _basePayload() {
       const session = useSessionStore()
@@ -793,10 +800,6 @@ export const useCartStore = defineStore('cart', {
       }
     },
 
-    // Authoritative amount to collect, computed by the SERVER with the same math
-    // as submit, so the till charges exactly what the posted invoice shows (no
-    // phantom rounding "change"). Returns null offline / on error so the caller
-    // falls back to the client-side cart total.
     // --- exchange -----------------------------------------------------------
     // Start one: the goods coming back are already picked (and approved, if the
     // shop required it), the cart is cleared for what the customer takes
@@ -862,49 +865,61 @@ export const useCartStore = defineStore('cart', {
       this.clear()
     },
 
-    // Asked AHEAD of the payment screen (see prefetchQuote), so pressing Pay
-    // does not wait on a round trip: on a till in Riyadh talking to a server in
-    // Mumbai every request costs about 190 ms before any work happens. The
-    // answer is kept against the exact basket that produced it, and only for a
-    // minute, because a promotion can start or end in between.
-    async quote() {
-      const payload = this._basePayload()
-      const signature = JSON.stringify(payload)
-      const cached = this._quoteCache
-      if (cached && cached.signature === signature && Date.now() - cached.at < 60000) {
-        return cached.promise
+    async quote({ refresh = false } = {}) {
+      const session = useSessionStore()
+      if (session.offline || !this.lines.length) return null
+      const signature = this.quoteSignature
+      if (this._quoteRequest?.signature === signature) return this._quoteRequest.promise
+      if (!refresh && this.fiscalQuote && Date.now() - this._fiscalQuote.at < 30000) {
+        return this.fiscalQuote
       }
-      const promise = call('lumen_restaurants.api.sales.quote_sale', { payload }).catch(() => null)
-      this._quoteCache = { signature, at: Date.now(), promise }
-      // A failed quote is not an answer, don't keep it (the till falls back to
-      // its own total and tries again next time).
-      promise.then((res) => {
-        if (res == null && this._quoteCache && this._quoteCache.promise === promise) {
-          this._quoteCache = null
-        }
+      clearTimeout(this._quoteTimer)
+      this.quoteUnavailable = false
+      if (refresh) this._fiscalQuote = null
+      this._quoteRequest?.controller.abort()
+      const controller = new AbortController()
+      const promise = call('lumen_restaurants.api.sales.quote_sale', { payload: this._basePayload() }, {
+        signal: controller.signal,
       })
+        .catch(() => null)
+        .then(result => {
+          if (this._quoteRequest?.promise !== promise) return null
+          this._quoteRequest = null
+          if (session.offline || this.quoteSignature !== signature) return null
+          if (typeof result?.payable !== 'number' || !result.fiscal_fingerprint) {
+            this._fiscalQuote = null
+            this.quoteUnavailable = true
+            return null
+          }
+          this._fiscalQuote = { signature, result, at: Date.now() }
+          return result
+        })
+      this._quoteRequest = { signature, promise, controller }
       return promise
     },
 
-    // Quote while the cashier is still scanning. Debounced, so a basket being
-    // built quickly asks once, when it settles.
     prefetchQuote() {
       clearTimeout(this._quoteTimer)
-      if (!this.lines.length) return
-      this._quoteTimer = setTimeout(() => {
-        this.quote().catch(() => {})
-      }, 400)
-    },
-
-    async quoteTotal() {
-      const res = await this.quote()
-      return res && typeof res.payable === 'number' ? res.payable : null
+      this.quoteUnavailable = false
+      const session = useSessionStore()
+      if (session.offline || this._quoteRequest?.signature !== this.quoteSignature) {
+        this._quoteRequest?.controller.abort()
+        this._quoteRequest = null
+      }
+      if (session.offline) this._fiscalQuote = null
+      if (session.offline || !this.lines.length || !session.posProfile) return
+      this._quoteTimer = setTimeout(() => this.quote(), 350)
     },
 
     async submit(payments, redeemLoyaltyPoints = 0, giftCards = []) {
+      const session2 = useSessionStore()
+      const quote = this.fiscalQuote
+      if (!session2.offline && !quote) throw new Error(t("Unable to verify the sale total."))
       if (this.linkPayLocked) throw new Error('This order is locked until Link Pay is cancelled or finalized.')
+      const signature = this.quoteSignature
       const payload = {
         ...this._basePayload(),
+        fiscal_fingerprint: quote?.fiscal_fingerprint,
         gift_cards: giftCards,
         payments,
         redeem_loyalty_points: redeemLoyaltyPoints || 0,
@@ -913,7 +928,6 @@ export const useCartStore = defineStore('cart', {
         order: this.order?.name || null,
         idempotency_key: this._keyForSale(),
       }
-      const session2 = useSessionStore()
       if (session2.restaurantMode && !this.order && this.serviceType !== 'Dine in') {
         // The server hands out the day's number and opens the kitchen ticket
         // in the same transaction as the money.
@@ -926,6 +940,11 @@ export const useCartStore = defineStore('cart', {
       }
       this.submitting = true
       try {
+        if (session2.offline) return await this._queueOffline(payload, payments)
+        // Do not race the debounced table save with closing the same order.
+        clearTimeout(orderTimer)
+        if (orderSave) await orderSave
+        if (signature !== this.quoteSignature) throw new Error(t('Unable to verify the sale total.'))
         const receipt = await call('lumen_restaurants.api.sales.submit_sale', { payload })
         this.acceptPostedReceipt(receipt, payload.idempotency_key)
         return receipt
@@ -941,6 +960,14 @@ export const useCartStore = defineStore('cart', {
 
     async _queueOffline(payload, payments) {
       const session = useSessionStore()
+      const verified = this.fiscalQuote
+      const offlineAmount = this.total
+      if (!this.canPriceOffline || (payload.fiscal_fingerprint
+          && (!verified || verified.taxes.length || verified.payable !== offlineAmount))) {
+        throw new Error(t('This basket needs an online tax calculation before payment.'))
+      }
+      payload.offline_tax_free_amount = offlineAmount
+
       // A sale in another currency is priced at the rate the shift fixed as
       // it opened, which the till knows, and the server posts it only at that
       // rate (lumen_restaurants.currency.assert_till_rate). A named customer billed in
@@ -1147,8 +1174,7 @@ export const useCartStore = defineStore('cart', {
     // compares the snapshot first, so saving the order (which changes the order
     // object, not the basket) cannot set off another save.
     touchOrder() {
-      if (this.linkPayLocked) return
-      if (!this.order) return
+      if (this.linkPayLocked || this.submitting || !this.order) return
       const sig = JSON.stringify(this.orderSnapshot())
       if (sig === orderSig) return
       orderSig = sig
@@ -1159,15 +1185,25 @@ export const useCartStore = defineStore('cart', {
     },
 
     async saveOrder() {
+      clearTimeout(orderTimer)
       if (this.linkPayLocked) return this.order
-      if (!this.order) return null
-      const data = await call('lumen_restaurants.api.restaurant.save_order', {
-        name: this.order.name,
+      const name = this.order?.name
+      if (!name) return null
+      while (orderSave) await orderSave
+      if (this.order?.name !== name || this.submitting) return null
+      const request = call('lumen_restaurants.api.restaurant.save_order', {
+        name,
         cart: this.orderSnapshot(),
         customer: this.customer?.name || null,
       })
-      this.order = { ...this.order, ...data }
-      return data
+      orderSave = request
+      try {
+        const data = await request
+        if (this.order?.name === name) this.order = { ...this.order, ...data }
+        return data
+      } finally {
+        if (orderSave === request) orderSave = null
+      }
     },
 
     // Put the order down and go back to the floor. Saves first: a waiter who

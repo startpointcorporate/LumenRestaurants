@@ -75,7 +75,10 @@
         <span>{{ t('Discount') }}</span><span>-{{ m(receipt.discount_amount) }}</span>
       </div>
       <div v-for="tax in receipt.taxes" :key="tax.description" class="row">
-        <span>{{ tax.description }}</span><span>{{ m(tax.tax_amount) }}</span>
+        <span>{{ tax.description }}</span><span>{{ money(tax.tax_amount, receipt.currency, tax.precision) }}</span>
+      </div>
+      <div v-if="receipt.rounding_adjustment" class="row">
+        <span>{{ t('Rounding adjustment') }}</span><span>{{ money(receipt.rounding_adjustment, receipt.currency, receipt.precision) }}</span>
       </div>
       <div class="row total">
         <span>{{ t('Total') }}</span><span>{{ m(receipt.rounded_total || receipt.grand_total) }}</span>

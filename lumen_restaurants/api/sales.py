@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from hashlib import sha256
 
 import json
 
@@ -332,7 +333,8 @@ def _build_sale_invoice(
 
     # Make ERPNext's POS flow agree with LumenPOS: always ignore Pricing Rules.
     # (Sets POS Profile → Ignore Pricing Rule so the flag survives submit.)
-    _ensure_ignore_pricing_rule(profile)
+    if pin:
+        _ensure_ignore_pricing_rule(profile)
 
     invoice = erpnext_compat.new_doc(_sale_doctype(profile))
     invoice.update(
@@ -405,6 +407,7 @@ def _build_sale_invoice(
         invoice.append("sales_team", {"sales_person": sales_person, "allocated_percentage": 100})
 
     invoice.set_missing_values()
+    invoice.ignore_pricing_rule = ignore_pricing_rule
     currency.apply_to_invoice(invoice, ctx)
     invoice.flags.lumenpos_currency = ctx
 
@@ -563,6 +566,67 @@ def _quote_session(pos_profile):
         return None
 
 
+def fiscal_totals(invoice):
+    """Serialize the fiscal result in the invoice currency, before tenders."""
+    prec = invoice.precision("grand_total")
+    return {
+        "payable": flt(invoice.rounded_total or invoice.grand_total, prec),
+        "precision": prec,
+        "grand_total": flt(invoice.grand_total, prec),
+        "rounded_total": flt(invoice.rounded_total, prec),
+        "net_total": flt(invoice.net_total, prec),
+        "rounding_adjustment": flt(invoice.rounding_adjustment, prec),
+        "total_taxes": flt(invoice.total_taxes_and_charges, prec),
+        "taxes": [
+            {
+                "description": row.description,
+                "amount": flt(row.tax_amount_after_discount_amount, row.precision("tax_amount_after_discount_amount")),
+                "included": cint(row.included_in_print_rate),
+                "precision": row.precision("tax_amount_after_discount_amount"),
+                "account_head": row.account_head,
+                "charge_type": row.charge_type,
+                "row_id": cint(row.row_id),
+                "rate": flt(row.rate),
+            }
+            for row in invoice.taxes or []
+        ],
+    }
+
+
+def _fiscal_fingerprint(invoice, totals=None):
+    fiscal = {
+        "doctype": invoice.doctype,
+        "company": invoice.company,
+        "customer": invoice.customer,
+        "profile": invoice.pos_profile,
+        "currency": invoice.currency,
+        "conversion_rate": flt(invoice.conversion_rate),
+        "tax_category": invoice.get("tax_category"),
+        "items": [
+            [row.item_code, row.uom, flt(row.qty), flt(row.rate), flt(row.net_amount), _tax_map(row.item_tax_rate)]
+            for row in invoice.items
+        ],
+        # Descriptions may be translated on different devices.
+        **(totals if totals is not None else fiscal_totals(invoice)),
+    }
+    fiscal["taxes"] = [
+        {key: value for key, value in row.items() if key != "description"} for row in fiscal["taxes"]
+    ]
+    return sha256(json.dumps(fiscal, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _assert_fiscal_quote(invoice, payload):
+    expected = payload.get("fiscal_fingerprint")
+    offline_amount = payload.get("offline_tax_free_amount")
+    if not expected and offline_amount is None:
+        return
+    totals = fiscal_totals(invoice)
+    if expected and expected != _fiscal_fingerprint(invoice, totals):
+        frappe.throw(_("The sale total or taxes changed. Review the new quote before collecting payment."))
+    if offline_amount is not None and (totals["taxes"] or flt(offline_amount) != totals["payable"]):
+        frappe.throw(_("The queued sale no longer matches the server. Review it before posting."))
+
+
 @frappe.whitelist()
 def quote_sale(payload: dict | str):
     """Authoritative pre-payment totals for the current cart, the SAME server
@@ -574,27 +638,22 @@ def quote_sale(payload: dict | str):
     if isinstance(payload, str):
         payload = json.loads(payload)
     _require_sell()
+    from lumen_restaurants.api.permissions import assert_outlet
+
+    assert_outlet(payload["pos_profile"])
     profile = frappe.get_cached_doc("POS Profile", payload["pos_profile"])
     invoice, _customer = _build_sale_invoice(
         profile, payload, validate_serials=False, check_passcode=False,
         session_name=_quote_session(profile.name),
     )
-    prec = invoice.precision("grand_total")
-    # What the till should collect: ERPNext validates payment against
-    # `rounded_total or grand_total`, so quote the same.
-    payable = invoice.rounded_total or invoice.grand_total
+    totals = fiscal_totals(invoice)
     from lumen_restaurants.api.catalog import blocked_payment_modes
 
     return {
-        # The sale's currency and the shift's rate (lumen_restaurants.currency); every
-        # amount here is in that currency.
         **currency.public(invoice.flags.lumenpos_currency),
-        "payable": flt(payable, prec),
-        "grand_total": flt(invoice.grand_total, prec),
-        "rounded_total": flt(invoice.rounded_total, prec),
-        "net_total": flt(invoice.net_total, prec),
-        "total_taxes": flt(invoice.total_taxes_and_charges, prec),
-        "cashback_earn": flt(_cashback_estimate(invoice, profile, payload), prec),
+        **totals,
+        "fiscal_fingerprint": _fiscal_fingerprint(invoice, totals),
+        "cashback_earn": flt(_cashback_estimate(invoice, profile, payload), invoice.precision("grand_total")),
         # Which tenders this basket may not be paid with, answered here rather
         # than in a second request: on a till in Riyadh talking to a server in
         # Mumbai the round trip costs far more than the query.
@@ -646,6 +705,7 @@ def submit_sale(payload: dict | str):
 
     # A real sale fixes the shift's rate for its currency (lumen_restaurants.currency).
     invoice, customer = _build_sale_invoice(profile, payload, session_name=session["name"], pin=True)
+    _assert_fiscal_quote(invoice, payload)
     ctx = invoice.flags.lumenpos_currency
     # A sale the till made offline was priced at the rate it knew: it posts
     # only if that is the rate the shift sells at (lumen_restaurants.currency).
@@ -766,9 +826,12 @@ def submit_sale(payload: dict | str):
     if posted:
         return _sale_answer(posted)
     t_insert = _perf_now()
+    # Check the fiscal result after native insert validation, before submit hooks.
+    _assert_fiscal_quote(invoice, payload)
     # The change account ERPNext settled on must be one this sale can book.
     currency.check_change(invoice)
     invoice.submit()
+    _assert_fiscal_quote(invoice, payload)
     t_submit = _perf_now()
 
     # The customer's debt for the part on account, in this same transaction:
@@ -816,7 +879,7 @@ def submit_sale(payload: dict | str):
     if payload.get("order"):
         from lumen_restaurants.api import restaurant
 
-        restaurant.close_order(payload["order"], invoice.name, flt(invoice.grand_total))
+        restaurant.close_order(payload["order"], invoice.name, flt(invoice.rounded_total or invoice.grand_total))
     elif payload.get("restaurant"):
         # A takeaway or delivery at a restaurant outlet: the moment the money
         # is in, the day's short number is handed out and the kitchen ticket
@@ -2059,7 +2122,8 @@ def get_receipt(invoice: str):
         "taxes": [
             {
                 "description": t.description,
-                "tax_amount": t.tax_amount,
+                "tax_amount": t.tax_amount_after_discount_amount,
+                "precision": t.precision("tax_amount_after_discount_amount"),
                 "charge_type": t.charge_type,
                 "rate": flt(t.rate),
                 "included": cint(t.included_in_print_rate),
@@ -2070,6 +2134,8 @@ def get_receipt(invoice: str):
         ],
         "grand_total": doc.grand_total,
         "rounded_total": doc.rounded_total,
+        "rounding_adjustment": doc.rounding_adjustment,
+        "precision": doc.precision("grand_total"),
         "paid_amount": doc.paid_amount,
         "change_amount": doc.change_amount,
         "payments": [tender(p) for p in (doc.payments or []) if p.amount],
