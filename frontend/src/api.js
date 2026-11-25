@@ -35,9 +35,9 @@ function deadlineFor(method) {
 // The page can come back from the device's own copy (a reload while the shop
 // was offline), and the token baked into it may be one the server has since
 // rotated. Fetch a fresh one rather than making the cashier reload.
-async function refreshCsrfToken() {
+async function refreshCsrfToken(signal) {
   try {
-    const html = await fetch('/pos', { cache: 'reload', credentials: 'same-origin' }).then((r) =>
+    const html = await fetch('/pos', { cache: 'reload', credentials: 'same-origin', signal }).then((r) =>
       r.text()
     )
     const found = html.match(/csrf_token\s*=\s*"([^"]+)"/)
@@ -50,50 +50,68 @@ async function refreshCsrfToken() {
 }
 
 export async function call(method, args = {}, options = {}) {
-  let res
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), options.timeout || deadlineFor(method))
+  const upstream = options.signal
+  const abort = () => controller.abort()
+  if (upstream?.aborted) abort()
+  else upstream?.addEventListener('abort', abort, { once: true })
+  const timeout = options.timeout || deadlineFor(method)
+  const deadline = performance.now() + timeout
+  const timer = setTimeout(abort, timeout)
+  function assertActive() {
+    if (controller.signal.aborted || performance.now() >= deadline) throw new OfflineError()
+  }
+  async function request() {
+    assertActive()
+    let res
+    try {
+      res = await fetch(`/api/method/${method}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-Frappe-CSRF-Token': window.csrf_token || '',
+        },
+        // _lang is Frappe's own request language: the server's messages (and
+        // ERPNext's) come back in the language on the screen, whatever the
+        // user's language in the desk. No LumenPOS method takes **kwargs, so
+        // it never reaches one as an argument. A queued sale is sent in the
+        // language it was made in (options.lang).
+        body: JSON.stringify({ ...args, _lang: options.lang || locale.value }),
+        signal: controller.signal,
+      })
+    } catch {
+      throw new OfflineError()
+    }
+    let data
+    try {
+      data = await res.json()
+    } catch (error) {
+      assertActive()
+      if (!(error instanceof SyntaxError)) throw new OfflineError()
+      if (res.ok) throw new ApiError('Invalid JSON response from the server')
+    }
+    assertActive()
+    return { res, data: data ?? {} }
+  }
   try {
-    res = await fetch(`/api/method/${method}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'X-Frappe-CSRF-Token': window.csrf_token || '',
-      },
-      // _lang is Frappe's own request language: the server's messages (and
-      // ERPNext's) come back in the language on the screen, whatever the
-      // user's language in the desk. No LumenPOS method takes **kwargs, so
-      // it never reaches one as an argument. A queued sale is sent in the
-      // language it was made in (options.lang).
-      body: JSON.stringify({ ...args, _lang: options.lang || locale.value }),
-      signal: controller.signal,
-    })
-  } catch {
-    // A refused connection and a request that ran out of time mean the same
-    // thing to the till: the server is not reachable right now.
-    throw new OfflineError()
+    let { res, data } = await request()
+    if (!res.ok && data.exc_type === 'CSRFTokenError') {
+      const refreshed = await refreshCsrfToken(controller.signal)
+      assertActive()
+      if (refreshed) ({ res, data } = await request())
+    }
+    if (!res.ok) {
+      const error = new ApiError(extractMessage(data) || `Request failed (${res.status})`)
+      // Only the native backend may attest that preparation had no intent/remote side effect.
+      error.linkPayNoIntent = data.linkPayNoIntent === true
+      throw error
+    }
+    return data.message
   } finally {
     clearTimeout(timer)
+    upstream?.removeEventListener('abort', abort)
   }
-  let data = {}
-  try {
-    data = await res.json()
-  } catch {
-    /* non-JSON error page */
-  }
-  if (!res.ok && data && data.exc_type === 'CSRFTokenError' && !options._retried) {
-    if (await refreshCsrfToken()) {
-      return call(method, args, { ...options, _retried: true })
-    }
-  }
-  if (!res.ok) {
-    const error = new ApiError(extractMessage(data) || `Request failed (${res.status})`)
-    // Only the native backend may attest that preparation had no intent/remote side effect.
-    error.linkPayNoIntent = data.linkPayNoIntent === true
-    throw error
-  }
-  return data.message
 }
 
 function extractMessage(data) {

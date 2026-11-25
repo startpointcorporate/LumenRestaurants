@@ -44,6 +44,7 @@ export const useSessionStore = defineStore('session', {
     currency: 'USD',
     priceList: null,
     defaultCustomer: null,
+    offlineTaxFree: false,
     defaultCustomerName: null,
     paymentModes: [],
     itemGroups: [],
@@ -292,6 +293,7 @@ export const useSessionStore = defineStore('session', {
       this.company = data.company
       this.currency = data.currency
       this.priceList = data.price_list
+      this.offlineTaxFree = Boolean(data.offline_tax_free)
       this.defaultCustomer = data.default_customer
       this.defaultCustomerName = data.default_customer_name
       this.paymentModes = data.payment_modes || []

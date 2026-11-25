@@ -171,7 +171,7 @@
                   <span class="chip sm" :class="'s-' + statusOf(tb)">{{ statusLabel(statusOf(tb)) }}</span>
                 </div>
                 <template v-if="tb.order">
-                  <div class="c-amt">{{ money(tb.order.total) }}</div>
+                  <div class="c-amt">{{ t('Cart subtotal: {amount}', { amount: money(tb.order.total) }) }}</div>
                   <div class="c-meta">{{ sinceText(tb.order.opened_at) }} · {{ t('{n} guests', { n: tb.order.guests || 0 }) }}</div>
                 </template>
                 <template v-else-if="tb.booking">
@@ -195,7 +195,7 @@
         <div v-if="data.loose.length && !editing" class="loose">
           <span>{{ t('Not at a table') }}</span>
           <button v-for="o in data.loose" :key="o.name" type="button" class="loose-chip" @click="openOrder(o.name)">
-            <FloorIcon :name="o.order_type === 'Delivery' ? 'scooter' : 'bag'" />{{ t(o.order_type) }} · {{ money(o.total) }}
+            <FloorIcon :name="o.order_type === 'Delivery' ? 'scooter' : 'bag'" />{{ t(o.order_type) }} · {{ t('Cart subtotal: {amount}', { amount: money(o.total) }) }}
           </button>
         </div>
       </div>
@@ -724,7 +724,7 @@ const planTables = computed(() => {
     let sub = ''
     let badge = null
     if (tb.order) {
-      sub = Number(tb.order.total || 0).toFixed(2)
+      sub = t('Cart subtotal: {amount}', { amount: money(tb.order.total) })
       badge = { kind: status, text: sinceText(tb.order.opened_at) }
     } else if (tb.booking) {
       sub = t('{n} guests', { n: tb.booking.guests })
@@ -741,7 +741,7 @@ const planTables = computed(() => {
       status,
       sub,
       badge,
-      aria: `${tableLabel(tb)}, ${statusLabel(status)}${tb.order ? `, ${money(tb.order.total)}` : ''}`,
+      aria: `${tableLabel(tb)}, ${statusLabel(status)}${tb.order ? `, ${t('Cart subtotal: {amount}', { amount: money(tb.order.total) })}` : ''}`,
       selected: selected.value === tb.name,
       eligible: eligible(tb),
     }
@@ -783,17 +783,18 @@ async function refreshBill() {
     billFor = ''
     return
   }
-  const sig = `${order.name}|${order.total}|${order.lines}|${order.bill_printed_at || ''}`
+  const sig = JSON.stringify([order.name, order.modified, order.total, order.lines])
   if (sig === billFor) return
   billFor = sig
+  bill.value = null
   billLoading.value = true
   try {
     const res = await call('lumen_restaurants.api.restaurant.get_bill', { name: order.name })
     if (billFor === sig) bill.value = res
   } catch {
-    if (billFor === sig) bill.value = null
+    if (billFor === sig) billFor = ''
   } finally {
-    billLoading.value = false
+    if (!billFor || billFor === sig) billLoading.value = false
   }
 }
 
@@ -1390,7 +1391,7 @@ function onDocClick() {
 }
 
 watch(
-  () => [selTable.value?.order?.total, selTable.value?.order?.lines, selTable.value?.order?.bill_printed_at],
+  () => [selTable.value?.order?.modified, selTable.value?.order?.total, selTable.value?.order?.lines, selTable.value?.order?.bill_printed_at],
   () => refreshBill()
 )
 

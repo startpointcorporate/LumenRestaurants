@@ -121,13 +121,16 @@
       </div>
 
       <div class="rtotals" data-tour="cart-totals">
-        <div class="rt-row" v-if="cart.taxBreakdown.exclusiveTotal > 0">
-          <span>{{ t('Tax') }}</span><span>{{ money(cart.taxBreakdown.exclusiveTotal) }}</span>
+        <div class="rt-row" v-for="(tax, index) in cart.fiscalQuote?.taxes || []" :key="index">
+          <span>{{ tax.included ? t('Includes {tax}', { tax: tax.description }) : tax.description }}</span>
+          <span>{{ money(tax.amount, cart.fiscalQuote.currency, tax.precision) }}</span>
         </div>
-        <div class="rt-row" v-for="tax in cart.taxBreakdown.included" :key="tax.description">
-          <span>{{ t('Includes {tax}', { tax: tax.description }) }}</span><span>{{ money(tax.amount) }}</span>
+        <div class="rt-row" v-if="cart.fiscalQuote?.rounding_adjustment">
+          <span>{{ t('Rounding adjustment') }}</span>
+          <span>{{ money(cart.fiscalQuote.rounding_adjustment, cart.fiscalQuote.currency, cart.fiscalQuote.precision) }}</span>
         </div>
-        <div class="rt-row big"><span>{{ t('Total') }}</span><span>{{ money(cart.total) }}</span></div>
+        <div class="rt-row big"><span>{{ t('Total') }}</span><span>{{ cart.displayTotal || '—' }}</span></div>
+        <FiscalQuoteStatus v-if="cart.lines.length && !cart.fiscalQuote" />
       </div>
 
       <div class="ractions">
@@ -141,7 +144,7 @@
           <Icon name="bulb" /> {{ firing ? t('Sending…') : unsentCount ? t('Send to kitchen ({n})', { n: unsentCount }) : t('Kitchen has it all') }}
         </button>
         <button class="btn btn-primary rpay" data-tour="cart-pay" :disabled="!cart.lines.length || !session.registerOpen" @click="onPay">
-          {{ t('Pay') }} · {{ money(cart.total) }}
+          {{ t('Pay') }} · {{ cart.displayTotal || '—' }}
         </button>
         <p v-if="!session.registerOpen" class="muted small center">{{ t('Open the register to take payments') }}</p>
       </div>
@@ -222,7 +225,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import FiscalQuoteStatus from "../components/FiscalQuoteStatus.vue"
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from '../components/Icon.vue'
 import CustomerModal from '../components/CustomerModal.vue'
@@ -440,12 +444,6 @@ async function deliverFirst() {
     session.notify(e.message, true)
   }
 }
-
-// The payment screen opens already knowing the payable (see SellView).
-watch(
-  () => [cart.lines.length, cart.itemCount, cart.customer?.name, cart.couponCodes.length, cart.orderDiscountPercent],
-  () => cart.prefetchQuote()
-)
 
 // While a table order is open, every change is saved back to it, debounced.
 cart.$subscribe(() => cart.touchOrder())

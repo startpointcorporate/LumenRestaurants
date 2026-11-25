@@ -158,10 +158,18 @@ def build_receipt_bytes(receipt, open_drawer=0):
         out += _text(_pad("Discount", "-" + _num(receipt["discount_amount"]))) + b"\n"
     for tax in receipt.get("taxes", []):
         out += _text(_pad(tax["description"][: WIDTH - 12], _num(tax["tax_amount"]))) + b"\n"
+    precision = receipt.get("precision")
+    if precision is None:
+        precision = 2
+    adjustment = flt(receipt.get("rounding_adjustment"))
+    if adjustment:
+        before = f"{flt(receipt['grand_total']):,.{precision}f}"
+        out += _text(_pad(_("Total before rounding"), before)) + b"\n"
+        out += _text(_pad(_("Rounding adjustment"), f"{adjustment:+.{precision}f}")) + b"\n"
 
     out += BOLD_ON
     total = receipt.get("rounded_total") or receipt["grand_total"]
-    out += _text(_pad("TOTAL", f"{receipt['currency']} {_num(total)}")) + b"\n"
+    out += _text(_pad("TOTAL", f"{receipt['currency']} {flt(total):,.{precision}f}")) + b"\n"
     out += BOLD_OFF
     # A sale in another currency (lumen_restaurants.currency): its local value and rate,
     # each tender in its own money, and the change in the money it was given

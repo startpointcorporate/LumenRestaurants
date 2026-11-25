@@ -214,6 +214,13 @@ async function switchOutlet(event) {
 const route = useRoute()
 const router = useRouter()
 const isDisplay = computed(() => route.path === '/display')
+const documentVisible = ref(!document.hidden)
+const quoteVisible = computed(() => documentVisible.value && !session.locked
+  && !cart.linkPayLocked && (route.path === '/' || cart.paymentQuoteVisible))
+function updateDocumentVisibility() {
+  documentVisible.value = !document.hidden
+}
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', updateDocumentVisibility))
 
 // Lumen Restaurants: the restaurant screens belong to restaurant outlets. At a
 // shop outlet (after a switch, or from an old link) they go back to the till.
@@ -299,8 +306,8 @@ function publishDisplaySnapshot() {
   const sale = cart.saleCurrency
   const mc = session.multiCurrency || {}
   const equivalent =
-    sale.foreign && !sale.blocked && mc.outlet_rate && sale.currency !== mc.company_currency
-      ? money(Math.round(cart.total * mc.outlet_rate * 100) / 100, mc.company_currency)
+    cart.fiscalQuote && sale.foreign && !sale.blocked && mc.outlet_rate && sale.currency !== mc.company_currency
+      ? money(Math.round(cart.fiscalQuote.payable * cart.fiscalQuote.rate * 100) / 100, mc.company_currency)
       : ''
   publishCart({
     company: session.company,
@@ -314,7 +321,7 @@ function publishDisplaySnapshot() {
     })),
     count: cart.itemCount,
     subtotal: cart.show(cart.subtotal),
-    total: cart.show(cart.total),
+    total: cart.displayTotal || "—",
     equivalent,
     savings: saved > 0.005 ? cart.show(saved) : '',
   })
@@ -342,6 +349,13 @@ onMounted(async () => {
   // disk pressure / LRU (fire-and-forget; grant is heuristic).
   ensurePersistentStorage()
   session.watchConnection()
+  document.addEventListener('visibilitychange', updateDocumentVisibility)
+  watch([() => cart.quoteSignature, () => session.offline, quoteVisible],
+    ([, , visible]) => cart.prefetchQuote(visible), { immediate: true })
+  watch([() => cart.quoteExpired, () => cart.submitting, quoteVisible],
+    ([expired, submitting, visible]) => {
+      if (expired && !submitting && visible && !session.offline) cart.quote()
+    })
   await session.bootstrap()
   if (session.loaded && !session.error) {
     catalog.fetch()

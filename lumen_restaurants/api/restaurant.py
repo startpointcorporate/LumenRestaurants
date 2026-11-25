@@ -242,7 +242,7 @@ def get_floor(pos_profile: str):
     tables = [row for row in rows if not cint(row.disabled)]
     order_fields = [
         "name", "table", "table_label", "order_type", "guests", "customer",
-        "customer_name", "total", "opened_at", "opened_by", "note", "app_type",
+        "customer_name", "total", "opened_at", "opened_by", "note", "app_type", "modified",
     ]
     if _has_fields(ORDER, "bill_printed_at"):
         order_fields.append("bill_printed_at")
@@ -765,20 +765,17 @@ def _bill(doc):
                 for row in invoice.items
             ],
             "taxes": [
-                {
-                    "description": tax.description,
-                    "tax_amount": flt(tax.tax_amount, prec),
-                    "rate": flt(tax.rate),
-                    "included": cint(tax.included_in_print_rate),
-                }
-                for tax in invoice.taxes or []
-                if flt(tax.tax_amount)
+                {**row, "tax_amount": row["amount"]}
+                for row in sales.fiscal_totals(invoice)["taxes"]
+                if row["amount"]
             ],
             "applied_promotions": json.loads(sales._get_custom(invoice, ("lumenpos_promotions",)) or "[]"),
             "discount_amount": flt(invoice.discount_amount, prec),
             "net_total": flt(invoice.net_total, prec),
             "grand_total": flt(invoice.grand_total, prec),
             "rounded_total": flt(invoice.rounded_total, prec),
+            "rounding_adjustment": flt(invoice.rounding_adjustment, prec),
+            "precision": prec,
         }
     )
     return bill
@@ -802,6 +799,8 @@ def print_bill(name: str, printer: int | str | bool = 0):
     if not doc.items:
         frappe.throw(_("Nothing to bill yet: the order has no items"))
     bill = _bill(doc)
+    if bill.get("estimated"):
+        frappe.throw(_("Unable to verify the sale total."))
     if doc.meta.has_field("bill_printed_at"):
         doc.db_set("bill_printed_at", now_datetime())
     printed, error = False, None

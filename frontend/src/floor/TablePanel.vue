@@ -59,7 +59,8 @@
               <span class="num">{{ money(it.amount, bill.currency) }}</span>
             </div>
           </div>
-          <div class="sums">
+          <div v-if="bill.estimated" class="hint">{{ t('Unable to verify the sale total.') }}</div>
+          <div v-else class="sums">
             <div v-if="bill.discount_amount" class="sum">
               <span>{{ t('Discount') }}</span><span class="num">-{{ money(bill.discount_amount, bill.currency) }}</span>
             </div>
@@ -67,12 +68,14 @@
               <span>{{ t('Before VAT') }}</span><span class="num">{{ money(bill.net_total, bill.currency) }}</span>
             </div>
             <div v-for="tax in bill.taxes" :key="tax.description" class="sum">
-              <span>{{ tax.description }}</span><span class="num">{{ money(tax.tax_amount, bill.currency) }}</span>
+              <span>{{ tax.description }}</span><span class="num">{{ money(tax.tax_amount, bill.currency, tax.precision) }}</span>
+            </div>
+            <div v-if="bill.rounding_adjustment" class="sum">
+              <span>{{ t('Rounding adjustment') }}</span><span class="num">{{ money(bill.rounding_adjustment, bill.currency, bill.precision) }}</span>
             </div>
             <div class="sum total">
               <span>{{ t('Total') }}</span><span class="num">{{ money(due, bill.currency) }}</span>
             </div>
-            <p v-if="bill.estimated" class="hint">{{ t('An estimate: the till prices it when it is paid.') }}</p>
           </div>
         </template>
       </div>
@@ -85,7 +88,7 @@
         :disabled="busy || !order.lines"
         @click="$emit('pay')"
       >
-        <FloorIcon name="pay" />{{ t('Pay') }}<template v-if="order.lines">&nbsp;{{ money(due, bill?.currency) }}</template>
+        <FloorIcon name="pay" />{{ t('Pay') }}<template v-if="due !== null">&nbsp;{{ money(due, bill.currency) }}</template>
       </button>
       <div class="row-2">
         <button type="button" class="btn btn-outline" :disabled="busy || !order.lines" @click="$emit('print')">
@@ -199,12 +202,11 @@ const reason = defineModel('reason', { type: String, default: '' })
 
 const order = computed(() => props.table.order)
 const booking = computed(() => props.table.booking)
-// What the guests pay: the till's own pricing when it has come back, else the
-// order's running total.
+// The order subtotal is not the payable amount.
 const due = computed(() => {
   const b = props.bill
   if (b && !b.estimated) return b.rounded_total || b.grand_total
-  return b ? b.grand_total : order.value?.total || 0
+  return null
 })
 
 const reasonInput = ref(null)

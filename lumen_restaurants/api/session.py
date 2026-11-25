@@ -113,6 +113,14 @@ def get_bootstrap(pos_profile: str | None = None):
         # A chip covers the groups beneath it, on the device too (offline.js).
         "item_group_members": _item_group_members(item_groups),
         "taxes": _profile_taxes(profile),
+        "offline_tax_free": bool(
+            not profile.taxes_and_charges
+            and not frappe.db.exists("Sales Taxes and Charges Template", {
+                "company": profile.company, "is_default": 1, "disabled": 0,
+            })
+            and not frappe.db.exists("Tax Rule", {"company": profile.company, "tax_type": "Sales"})
+            and not frappe.db.exists("Item Tax Template", {"company": profile.company, "disabled": 0})
+        ),
         "promotions": get_active_promotions(profile_name),
         "register_session": session,
         # The site's own clock, in the zone its times are written in: the shift

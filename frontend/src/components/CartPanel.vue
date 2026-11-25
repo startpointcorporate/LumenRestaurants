@@ -250,21 +250,22 @@
           </div>
           <div v-for="tax in cart.taxBreakdown.exclusive" :key="'x' + tax.description" class="row">
             <span class="muted">{{ tax.description }}</span>
-            <span>+{{ cart.show(tax.amount) }}</span>
+            <span>{{ money(tax.amount, cart.fiscalQuote.currency, tax.precision) }}</span>
           </div>
           <div v-for="tax in cart.taxBreakdown.included" :key="'i' + tax.description" class="row tax-included">
             <span class="muted">{{ t('{description} (included)', { description: tax.description }) }}</span>
-            <span class="muted">{{ cart.show(tax.amount) }}</span>
+            <span class="muted">{{ money(tax.amount, cart.fiscalQuote.currency, tax.precision) }}</span>
           </div>
-          <div v-if="cart.serviceCharge > 0" class="row">
-            <span class="muted">{{ t('Service charge ({pct}%)', { pct: session.settings.service_charge_percent }) }}</span>
-            <span>+{{ cart.show(cart.serviceCharge) }}</span>
+          <div v-if="cart.fiscalQuote?.rounding_adjustment" class="row">
+            <span>{{ t('Rounding adjustment') }}</span>
+            <span>{{ money(cart.fiscalQuote.rounding_adjustment, cart.fiscalQuote.currency, cart.fiscalQuote.precision) }}</span>
           </div>
         </template>
         <div class="row grand">
           <span>{{ t('Total') }} <span class="muted small">{{ t('({count} items)', { count: cart.itemCount }) }}</span></span>
-          <span>{{ cart.show(cart.total) }}</span>
+          <span>{{ cart.displayTotal || '—' }}</span>
         </div>
+        <FiscalQuoteStatus v-if="cart.lines.length && !cart.fiscalQuote" />
         <!-- The same total in other money: the local value of a sale in another
              currency, and the equivalents the shop chose to show, on one line. -->
         <div v-if="equivalents.length" class="row equiv">
@@ -310,7 +311,7 @@
       :title="session.permissions.sell === false ? t('You do not have permission to make sales') : ''"
       @click="$emit('pay')"
     >
-      {{ t('Pay') }}&nbsp;&nbsp;{{ cart.show(cart.total) }}
+      {{ t('Pay') }}&nbsp;&nbsp;{{ cart.displayTotal || '—' }}
     </button>
 
     <CustomerModal v-if="customerOpen" @close="customerOpen = false" />
@@ -323,6 +324,7 @@
 </template>
 
 <script setup>
+import FiscalQuoteStatus from "./FiscalQuoteStatus.vue"
 import Icon from './Icon.vue'
 import { ref, computed, nextTick } from 'vue'
 import { t } from '../i18n'
@@ -394,7 +396,8 @@ const equivalents = computed(() => {
   if (sale.blocked) return []
   const outletRate = mc.outlet_rate || 0
   if (!outletRate) return []
-  const inCompany = cart.total * outletRate // the total in company currency
+  if (!cart.fiscalQuote) return []
+  const inCompany = cart.fiscalQuote.payable * cart.fiscalQuote.rate // the total in company currency
   const out = []
   if (sale.foreign && sale.currency !== mc.company_currency) {
     out.push({

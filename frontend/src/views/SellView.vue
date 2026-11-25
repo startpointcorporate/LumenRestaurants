@@ -161,7 +161,7 @@
 
 <script setup>
 import Icon from '../components/Icon.vue'
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '../i18n'
 import { call } from '../api'
@@ -238,20 +238,6 @@ async function leaveOrder() {
     session.notify(e.message, true)
   }
 }
-
-// Ask the server what this basket costs while the cashier is still working it,
-// so pressing Pay opens a screen that already knows the payable instead of
-// waiting for a round trip (about 190 ms of pure latency on a cloud site).
-watch(
-  () => [
-    cart.lines.length,
-    cart.total,
-    cart.customer?.name,
-    cart.orderDiscountPercent,
-    cart.appType,
-  ],
-  () => cart.prefetchQuote()
-)
 
 function addToCart(item, serial = null) {
   // Stock guard: no overselling stock items when negative stock is disallowed

@@ -10,8 +10,25 @@
     </header>
 
     <div class="pay-body">
-      <LinkPayPanel :payments="payments" :redeem-points="redeemPoints" :quote-ready="serverTotal !== null" @posted="emit('done', $event)" />
-      <div class="native-pay-controls" v-show="!cart.linkPayLocked" :inert="cart.linkPayLocked || link.checking">
+      <LinkPayPanel :payments="payments" :redeem-points="redeemPoints" :quote-ready="Boolean(cart.fiscalQuote) && !amountChanged" @posted="emit('done', $event)" />
+      <div v-if="!cart.linkPayLocked && !pricingReady && !(cart.fiscalQuote && amountChanged)">
+        <FiscalQuoteStatus />
+      </div>
+      <div v-if="!cart.linkPayLocked && cart.fiscalQuote && amountChanged" role="alert">
+        <p>{{ t('Amount changed from {previous} to {current}. Check any payment already taken.', {
+          previous: money(amountChanged.payable, amountChanged.currency),
+          current: money(cart.fiscalQuote.payable, cart.fiscalQuote.currency),
+        }) }}</p>
+        <button class="btn btn-outline" @click="acceptChangedAmount">
+          {{ t('Confirm new total and reset tenders') }}
+        </button>
+      </div>
+      <p v-else-if="!cart.linkPayLocked && cart.fiscalQuote && taxChanged" role="status">
+        {{ t('The tax breakdown changed. The amount to pay is unchanged.') }}
+      </p>
+      <p v-if="session.offline && pricingReady" class="muted">{{ t('Provisional total (offline)') }}</p>
+      <div class="native-pay-controls" v-show="!cart.linkPayLocked && pricingReady"
+        :inert="cart.linkPayLocked || link.checking || !pricingReady">
       <!-- A walk-in who wants to pay in another currency: switch the sale to
            it here, where the question is usually asked. -->
       <div v-if="canSwitchCurrency" class="sell-in">
@@ -255,7 +272,8 @@ import Icon from './Icon.vue'
 import LinkPayPanel from './LinkPayPanel.vue'
 import { useLinkPayStore } from '../stores/linkpay'
 import PaymentBrand from './PaymentBrand.vue'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import FiscalQuoteStatus from './FiscalQuoteStatus.vue'
 import { call } from '../api'
 import { useCartStore } from '../stores/cart'
 import { useSessionStore } from '../stores/session'
@@ -279,7 +297,7 @@ const giftCardChecking = ref(false)
 // What the sale is in (lumen_restaurants.currency). The server's quote has the final
 // word (currency and the rate the shift sells at); until it answers, the
 // cart's own estimate. `rate` turns the sale's currency into local money.
-const quoted = ref(null)
+const quoted = computed(() => cart.fiscalQuote)
 const sale = computed(() => {
   if (quoted.value) return quoted.value
   const c = cart.saleCurrency
@@ -326,12 +344,14 @@ const onAccountRoom = computed(() => {
   return round2(Math.max(Math.min(due, f.available - used), 0))
 })
 
-// Amount to collect. Authoritative from the SERVER (same math as submit), so the
-// till charges exactly what the posted invoice shows, no phantom rounding
-// "change" on VAT-inclusive promo lines. Falls back to the client cart total
-// offline or until the quote returns.
-const serverTotal = ref(null)
-const total = computed(() => (serverTotal.value != null ? serverTotal.value : cart.inSale(cart.total)))
+const exchangeTotal = ref(null)
+const amountChanged = ref(null)
+const taxChanged = ref(false)
+let lastQuote = cart.fiscalQuote
+const pricingReady = computed(() => cart.exchange ? exchangeTotal.value !== null
+  : session.offline ? cart.canPriceOffline && !amountChanged.value : Boolean(cart.fiscalQuote) && !amountChanged.value)
+const total = computed(() => cart.exchange ? exchangeTotal.value ?? 0
+  : cart.fiscalQuote?.payable ?? (session.offline && cart.canPriceOffline ? cart.total : 0))
 
 const loyaltyAmount = computed(() => {
   if (!wallet.value || redeemPoints.value <= 0) return 0
@@ -372,7 +392,7 @@ const localChange = computed(() => {
 })
 
 const canComplete = computed(() => {
-  if (!referencesOk.value) return false
+  if (!pricingReady.value || !referencesOk.value) return false
   if (exchange.value) {
     if (!cart.lines.length) return false
     if (exchangeRefund.value > 0 && !refundMode.value) return false
@@ -521,37 +541,61 @@ const quickAmounts = computed(() => {
 })
 
 onMounted(async () => {
-  amount.value = round2(Math.max(cart.inSale(cart.total), 0))
+  refillAmount()
   amountInput.value?.focus()
   amountInput.value?.select()
   if (cart.exchange) return loadExchange()
+  cart.paymentQuoteVisible = true
   await loadQuote()
 })
+onBeforeUnmount(() => { cart.paymentQuoteVisible = false })
 
-// Pull the authoritative payable from the server (same math as submit). If it
-// differs from the client total by a rounding halfcent, snap the suggested
-// amount to it, but only while nothing has been entered yet. The same quote
-// carries the sale's currency and rate, the cashback this sale will earn and
-// the tenders this basket may not be paid with, so opening this screen costs
-// one request, not two. The cart usually has the answer waiting already (it
-// quotes ahead).
 async function loadQuote() {
-  const q = await cart.quote()
-  if (q && typeof q.payable === 'number') {
-    serverTotal.value = q.payable
-    quoted.value = q.currency
-      ? { currency: q.currency, rate: q.rate || 1, foreign: Boolean(q.foreign), change_currency: q.change_currency || null }
-      : null
-    if (!payments.value.length) refillAmount()
-  } else {
-    serverTotal.value = null
-    quoted.value = null
-  }
-  cashbackEarn.value = q && typeof q.cashback_earn === 'number' ? q.cashback_earn : 0
-  creditFacts.value = (q && q.on_account) || null
-  if (q && q.blocked_modes) blockedModes.value = q.blocked_modes
-  else loadBlockedModes() // quote failed (offline), ask on its own
+  return cart.quote({ refresh: true })
 }
+
+function acceptChangedAmount() {
+  cart.expireFiscalQuote()
+  if (!cart.fiscalQuote) return
+  lastQuote = cart.fiscalQuote
+  amountChanged.value = null
+  taxChanged.value = false
+  payments.value = []
+  redeemPoints.value = 0
+  refillAmount()
+}
+
+watch(() => cart.fiscalQuote, q => {
+  cashbackEarn.value = q?.cashback_earn || 0
+  creditFacts.value = q?.on_account || null
+  blockedModes.value = q?.blocked_modes || {}
+  if (!q || cart.exchange) return
+  if (!lastQuote) {
+    refillAmount()
+  } else if (lastQuote.payable !== q.payable || lastQuote.currency !== q.currency) {
+    amountChanged.value = lastQuote
+    return
+  } else if (lastQuote.fiscal_fingerprint !== q.fiscal_fingerprint) {
+    taxChanged.value = true
+  }
+  amountChanged.value = null
+  lastQuote = q
+})
+
+watch(() => cart.quoteSignature, () => {
+  if (cart.exchange) return
+  lastQuote = null
+  amountChanged.value = null
+  taxChanged.value = false
+  payments.value = []
+  redeemPoints.value = 0
+  refillAmount()
+})
+
+watch(() => session.offline, offline => {
+  if (cart.exchange || !offline || payments.value.length) return
+  refillAmount()
+})
 
 const blockedModes = ref({})
 
@@ -569,18 +613,6 @@ const referencesOk = computed(() =>
   })
 )
 
-async function loadBlockedModes() {
-  if (session.offline) return
-  try {
-    blockedModes.value = await call('lumen_restaurants.api.catalog.blocked_payment_modes', {
-      pos_profile: session.posProfile,
-      item_codes: JSON.stringify(cart.lines.map((l) => l.item_code)),
-    })
-  } catch {
-    blockedModes.value = {}
-  }
-}
-
 // A payment row: `amount` in the sale's currency, plus what the tender took in
 // its own money (the same figure on a sale in the outlet's currency).
 function pushPayment(mode, saleAmount, extra = {}) {
@@ -594,6 +626,8 @@ function pushPayment(mode, saleAmount, extra = {}) {
 }
 
 function addPayment(mode) {
+  cart.expireFiscalQuote()
+  if (!pricingReady.value) return
   if (blockedModes.value[mode]) {
     session.notify(
       t("{mode} can't be used for this sale ({why}).", {
@@ -722,7 +756,7 @@ async function loadExchange() {
         serials: cart.exchange.serials,
       },
     })
-    serverTotal.value = q.new_total
+    exchangeTotal.value = q.new_total
     exchangeCredit.value = q.returned_value
     exchangeRefund.value = q.refund
     refundModes.value = q.allowed_refund_modes || []
@@ -734,7 +768,8 @@ async function loadExchange() {
 }
 
 async function complete() {
-  if (cart.linkPayLocked || link.checking) return
+  cart.expireFiscalQuote()
+  if (cart.linkPayLocked || link.checking || !canComplete.value) return
   try {
     const giftCards = payments.value
       .filter((p) => p.card_no)
@@ -755,6 +790,7 @@ async function complete() {
     emit('done', receipt)
   } catch (e) {
     session.notify(e.message, true)
+    if (!cart.exchange && !session.offline) await loadQuote()
   }
 }
 
